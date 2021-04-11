@@ -2,8 +2,7 @@
 Modding (hacking) il2cpp games by classes, methods, fields names.
 # Status: Work in progres
 # Bugs:
-### 1. Field class crash when get Vector3, Vector2, 
-
+### 1. Field class crash when get Vector3, Vector2
 # File structure:
   + ## Class LoadClass
      + ### Methods:
