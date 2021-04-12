@@ -1,6 +1,6 @@
 # ByNameModding
 Modding (hacking) il2cpp games by classes, methods, fields names.
-# Status: Coming soon on github
+# Status: Ready to use
 # Why did I do it
 ## 1. In order not to update the offset of the unity methods
 ## 2. For fun.
@@ -90,7 +90,7 @@ void *hack_thread(void *) {
     auto *Transform = new LoadClass(OBFUSCATE("UnityEngine"), OBFUSCATE("Transform"));
     auto *Component = new LoadClass(OBFUSCATE("UnityEngine"), OBFUSCATE("Component"));
     InitFunc(get_Transform, Component->GetMethodOffsetByName(OBFUSCATE("get_transform"), 0); // 0 - parametrs count in original c# method
-    InitFunc(set_position, Transform->GetMethodOffsetByName(OBFUSCATE("set_position_Injected"), 0); // set_position working badly
+    InitFunc(set_position, Transform->GetMethodOffsetByName(OBFUSCATE("set_position_Injected"), 1); // set_position working badly
     MSHookFunction((void *)(new LoadClass(OBFUSCATE_KEY("", 'i'),
                         OBFUSCATE("FPSControler")))->GetMethodOffsetByName(
             OBFUSCATE_KEY("Update", '|'), 0), (void *) Update, (void **) &old_Update);
