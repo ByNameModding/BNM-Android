@@ -1,6 +1,9 @@
 # ByNameModding
 Modding (hacking) il2cpp games by classes, methods, fields names.
 # Status: Work in progres
+# Why did I do it
+## 1. In order not to update the offset of the unity methods
+## 2. For fun. Idk why, but it's easy for me to create things like this.
 # Bugs:
 ### Everything is fixed. but it is not exactly :)
 # File structure:
