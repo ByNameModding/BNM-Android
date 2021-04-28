@@ -260,3 +260,4 @@ void *get_Method(const char *str) {
 #define InitResolveFunc(x, y) *reinterpret_cast<void **>(&x) = get_Method(y)
 #define InitFunc(x, y) if (y != 0) *reinterpret_cast<void **>(&x) = (void *)(y)
 #define FieldBN(myfield, type, inst, nameSpacec, clazzz, fieldName, key) Field<type> myfield = (new LoadClass(OBFUSCATE_KEY(nameSpacec, key), OBFUSCATE_KEY(clazzz, key)))->GetFieldByName<type>(OBFUSCATE_KEY(fieldName, key)); myfield.clazz = inst
+#define FieldBN_Full(myfield, type, inst, fullpath, fieldName, key) Field<type> myfield = (new LoadClass(OBFUSCATE_KEY(fullpath, key)))->GetFieldByName<type>(OBFUSCATE_KEY(fieldName, key)); myfield.clazz = inst
