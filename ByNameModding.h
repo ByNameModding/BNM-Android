@@ -5,6 +5,8 @@
 #include <Includes/Utils.h>
 #include <Includes/Logger.h>
 #include <Includes/obfuscate.h>
+#include <sstream>
+#include <vector>
 
 typedef Il2CppClass *(*class_from_name_t)(const Il2CppImage *assembly, const char *name_space,
                                           const char *name);
@@ -159,6 +161,27 @@ public:
     const char *namespaze_txt;
     const char *clazz_txt;
     const char *dllname_txt;
+    LoadClass(const char *fullpath) {
+        std::vector<std::string> elems;
+        std::stringstream ss;
+        ss.str(fullpath);
+        std::string item;
+        while (std::getline(ss, item, '.')) {
+            elems.push_back(item);
+        }
+        if (elems.size() == 1){
+            LoadClass("", elems.back().c_str());
+        }else{
+            const char *namespaze;
+            for (int i = 0; i < elems.size() - 1; i++){
+                if (i == 0)
+                    namespaze = (elems[i]).c_str();
+                else
+                    namespaze = (std::string(namespaze) + "." + (elems[i])).c_str();
+            }
+            LoadClass(namespaze, elems.back().c_str());
+        }
+    }
 
     LoadClass(const char *namespaze, const char *clazz) {
         thisclass = nullptr;
