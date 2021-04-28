@@ -78,7 +78,8 @@ void Update(void *instance){
     old_Update(instance);
     if (instance){
         /** We have public static FPSControler LocalPlayer; **/
-        FieldBN(localpalyer, void *, 0, "", "FPSControler", "LocalPlayer", 'z') // #define FieldBN(myfield, type, inst, nameSpacec, clazzz, fieldName, key)
+        // FieldBN(localpalyer, void *, 0, "", "FPSControler", "LocalPlayer", 'z') // #define FieldBN(myfield, type, inst, nameSpacec, clazzz, fieldName, key)
+        FieldBN_Full(localpalyer, void *, 0, "FPSControler", "LocalPlayer", 'z') // #define FieldBN_Full(myfield, type, inst, fullpath, fieldName, key)
         myPlayer = localpalyer; // or myPlayer = localpalyer();
         void *myPlayer_Transform = get_Transform(myPlayer);
         set_position(myPlayer_Transform, Vector3(0, 0, 0);
