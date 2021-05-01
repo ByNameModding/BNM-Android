@@ -161,6 +161,7 @@ public:
     const char *namespaze_txt;
     const char *clazz_txt;
     const char *dllname_txt;
+  /* Not working
     LoadClass(const char *fullpath) {
         std::vector<std::string> elems;
         std::stringstream ss;
@@ -181,7 +182,7 @@ public:
             }
             LoadClass(namespaze, elems.back().c_str());
         }
-    }
+    }*/
 
     LoadClass(const char *namespaze, const char *clazz) {
         thisclass = nullptr;
