@@ -10,7 +10,6 @@ Modding (hacking) il2cpp games by classes, methods, fields names.
   + ## Class LoadClass
      + ### Methods:
        + LoadClass(const char *namespce, const char *clazz, const char *dllname - optional)
-       + LoadClass(const char *fullpath)
        + GetFieldInfoByName(const char *name)
        + GetFieldByName(const char *name)
        + GetFieldOffset(const char *name or Fieldinfo *filed)
@@ -78,8 +77,8 @@ void Update(void *instance){
     old_Update(instance);
     if (instance){
         /** We have public static FPSControler LocalPlayer; **/
-        // FieldBN(localpalyer, void *, 0, "", "FPSControler", "LocalPlayer", 'z') // #define FieldBN(myfield, type, inst, nameSpacec, clazzz, fieldName, key)
-        FieldBN_Full(localpalyer, void *, 0, "FPSControler", "LocalPlayer", 'z') // #define FieldBN_Full(myfield, type, inst, fullpath, fieldName, key)
+        FieldBN(localpalyer, void *, 0, "", "FPSControler", "LocalPlayer", 'z') // #define FieldBN(myfield, type, inst, nameSpacec, clazzz, fieldName, key)
+        // Not working FieldBN_Full(localpalyer, void *, 0, "FPSControler", "LocalPlayer", 'z') // #define FieldBN_Full(myfield, type, inst, fullpath, fieldName, key)
         myPlayer = localpalyer; // or myPlayer = localpalyer();
         void *myPlayer_Transform = get_Transform(myPlayer);
         set_position(myPlayer_Transform, Vector3(0, 0, 0);
@@ -93,8 +92,7 @@ void *hack_thread(void *) {
     auto *Component = new LoadClass(OBFUSCATE("UnityEngine"), OBFUSCATE("Component"));
     InitFunc(get_Transform, Component->GetMethodOffsetByName(OBFUSCATE("get_transform"), 0); // 0 - parametrs count in original c# method
     InitFunc(set_position, Transform->GetMethodOffsetByName(OBFUSCATE("set_position_Injected"), 1); // set_position working badly
-    MSHookFunction((void *)(new LoadClass(OBFUSCATE_KEY("FPSControler", 'i')))->GetMethodOffsetByName(
-            OBFUSCATE_KEY("Update", '|'), 0), (void *) Update, (void **) &old_Update); // (new LoadClass(OBFUSCATE_KEY("", 'i'), OBFUSCATE_KEY("FPSControler", 'c'))) - is old
-    
+    MSHookFunction((void *)(new LoadClass(OBFUSCATE_KEY("", 'i'), OBFUSCATE_KEY("FPSControler", 'c')))->GetMethodOffsetByName(
+            OBFUSCATE_KEY("Update", '|'), 0), (void *) Update, (void **) &old_Update);
 }
 ```
