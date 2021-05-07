@@ -24,12 +24,26 @@ typedef const Il2CppAssembly *(*domain_assembly_open_t)(Il2CppDomain *domain, co
 
 typedef FieldInfo *(*class_get_field_from_name_t)(Il2CppClass *klass, const char *name);
 
+typedef void (*field_static_get_value_t)(FieldInfo *field, void *value);
+
+typedef void (*field_static_set_value_t)(FieldInfo *field, void *value);
+
+std::vector<std::string> split(const std::string &s, char delim) {
+    std::vector<std::string> elems;
+    std::stringstream ss;
+    ss.str(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+    return elems;
+}
 
 template<typename T>
 class Field : FieldInfo {
-    bool statik;
-
     bool CheckStatic() {
+        if (!type->attrs)
+            return false;
         if ((type->attrs & 0x10) == 0)
             return false;
 
@@ -58,11 +72,12 @@ class Field : FieldInfo {
 public:
     bool init;
     bool thread_static;
-    void *clazz;
+    bool is_instance;
+    void *instance;
 
-    Field(FieldInfo *thiz, void *clas = NULL) {
+    Field(FieldInfo *thiz, void *_instance = NULL) {
         if (!CheckStaticFieldInfo(thiz))
-            clazz = clas;
+            instance = _instance;
         init = (thiz != NULL);
         if (init) {
             parent = thiz->parent;
@@ -71,6 +86,11 @@ public:
             token = thiz->token;
             type = thiz->type;
             statik = CheckStatic();
+            if (statik) /*** Init static fields ***/
+            {
+                parent->static_fields = calloc(1, parent->static_fields_size);
+            }
+            is_instance = (type->attrs & 0x10) == 0;
         }
     }
 
@@ -83,7 +103,7 @@ public:
         if (statik) {
             return *(T *) ((uint64_t) parent->static_fields + offset);
         }
-        return *(T *) ((uint64_t) clazz + offset);
+        return *(T *) ((uint64_t) instance + offset);
     }
 
     void set(T val) {
@@ -92,7 +112,7 @@ public:
             *(T *) ((uint64_t) parent->static_fields + offset) = val;
             return;
         }
-        *(T *) ((uint64_t) clazz + offset) = val;
+        *(T *) ((uint64_t) instance + offset) = val;
     }
 
     operator T() {
@@ -112,13 +132,15 @@ public:
     T operator()() {
         return get();
     }
+
+    bool statik;
 };
 
 class LoadClass {
     void *get_il2cpp() {
         void *mod = 0;
         while (!mod) {
-            mod = dlopen(OBFUSCATE("libil2cpp.so"), 4);
+            mod = dlopen(OBFUSCATE("libil2cpp.so"), RTLD_LAZY);
         }
         return mod;
     }
@@ -145,10 +167,6 @@ class LoadClass {
             }
             auto klass = class_from_name(img, name_space, type_name);
             if (klass) {
-                namespaze_txt = name_space;
-                clazz_txt = type_name;
-                dllname_txt = img->name;
-                dll = img;
                 return klass;
             }
         }
@@ -156,13 +174,11 @@ class LoadClass {
     }
 
 public:
-    const Il2CppImage *dll;
-    Il2CppClass *thisclass;
-    const char *namespaze_txt;
-    const char *clazz_txt;
-    const char *dllname_txt;
-  /* Not working
+    Il2CppClass *_class;
+
+    /*** Don't work
     LoadClass(const char *fullpath) {
+        std::string dot(OBFUSCATE("."));
         std::vector<std::string> elems;
         std::stringstream ss;
         ss.str(fullpath);
@@ -170,25 +186,39 @@ public:
         while (std::getline(ss, item, '.')) {
             elems.push_back(item);
         }
-        if (elems.size() == 1){
-            LoadClass("", elems.back().c_str());
-        }else{
-            const char *namespaze;
-            for (int i = 0; i < elems.size() - 1; i++){
+        const char *namespaze = OBFUSCATE("");
+        if (elems.size() == 1) {
+            LoadClass(namespaze, elems.back().c_str());
+        } else {
+            for (int i = 0; i < elems.size() - 1; i++) {
                 if (i == 0)
                     namespaze = (elems[i]).c_str();
                 else
-                    namespaze = (std::string(namespaze) + "." + (elems[i])).c_str();
+                    namespaze = (std::string(namespaze) + dot + (elems[i])).c_str();
             }
             LoadClass(namespaze, elems.back().c_str());
         }
-    }*/
+    }
+    ***/
+    LoadClass(Il2CppClass *clazz) {
+        _class = clazz;
+    }
 
     LoadClass(const char *namespaze, const char *clazz) {
-        thisclass = nullptr;
+        Il2CppClass *thisclass;
+        int try_count = 0;
         do {
             thisclass = GetClassFromName(namespaze, clazz);
+            if (try_count == 2 && !thisclass) {
+                LOGI(OBFUSCATE("Method: %s, %s - not founded"), namespaze,
+                     clazz);
+                return;
+            } else if (!thisclass) {
+                sleep(1);
+                try_count++;
+            }
         } while (!thisclass);
+        _class = thisclass;
     }
 
     LoadClass(const char *namespaze, const char *clazz, const char *dllname) {
@@ -199,23 +229,34 @@ public:
         auto domain_get = (domain_get_t) dlsym(get_il2cpp(), OBFUSCATE("il2cpp_domain_get"));
         auto class_from_name = (class_from_name_t) dlsym(get_il2cpp(),
                                                          OBFUSCATE("il2cpp_class_from_name"));
-        dll = assembly_get_image(domain_assembly_open(domain_get(), dllname));
-        thisclass = nullptr;
+        auto *dll = assembly_get_image(domain_assembly_open(domain_get(), dllname));
+        Il2CppClass *thisclass = nullptr;
+        int try_count = 0;
         do {
             thisclass = class_from_name(dll, namespaze, clazz);
+            if (try_count == 2 && !thisclass) {
+                LOGI(OBFUSCATE("Class: %s, %s - not founded"), namespaze,
+                     clazz);
+                return;
+            } else if (!thisclass) {
+                sleep(1);
+                try_count++;
+            }
         } while (!thisclass);
+        _class = thisclass;
     }
+
 
     FieldInfo *GetFieldInfoByName(const char *name) {
         auto class_get_field_from_name = (class_get_field_from_name_t) dlsym(get_il2cpp(),
                                                                              OBFUSCATE(
                                                                                      "il2cpp_class_get_field_from_name"));
-        return class_get_field_from_name(thisclass, name);
+        return class_get_field_from_name(_class, name);
     }
 
     template<typename T>
     Field<T> GetFieldByName(const char *name) {
-        return Field<T>(GetFieldInfoByName(name), (void *) thisclass);
+        return Field<T>(GetFieldInfoByName(name), this);
     }
 
     DWORD GetFieldOffset(const char *name) {
@@ -230,18 +271,40 @@ public:
         auto class_get_method_from_name = (class_get_method_from_name_t) dlsym(get_il2cpp(),
                                                                                OBFUSCATE(
                                                                                        "il2cpp_class_get_method_from_name"));
-        if (thisclass)
-            return class_get_method_from_name(thisclass, name, paramcount);
+        if (_class)
+            return class_get_method_from_name(_class, name, paramcount);
         else
             return nullptr;
     }
 
     DWORD GetMethodOffsetByName(const char *name, int paramcount) {
-        auto res = GetMethodInfoByName(name, paramcount);
-        if (res)
-            return (DWORD) GetMethodInfoByName(name, paramcount)->methodPointer;
-        else
-            return 0;
+        MethodInfo *res = nullptr;
+        int try_count = 0;
+        do {
+            res = GetMethodInfoByName(name, paramcount);
+            if (try_count == 2 && !res) {
+                if (name)
+                    LOGI(OBFUSCATE("Method: %s, %s - not founded"), name,
+                         to_string(paramcount).c_str());
+                else
+                    LOGI(OBFUSCATE("Method: , %s - not founded"), to_string(paramcount).c_str());
+                return 0;
+            } else if (!res) {
+                sleep(1);
+                try_count++;
+            }
+        } while (!res);
+        return (DWORD) res->methodPointer;
+    }
+
+    static void *Object_Unbox(Il2CppObject *obj) {
+        void *val = (void *) (((char *) obj) + sizeof(Il2CppObject));
+        return val;
+    }
+
+    static Il2CppObject *Object_Box_My(void *obj) {
+        Il2CppObject *val = (Il2CppObject *) (((char *) obj) - sizeof(Il2CppObject));
+        return val;
     }
 };
 
@@ -257,8 +320,22 @@ void *get_Method(const char *str) {
     } while (!il2cpp_resolve_icall_0);
     return il2cpp_resolve_icall_0(str);
 }
-
+/*** Don't work
+DWORD get_Method_by_path(const char *path, int paramcount) {
+    std::vector<std::string> elems = split(path, '.');
+    const char *class_path;
+    std::string dot(OBFUSCATE("."));
+    for (int i = 0; i < elems.size() - 1; i++) {
+        if (i == 0)
+            class_path = (elems[i]).c_str();
+        else
+            class_path = (std::string(class_path) + dot + elems[i]).c_str();
+    }
+    LoadClass *tmp = new LoadClass(class_path);
+    return tmp->GetMethodOffsetByName(elems.back().c_str(), paramcount);
+}
+***/
 #define InitResolveFunc(x, y) *reinterpret_cast<void **>(&x) = get_Method(y)
 #define InitFunc(x, y) if (y != 0) *reinterpret_cast<void **>(&x) = (void *)(y)
-#define FieldBN(myfield, type, inst, nameSpacec, clazzz, fieldName, key) Field<type> myfield = (new LoadClass(OBFUSCATE_KEY(nameSpacec, key), OBFUSCATE_KEY(clazzz, key)))->GetFieldByName<type>(OBFUSCATE_KEY(fieldName, key)); myfield.clazz = inst
-#define FieldBN_Full(myfield, type, inst, fullpath, fieldName, key) Field<type> myfield = (new LoadClass(OBFUSCATE_KEY(fullpath, key)))->GetFieldByName<type>(OBFUSCATE_KEY(fieldName, key)); myfield.clazz = inst
+#define FieldBN(myfield, type, inst, nameSpacec, clazzz, fieldName, key) Field<type> myfield = LoadClass(OBFUSCATE_KEY(nameSpacec, key), OBFUSCATE_KEY(clazzz, key)).GetFieldByName<type>(OBFUSCATE_KEY(fieldName, key)); myfield.instance = inst
+// #define FieldBN_Full(myfield, type, inst, fullpath, fieldName, key) Field<type> myfield = (new LoadClass(OBFUSCATE_KEY(fullpath, key)))->GetFieldByName<type>(OBFUSCATE_KEY(fieldName, key)); myfield.clazz = inst
