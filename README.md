@@ -18,7 +18,7 @@ Modding (hacking) il2cpp games by classes, methods, fields names.
        + GetMethodOffsetByName(const char *name, int paramcoun)
    + ## Class Field
      + ### Methods:
-       + Field(FieldInfo *thiz, void *clas - optional for static)
+       + Field(FieldInfo *thiz, void *_instance - optional for static)
        + get_offset()
        + get()
        + set(T val)
