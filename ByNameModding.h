@@ -52,11 +52,10 @@ class Field : FieldInfo {
 
         if (thread_static = offset == -1)
             LOGI(OBFUSCATE("thread static fields is not supported!"));
-
         return true;
     }
 
-    bool CheckStaticFieldInfo(FieldInfo *fieldInfo) {
+    static bool CheckStaticFieldInfo(FieldInfo *fieldInfo) {
         if ((fieldInfo->type->attrs & 0x10) == 0)
             return false;
 
@@ -65,7 +64,6 @@ class Field : FieldInfo {
 
         if (fieldInfo->offset == -1)
             LOGI(OBFUSCATE("thread static fields is not supported!"));
-
         return true;
     }
 
@@ -78,7 +76,7 @@ public:
     Field() {};
 
     Field(FieldInfo *thiz, void *_instance = NULL) {
-        if (!CheckStaticFieldInfo(thiz))
+        if (!Field::CheckStaticFieldInfo(thiz))
             instance = _instance;
         init = (thiz != NULL);
         if (init) {
@@ -88,7 +86,8 @@ public:
             token = thiz->token;
             type = thiz->type;
             statik = CheckStatic();
-            if (statik) /*** Init static fields ***/
+            if (statik && !parent->static_fields &&
+                parent->static_fields_size) /*** Init static fields ***/
             {
                 parent->static_fields = calloc(1, parent->static_fields_size);
             }
