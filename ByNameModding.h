@@ -75,6 +75,8 @@ public:
     bool is_instance;
     void *instance;
 
+    Field() {};
+
     Field(FieldInfo *thiz, void *_instance = NULL) {
         if (!CheckStaticFieldInfo(thiz))
             instance = _instance;
@@ -175,6 +177,8 @@ class LoadClass {
 
 public:
     Il2CppClass *_class;
+
+    LoadClass() {};
 
     /*** Don't work
     LoadClass(const char *fullpath) {
