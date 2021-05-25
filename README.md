@@ -96,6 +96,3 @@ void *hack_thread(void *) {
             OBFUSCATE_KEY("Update", '|'), 0), (void *) Update, (void **) &old_Update);
 }
 ```
-
-# TODO
-- [ ] MetaDataUtils (Work in progress)
