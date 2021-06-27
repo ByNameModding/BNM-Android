@@ -47,19 +47,19 @@ class Field : FieldInfo {
 }
 struct Metadata {
 	void *file;
-    const Il2CppGlobalMetadataHeader *header;
-    const Il2CppMetadataRegistration *registartion;
-    const Il2CppCodeRegistration *Il2CppRegistration;
-    uint32_t version;
-    int32_t ImagesCount;
-    const Il2CppImageDefinition *ImageDefinitionTable;
-    const Il2CppTypeDefinition *TypeDefinitionTable;
-    const Il2CppFieldDefinition *FieldDefinitionTable;
-    const Il2CppMethodDefinition *MethodDefinitionTable;
-    const Il2CppParameterDefinition *ParameterDefinitionTable;
-    Il2CppImage *ImagesTable;
-    Il2CppClass **TypeInfoDefinitionTable;
-    Il2CppClass **TypeInfoTable;
+	const Il2CppGlobalMetadataHeader *header;
+	const Il2CppMetadataRegistration *registartion;
+	const Il2CppCodeRegistration *Il2CppRegistration;
+	uint32_t version;
+	int32_t ImagesCount;
+	const Il2CppImageDefinition *ImageDefinitionTable;
+	const Il2CppTypeDefinition *TypeDefinitionTable;
+	const Il2CppFieldDefinition *FieldDefinitionTable;
+	const Il2CppMethodDefinition *MethodDefinitionTable;
+	const Il2CppParameterDefinition *ParameterDefinitionTable;
+	Il2CppImage *ImagesTable;
+	Il2CppClass **TypeInfoDefinitionTable;
+	Il2CppClass **TypeInfoTable;
 	
 	template<typename T> static T MetadataOffset(void *metadata, size_t sectionOffset, size_t itemIndex);
 	
