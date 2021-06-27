@@ -1,4 +1,11 @@
 #pragma once
+
+#include <assert.h>
+#include <utility>
+#include <memory>
+#include <algorithm>
+#include <limits>
+
 #if defined(_GHIDRA_) || defined(_IDA_)
 typedef unsigned __int8 uint8_t;
 typedef unsigned __int16 uint16_t;
@@ -14,6 +21,7 @@ typedef __int64 int64_t;
 typedef __int32 size_t;
 typedef size_t intptr_t;
 typedef size_t uintptr_t;
+
 #endif
 #define IS_32BIT
 typedef struct Il2CppClass Il2CppClass;
@@ -816,6 +824,8 @@ typedef struct Il2CppAppDomainSetup Il2CppAppDomainSetup;
 typedef struct Il2CppDelegate Il2CppDelegate;
 typedef struct Il2CppAppContext Il2CppAppContext;
 typedef struct Il2CppNameToTypeDefinitionIndexHashTable Il2CppNameToTypeDefinitionIndexHashTable;
+
+
 typedef struct Il2CppCodeGenModule Il2CppCodeGenModule;
 typedef struct VirtualInvokeData {
     Il2CppMethodPointer methodPtr;
@@ -1103,7 +1113,7 @@ typedef struct Il2CppClass {
     uint32_t initializationExceptionGCHandle;
     uint32_t cctor_started;
     uint32_t cctor_finished;
-    __declspec(align(8)) size_t cctor_thread;
+    __attribute__((aligned(8))) size_t cctor_thread;
     GenericContainerIndex genericContainerIndex;
     uint32_t instance_size;
     uint32_t actualSize;
@@ -1142,7 +1152,7 @@ typedef struct Il2CppClass {
     uint8_t is_import_or_windows_runtime: 1;
     uint8_t is_vtable_initialized: 1;
     uint8_t has_initialization_error: 1;
-    VirtualInvokeData vtable[32];
+    VirtualInvokeData vtable[0];
 } Il2CppClass;
 
 typedef struct Il2CppClass_0 {
@@ -1426,4 +1436,84 @@ typedef int32_t il2cpp_array_lower_bound_t;
 struct Il2CppArrayBounds {
     il2cpp_array_size_t length;
     il2cpp_array_lower_bound_t lower_bound;
+};
+typedef struct Il2CppInternalThread {
+    Il2CppObject obj;
+    int lock_thread_id;
+#ifdef __cplusplus
+    void *handle;
+#else
+    void *handle;
+#endif //__cplusplus
+    void *native_handle;
+    Il2CppArray *cached_culture_info;
+    Il2CppChar *name;
+    int name_len;
+    uint32_t state;
+    Il2CppObject *abort_exc;
+    int abort_state_handle;
+    uint64_t tid;
+    intptr_t debugger_thread;
+    void **static_data;
+    void *runtime_thread_info;
+    Il2CppObject *current_appcontext;
+    Il2CppObject *root_domain_thread;
+    Il2CppArray *_serialized_principal;
+    int _serialized_principal_version;
+    void *appdomain_refs;
+    int32_t interruption_requested;
+#ifdef __cplusplus
+    void *synch_cs;
+#else
+    void *synch_cs;
+#endif //__cplusplus
+    bool threadpool_thread;
+    bool thread_interrupt_requested;
+    int stack_size;
+    uint8_t apartment_state;
+    int critical_region_level;
+    int managed_id;
+    uint32_t small_id;
+    void *manage_callback;
+    void *interrupt_on_stop;
+    intptr_t flags;
+    void *thread_pinning_ref;
+    void *abort_protected_block_count;
+    int32_t priority;
+    void *owned_mutexes;
+    void *suspended;
+    int32_t self_suspended;
+    size_t thread_state;
+    size_t unused2;
+    void *last;
+} Il2CppInternalThread;
+typedef struct Il2CppThread {
+    Il2CppObject obj;
+    Il2CppInternalThread *internal_thread;
+    Il2CppObject *start_obj;
+    Il2CppException *pending_exception;
+    Il2CppObject *principal;
+    int32_t principal_version;
+    Il2CppDelegate *delegate;
+    Il2CppObject *executionContext;
+    bool executionContextBelongsToOuterScope;
+
+#ifdef __cplusplus
+
+    Il2CppInternalThread *GetInternalThread() const {
+        return internal_thread;
+    }
+
+#endif
+} Il2CppThread;
+enum PackingSize {
+    Zero,
+    One,
+    Two,
+    Four,
+    Eight,
+    Sixteen,
+    ThirtyTwo,
+    SixtyFour,
+    OneHundredTwentyEight
 };

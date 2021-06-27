@@ -1,60 +1,10 @@
 #pragma once
 
 #include "il2cpptypes.h"
-#include <dlfcn.h>
-#include <Includes/Utils.h>
-#include <Includes/Logger.h>
-#include <Includes/obfuscate.h>
-#include <sstream>
-#include <vector>
-
-typedef Il2CppClass *(*class_from_name_t)(const Il2CppImage *assembly, const char *name_space,
-                                          const char *name);
-
-typedef MethodInfo *(*class_get_method_from_name_t)(Il2CppClass *klass, const char *name,
-                                                    int paramcount);
-
-typedef Il2CppDomain *(*domain_get_t)();
-
-typedef const Il2CppAssembly **(*domain_get_assemblies_t)(const Il2CppDomain *domain, size_t *size);
-
-typedef const Il2CppImage *(*assembly_get_image_t)(const Il2CppAssembly *assembly);
-
-typedef const Il2CppAssembly *(*domain_assembly_open_t)(Il2CppDomain *domain, const char *name);
-
-typedef FieldInfo *(*class_get_field_from_name_t)(Il2CppClass *klass, const char *name);
-
-typedef void (*field_static_get_value_t)(FieldInfo *field, void *value);
-
-typedef void (*field_static_set_value_t)(FieldInfo *field, void *value);
-
-std::vector<std::string> split(const std::string &s, char delim) {
-    std::vector<std::string> elems;
-    std::stringstream ss;
-    ss.str(s);
-    std::string item;
-    while (std::getline(ss, item, delim)) {
-        elems.push_back(item);
-    }
-    return elems;
-}
+#include "ByNameModdingUtils.h"
 
 template<typename T>
 class Field : FieldInfo {
-    bool CheckStatic() {
-        if (!type->attrs)
-            return false;
-        if ((type->attrs & 0x10) == 0)
-            return false;
-
-        if ((type->attrs & 0x40) != 0)
-            return false;
-
-        if (thread_static = offset == -1)
-            LOGI(OBFUSCATE("thread static fields is not supported!"));
-        return true;
-    }
-
     static bool CheckStaticFieldInfo(FieldInfo *fieldInfo) {
         if ((fieldInfo->type->attrs & 0x10) == 0)
             return false;
@@ -63,7 +13,7 @@ class Field : FieldInfo {
             return false;
 
         if (fieldInfo->offset == -1)
-            LOGI(OBFUSCATE("thread static fields is not supported!"));
+            LOGIBNM("thread static fields is not supported!");
         return true;
     }
 
@@ -71,13 +21,14 @@ public:
     bool init;
     bool thread_static;
     bool is_instance;
-    void *instance;
+    void *clazz;
 
     Field() {};
 
     Field(FieldInfo *thiz, void *_instance = NULL) {
-        if (!Field::CheckStaticFieldInfo(thiz))
-            instance = _instance;
+        bool static_;
+        if (!(static_ = CheckStaticFieldInfo(thiz)))
+            clazz = _instance;
         init = (thiz != NULL);
         if (init) {
             parent = thiz->parent;
@@ -85,12 +36,7 @@ public:
             name = thiz->name;
             token = thiz->token;
             type = thiz->type;
-            statik = CheckStatic();
-            if (statik && !parent->static_fields &&
-                parent->static_fields_size) /*** Init static fields ***/
-            {
-                parent->static_fields = calloc(1, parent->static_fields_size);
-            }
+            statik = static_;
             is_instance = (type->attrs & 0x10) == 0;
         }
     }
@@ -104,24 +50,25 @@ public:
         if (statik) {
             return *(T *) ((uint64_t) parent->static_fields + offset);
         }
-        return *(T *) ((uint64_t) instance + offset);
+        return *(T *) ((uint64_t) clazz + offset);
     }
 
-    void set(T val) {
-        if (!init || thread_static) return;
+    Field set(T val) {
+        if (!init || thread_static) return *this;
         if (statik) {
             *(T *) ((uint64_t) parent->static_fields + offset) = val;
             return;
         }
-        *(T *) ((uint64_t) instance + offset) = val;
+        *(T *) ((uint64_t) clazz + offset) = val;
+        return *this;
     }
 
     operator T() {
         return get();
     }
 
-    void operator=(T val) {
-        set(val);
+    Field operator=(T val) {
+        return set(val);
     }
 
     bool operator==(Field other) {
@@ -138,146 +85,235 @@ public:
 };
 
 class LoadClass {
-    void *get_il2cpp() {
-        void *mod = 0;
-        while (!mod) {
-            mod = dlopen(OBFUSCATE("libil2cpp.so"), RTLD_LAZY);
-        }
-        return mod;
-    }
-
-    Il2CppClass *GetClassFromName(const char *name_space, const char *type_name) {
-        auto domain_get = (domain_get_t) dlsym(get_il2cpp(), OBFUSCATE("il2cpp_domain_get"));
+    Il2CppClass *GetClassFromName(const char *_namespace, const char *_name) {
+        auto class_from_name = (class_from_name_t) dlsym(get_il2cpp(),
+                                                         "il2cpp_class_from_name");
+        auto domain_get = (domain_get_t) dlsym(get_il2cpp(), "il2cpp_domain_get");
         auto dom = domain_get();
         if (!dom) {
             return nullptr;
         }
         size_t assemb_count;
-        auto domain_get_assemblies = (domain_get_assemblies_t) dlsym(get_il2cpp(), OBFUSCATE(
-                "il2cpp_domain_get_assemblies"));
+        auto domain_get_assemblies = (domain_get_assemblies_t) dlsym(get_il2cpp(),
+                                                                     "il2cpp_domain_get_assemblies");
         const Il2CppAssembly **allAssemb = domain_get_assemblies(dom, &assemb_count);
-        auto assembly_get_image = (assembly_get_image_t) dlsym(get_il2cpp(), OBFUSCATE(
-                "il2cpp_assembly_get_image"));
-        auto class_from_name = (class_from_name_t) dlsym(get_il2cpp(),
-                                                         OBFUSCATE("il2cpp_class_from_name"));
-        for (int i = 0; i < assemb_count; i++) {
-            auto assemb = allAssemb[i];
-            auto img = assembly_get_image(assemb);
-            if (!img) {
-                continue;
+        auto assembly_get_image = (assembly_get_image_t) dlsym(get_il2cpp(),
+                                                               "il2cpp_assembly_get_image");
+        if (!_new) {
+            for (int i = 0; i < assemb_count; i++) {
+                auto assemb = allAssemb[i];
+                auto img = assembly_get_image(assemb);
+                if (!img) {
+                    continue;
+                }
+                auto klass = class_from_name(img, _namespace, _name);
+                if (klass) {
+                    return klass;
+                }
             }
-            auto klass = class_from_name(img, name_space, type_name);
-            if (klass) {
-                return klass;
+        } else {
+            Metadata *metadata = MetaDataUtils::CrateMetadata();
+            uint32_t imageCount = metadata->header->imagesCount / sizeof(Il2CppImageDefinition);
+            for (int imageIndex = 0; imageIndex < imageCount; ++imageIndex) {
+                const Il2CppImageDefinition *imageDefinition = metadata->getImageDefinitionByIndex(
+                        imageIndex);
+                uint32_t typeEnd = imageDefinition->typeStart + imageDefinition->typeCount;
+                for (int32_t i = imageDefinition->typeStart; i < typeEnd; i++) {
+                    const Il2CppTypeDefinition *typeDefinition = metadata->getTypeDefinitionByIndex(
+                            i);
+                    auto name = metadata->GetStringFromIndex(typeDefinition->nameIndex);
+                    auto namespace_ = metadata->GetStringFromIndex(typeDefinition->namespaceIndex);
+                    if (CheckObj(name) && CheckObj(namespace_)) {
+                        if ((std::string(name).find(std::string(_name)) !=
+                             std::string::npos ||
+                             std::string(name) == std::string(_name)) &&
+                            ((std::string(namespace_).find(std::string(_namespace)) !=
+                              std::string::npos ||
+                              std::string(namespace_) == std::string(_namespace)) ||
+                             namespace_ == "")) {
+                            ClassIndex = i;
+                            return metadata->GetTypeInfoFromTypeDefinitionIndex(i);
+                        }
+                    }
+                }
             }
         }
         return nullptr;
     }
 
+    bool _new;
 public:
-    Il2CppClass *_class;
+    Il2CppClass *klass;
+
+    int32_t ClassIndex;
 
     LoadClass() {};
 
-    /*** Don't work
-    LoadClass(const char *fullpath) {
-        std::string dot(OBFUSCATE("."));
-        std::vector<std::string> elems;
-        std::stringstream ss;
-        ss.str(fullpath);
-        std::string item;
-        while (std::getline(ss, item, '.')) {
-            elems.push_back(item);
-        }
-        const char *namespaze = OBFUSCATE("");
-        if (elems.size() == 1) {
-            LoadClass(namespaze, elems.back().c_str());
-        } else {
-            for (int i = 0; i < elems.size() - 1; i++) {
-                if (i == 0)
-                    namespaze = (elems[i]).c_str();
-                else
-                    namespaze = (std::string(namespaze) + dot + (elems[i])).c_str();
-            }
-            LoadClass(namespaze, elems.back().c_str());
-        }
-    }
-    ***/
-    LoadClass(Il2CppClass *clazz) {
-        _class = clazz;
+    LoadClass(Il2CppClass *clazz, bool _new = false) {
+        this->_new = _new;
+        klass = clazz;
     }
 
-    LoadClass(const char *namespaze, const char *clazz) {
+    LoadClass(const char *namespaze, const char *clazz, bool _new = false) {
         Il2CppClass *thisclass;
+        this->_new = _new;
         int try_count = 0;
         do {
             thisclass = GetClassFromName(namespaze, clazz);
             if (try_count == 2 && !thisclass) {
-                LOGI(OBFUSCATE("Method: %s, %s - not founded"), namespaze,
-                     clazz);
-                return;
+                LOGIBNM("Class: %s, %s - not founded", namespaze,
+                        clazz);
+                break;
             } else if (!thisclass) {
                 sleep(1);
                 try_count++;
             }
         } while (!thisclass);
-        _class = thisclass;
+        klass = thisclass;
     }
 
-    LoadClass(const char *namespaze, const char *clazz, const char *dllname) {
-        auto domain_assembly_open = (domain_assembly_open_t) dlsym(get_il2cpp(), OBFUSCATE(
-                "il2cpp_domain_assembly_open"));
-        auto assembly_get_image = (assembly_get_image_t) dlsym(get_il2cpp(), OBFUSCATE(
-                "il2cpp_assembly_get_image"));
-        auto domain_get = (domain_get_t) dlsym(get_il2cpp(), OBFUSCATE("il2cpp_domain_get"));
-        auto class_from_name = (class_from_name_t) dlsym(get_il2cpp(),
-                                                         OBFUSCATE("il2cpp_class_from_name"));
-        auto *dll = assembly_get_image(domain_assembly_open(domain_get(), dllname));
+    LoadClass(const char *_namespace, const char *_name, const char *dllname, bool _new = false) {
+        this->_new = _new;
         Il2CppClass *thisclass = nullptr;
-        int try_count = 0;
-        do {
-            thisclass = class_from_name(dll, namespaze, clazz);
-            if (try_count == 2 && !thisclass) {
-                LOGI(OBFUSCATE("Class: %s, %s - not founded"), namespaze,
-                     clazz);
-                return;
-            } else if (!thisclass) {
-                sleep(1);
-                try_count++;
-            }
-        } while (!thisclass);
-        _class = thisclass;
+        if (!_new) {
+            auto domain_assembly_open = (domain_assembly_open_t) dlsym(get_il2cpp(),
+                                                                       "il2cpp_domain_assembly_open");
+            auto assembly_get_image = (assembly_get_image_t) dlsym(get_il2cpp(),
+                                                                   "il2cpp_assembly_get_image");
+            auto domain_get = (domain_get_t) dlsym(get_il2cpp(), "il2cpp_domain_get");
+            auto class_from_name = (class_from_name_t) dlsym(get_il2cpp(),
+                                                             "il2cpp_class_from_name");
+            auto *dll = assembly_get_image(domain_assembly_open(domain_get(), dllname));
+            int try_count = 0;
+            do {
+                thisclass = class_from_name(dll, _namespace, _name);
+                if (try_count == 2 && !thisclass) {
+                    LOGIBNM("Class: %s, %s - not founded", _namespace,
+                            _name);
+                    return;
+                } else if (!thisclass) {
+                    sleep(1);
+                    try_count++;
+                }
+            } while (!thisclass);
+        } else {
+            Metadata *metadata = MetaDataUtils::CrateMetadata();
+            int try_count = 0;
+            do {
+                uint32_t imageCount = metadata->header->imagesCount / sizeof(Il2CppImageDefinition);
+                for (int imageIndex = 0; imageIndex < imageCount; ++imageIndex) {
+                    if (thisclass) break;
+                    const Il2CppImageDefinition *imageDefinition = metadata->getImageDefinitionByIndex(
+                            imageIndex);
+                    auto imdefname = metadata->GetStringFromIndex(imageDefinition->nameIndex);
+                    if (!isNOT_Allocated(imdefname) &&
+                        (std::string(imdefname).find(std::string(dllname)) != std::string::npos ||
+                         dllname == imdefname)) {
+                        uint32_t typeEnd = imageDefinition->typeStart + imageDefinition->typeCount;
+                        for (int32_t i = imageDefinition->typeStart; i < typeEnd; i++) {
+                            const Il2CppTypeDefinition *typeDefinition = metadata->getTypeDefinitionByIndex(
+                                    i);
+                            auto name = metadata->GetStringFromIndex(typeDefinition->nameIndex);
+                            auto namespace_ = metadata->GetStringFromIndex(
+                                    typeDefinition->namespaceIndex);
+                            if (CheckObj(name) && CheckObj(namespace_)) {
+                                if ((std::string(name).find(std::string(_name)) !=
+                                     std::string::npos ||
+                                     std::string(name) == std::string(_name)) &&
+                                    ((std::string(namespace_).find(std::string(_namespace)) !=
+                                      std::string::npos ||
+                                      std::string(namespace_) == std::string(_namespace)) ||
+                                     namespace_ == "")) {
+                                    thisclass = metadata->GetTypeInfoFromTypeDefinitionIndex(i);
+                                    ClassIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (try_count == 2 && !thisclass) {
+                    LOGIBNM("Class: %s, %s - not founded", _namespace,
+                            _name);
+                    break;
+                } else if (!thisclass) {
+                    sleep(1);
+                    try_count++;
+                }
+            } while (!thisclass);
+        }
+        klass = thisclass;
+        if (!klass)
+            LOGIBNM("Class: %s, %s - not founded", _namespace,
+                    _name);
     }
-
 
     FieldInfo *GetFieldInfoByName(const char *name) {
-        auto class_get_field_from_name = (class_get_field_from_name_t) dlsym(get_il2cpp(),
-                                                                             OBFUSCATE(
-                                                                                     "il2cpp_class_get_field_from_name"));
-        return class_get_field_from_name(_class, name);
+        if (_new) {
+            Metadata *metadata = MetaDataUtils::CrateMetadata();
+            FieldIndex start = klass->typeDefinition->fieldStart;
+            FieldIndex end = start + klass->typeDefinition->field_count;
+            for (FieldIndex index = start; index < end; ++index) {
+                const Il2CppFieldDefinition *fieldDefinition = metadata->getFieldDefinitionByIndex(
+                        index);
+                auto _name = metadata->GetStringFromIndex(fieldDefinition->nameIndex);
+                if (CheckObj(_name) != NULL && ((std::string(_name).find(std::string(name)) !=
+                                                 std::string::npos) || strcmp(name, _name) == 0)) {
+                    FieldInfo *ret = metadata->GetFieldInfoFromIndexAndClass(index,
+                                                                             metadata->GetTypeInfoFromTypeDefinitionIndex(
+                                                                                     ClassIndex));
+                    return ret;
+                }
+            }
+        } else {
+            auto class_get_field_from_name = (class_get_field_from_name_t) dlsym(get_il2cpp(),
+
+                                                                                 "il2cpp_class_get_field_from_name");
+            return class_get_field_from_name(klass, name);
+        }
+        return nullptr;
     }
 
     template<typename T>
-    Field<T> GetFieldByName(const char *name) {
-        return Field<T>(GetFieldInfoByName(name), this);
+    Field<T> GetFieldByName(const char *name, void *inst = NULL) {
+        return Field<T>(GetFieldInfoByName(name), inst != NULL ? inst : (void *) klass);
     }
 
     DWORD GetFieldOffset(const char *name) {
-        return GetFieldInfoByName(name)->offset;
+        return GetOffset(GetFieldInfoByName(name));
     }
 
-    DWORD GetFieldOffset(FieldInfo *filed) {
+    static DWORD GetOffset(FieldInfo *filed) {
         return filed->offset;
     }
 
+    static DWORD GetOffset(MethodInfo *methodInfo) {
+        return (DWORD) methodInfo->methodPointer;
+    }
+
     MethodInfo *GetMethodInfoByName(const char *name, int paramcount) {
-        auto class_get_method_from_name = (class_get_method_from_name_t) dlsym(get_il2cpp(),
-                                                                               OBFUSCATE(
-                                                                                       "il2cpp_class_get_method_from_name"));
-        if (_class)
-            return class_get_method_from_name(_class, name, paramcount);
-        else
-            return nullptr;
+        if (_new) {
+            Metadata *metadata = MetaDataUtils::CrateMetadata();
+            MethodIndex start = klass->typeDefinition->methodStart;
+            MethodIndex end = start + klass->method_count;
+            for (MethodIndex index = start; index < end; ++index) {
+                const Il2CppMethodDefinition *methodDefinition = metadata->GetMethodDefinitionFromIndex(
+                        index);
+                auto _name = metadata->GetStringFromIndex(methodDefinition->nameIndex);
+                if (CheckObj(_name) != NULL && ((std::string(_name).find(std::string(name)) !=
+                                                 std::string::npos) || strcmp(name, _name) == 0) &&
+                    methodDefinition->parameterCount == paramcount) {
+                    return metadata->GetMethodInfoFromIndex(index);
+                }
+            }
+        } else {
+            auto class_get_method_from_name = (class_get_method_from_name_t) dlsym(get_il2cpp(),
+
+                                                                                   "il2cpp_class_get_method_from_name");
+            if (klass)
+                return class_get_method_from_name(klass, name, paramcount);
+        }
+        return nullptr;
     }
 
     DWORD GetMethodOffsetByName(const char *name, int paramcount) {
@@ -285,60 +321,40 @@ public:
         int try_count = 0;
         do {
             res = GetMethodInfoByName(name, paramcount);
-            if (try_count == 2 && !res) {
-                if (name)
-                    LOGI(OBFUSCATE("Method: %s, %s - not founded"), name,
-                         to_string(paramcount).c_str());
-                else
-                    LOGI(OBFUSCATE("Method: , %s - not founded"), to_string(paramcount).c_str());
+            if (try_count == 5 && !res) {
+                LOGIBNM("Method: %s, %d - not founded", CheckObj(name), paramcount);
                 return 0;
-            } else if (!res) {
+            } else if (!res || abs((DWORD) res->methodPointer) <
+                               abs((DWORD) GetLibInfo("libil2cpp.so").startAddr)) {
                 sleep(1);
                 try_count++;
+            } else if (abs((DWORD) res->methodPointer) >
+                       abs((DWORD) GetLibInfo("libil2cpp.so").startAddr)) {
+                break;
             }
-        } while (!res);
+        } while (true);
         return (DWORD) res->methodPointer;
     }
 
-    static void *Object_Unbox(Il2CppObject *obj) {
+    template<typename T>
+    static T Object_Unbox(T obj) {
         void *val = (void *) (((char *) obj) + sizeof(Il2CppObject));
         return val;
     }
 
-    static Il2CppObject *Object_Box_My(void *obj) {
+    template<typename T>
+    static T Object_Box_My(T obj) {
         Il2CppObject *val = (Il2CppObject *) (((char *) obj) - sizeof(Il2CppObject));
-        return val;
+        return *(T *) val;
     }
+
 };
 
 void *get_Method(const char *str) {
     void *(*il2cpp_resolve_icall_0)(const char *str) = nullptr;
-    void *h = nullptr;
-    while (!h) {
-        h = dlopen(OBFUSCATE("libil2cpp.so"), 4);
-    }
     do {
-        il2cpp_resolve_icall_0 = (void *(*)(const char *)) dlsym(h,
-                                                                 OBFUSCATE("il2cpp_resolve_icall"));
+        il2cpp_resolve_icall_0 = (void *(*)(const char *)) dlsym(get_il2cpp(),
+                                                                 "il2cpp_resolve_icall");
     } while (!il2cpp_resolve_icall_0);
     return il2cpp_resolve_icall_0(str);
 }
-/*** Don't work
-DWORD get_Method_by_path(const char *path, int paramcount) {
-    std::vector<std::string> elems = split(path, '.');
-    const char *class_path;
-    std::string dot(OBFUSCATE("."));
-    for (int i = 0; i < elems.size() - 1; i++) {
-        if (i == 0)
-            class_path = (elems[i]).c_str();
-        else
-            class_path = (std::string(class_path) + dot + elems[i]).c_str();
-    }
-    LoadClass *tmp = new LoadClass(class_path);
-    return tmp->GetMethodOffsetByName(elems.back().c_str(), paramcount);
-}
-***/
-#define InitResolveFunc(x, y) *reinterpret_cast<void **>(&x) = get_Method(y)
-#define InitFunc(x, y) if (y != 0) *reinterpret_cast<void **>(&x) = (void *)(y)
-#define FieldBN(myfield, type, inst, nameSpacec, clazzz, fieldName, key) Field<type> myfield = LoadClass(OBFUSCATE_KEY(nameSpacec, key), OBFUSCATE_KEY(clazzz, key)).GetFieldByName<type>(OBFUSCATE_KEY(fieldName, key)); myfield.instance = inst
-// #define FieldBN_Full(myfield, type, inst, fullpath, fieldName, key) Field<type> myfield = (new LoadClass(OBFUSCATE_KEY(fullpath, key)))->GetFieldByName<type>(OBFUSCATE_KEY(fieldName, key)); myfield.clazz = inst
