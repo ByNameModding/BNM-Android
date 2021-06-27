@@ -5,7 +5,7 @@ Modding (hacking) il2cpp games by classes, methods, fields names.
 Status: **Ready to use** <br/>
 Bugs: **Everything is fixed. but it is not exactly :)** <br/>
 
-# Clases and files structure:
+# Classes and files structure:
 ```cpp
 class LoadClass {
 	LoadClass(const char *namespce, const char *clazz, const char *dllname [optional], bool _new = false [optional]);
