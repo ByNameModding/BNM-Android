@@ -635,10 +635,8 @@ typedef struct MetaDataUtils {
     static void *getRegister() {
         LibInfo libInfo = GetLibInfo("libil2cpp.so");
         if (MetadataRegistrationOffset != 0x0) {
-            s_Il2CppMetadataRegistration = (void *) (getAbsoluteAddress("libil2cpp.so",
-                                                                        MetadataRegistrationOffset));
-            s_Il2CppCodeRegistration = (void *) (getAbsoluteAddress("libil2cpp.so",
-                                                                    Il2CppRegistrationOffset));
+            s_Il2CppMetadataRegistration = (void *) (libInfo.startAddr + MetadataRegistrationOffset);
+            s_Il2CppCodeRegistration = (void *) (libInfo.startAddr + Il2CppRegistrationOffset);
         } else {
             if (s_Il2CppMetadataRegistration) return s_Il2CppMetadataRegistration;
 
