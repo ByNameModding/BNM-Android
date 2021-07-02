@@ -202,7 +202,7 @@ void (*old_Update)(void *instance);
 void Update(void *instance){
     old_Update(instance);
     /** We have: public static FPSControler LocalPlayer; **/
-    myPlayer = FieldBNC(void *, 0, "", "FPSControler", "LocalPlayer");
+    myPlayer = FieldBNC(void *, 0, "", "FPSControler", false, "LocalPlayer"); // false - old method
     void *myPlayer_Transform = get_Transform(myPlayer);
     set_position(myPlayer_Transform, Vector3(0, 0, 0));
 }
@@ -210,7 +210,7 @@ void *instance_from_IEnumerator;
 bool (*old_MainLoop$$MoveNext)(void *instance);
 bool MainLoop$$MoveNext(void *instance) {
     LOGI("MainLoop$$MoveNext");
-	instance_from_IEnumerator = FieldBNC(void *, instance, "", "<MainLoop>d__1", "<>4__this");
+	instance_from_IEnumerator = FieldBNC(void *, instance, "", "<MainLoop>d__1", true, "<>4__this"); // false - new method
     return old_MainLoop$$MoveNext(instance);
 }
 
