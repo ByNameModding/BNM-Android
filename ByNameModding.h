@@ -57,7 +57,7 @@ public:
         if (!init || thread_static) return *this;
         if (statik) {
             *(T *) ((uint64_t) parent->static_fields + offset) = val;
-            return;
+            return *this;
         }
         *(T *) ((uint64_t) clazz + offset) = val;
         return *this;
