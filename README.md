@@ -210,7 +210,7 @@ void *instance_from_IEnumerator;
 bool (*old_MainLoop$$MoveNext)(void *instance);
 bool MainLoop$$MoveNext(void *instance) {
     LOGI("MainLoop$$MoveNext");
-	instance_from_IEnumerator = FieldBNC(void *, instance, "", "<MainLoop>d__1", true, "<>4__this"); // false - new method
+	instance_from_IEnumerator = FieldBNC(void *, instance, "", "<MainLoop>d__1", true, "<>4__this"); // true - new method
     return old_MainLoop$$MoveNext(instance);
 }
 
