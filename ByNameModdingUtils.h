@@ -632,7 +632,7 @@ struct MetaDataUtils {
             if (s_Il2CppMetadataRegistration) return s_Il2CppMetadataRegistration;
 
             DWORD Method2Call_Offset = findPattern(getFirstPattern(), libInfo.startAddr,
-                                                        libInfo.size, 0) - libInfo.startAddr;
+                                                        libInfo.size) - libInfo.startAddr;
             DWORD BOffset = Method2Call_Offset + 24;
             DWORD fB = getOffsetFromB_Hex(
                     readHexStrFromMem((const void *) (BOffset + libInfo.startAddr), 4), BOffset);
