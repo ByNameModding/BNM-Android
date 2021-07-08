@@ -24,16 +24,27 @@ typedef unsigned long DWORD;
 #ifdef __arm__
 DWORD MetadataRegistrationOffset = 0x0;
 DWORD Il2CppRegistrationOffset = 0x0;
+
 #include <Substrate/SubstrateHook.h>
 #include <Substrate/CydiaSubstrate.h>
+
 #define HOOK(offset, a, b) if (offset != 0) MSHookFunction((void *)offset, (void *) a, (void **) &b)
 #elif defined(__i386__) //x86
+
 DWORD MetadataRegistrationOffset = 0x0;
 DWORD Il2CppRegistrationOffset = 0x0;
+
+#include <Substrate/SubstrateHook.h>
+#include <Substrate/CydiaSubstrate.h>
+
+#define HOOK(offset, a, b) if (offset != 0) MSHookFunction((void *)offset, (void *) a, (void **) &b)
 #elif defined(__aarch64__) //arm64-v8a
+
 DWORD MetadataRegistrationOffset = 0x0;
 DWORD Il2CppRegistrationOffset = 0x0;
+
 #include <And64InlineHook/And64InlineHook.hpp>
+
 #define HOOK(offset, a, b) if (offset != 0) A64HookFunction((void *)offset, (void *) a, (void **) &b)
 #endif
 #define InitResolveFunc(x, y) *reinterpret_cast<void **>(&x) = get_Method(y)
@@ -49,8 +60,6 @@ typedef Il2CppClass *(*class_from_name_t)(const Il2CppImage *assembly, const cha
 typedef MethodInfo *(*class_get_method_from_name_t)(Il2CppClass *klass, const char *name,
                                                     int paramcount);
 
-typedef MethodInfo *(*class_get_methods_t)(Il2CppClass *klass, void **iter);
-
 typedef Il2CppDomain *(*domain_get_t)();
 
 typedef const Il2CppAssembly **(*domain_get_assemblies_t)(const Il2CppDomain *domain, size_t *size);
@@ -61,19 +70,20 @@ typedef const Il2CppAssembly *(*domain_assembly_open_t)(Il2CppDomain *domain, co
 
 typedef FieldInfo *(*class_get_field_from_name_t)(Il2CppClass *klass, const char *name);
 
-typedef void (*field_static_get_value_t)(FieldInfo *field, void *value);
-
-typedef void (*field_static_set_value_t)(FieldInfo *field, void *value);
-
 typedef const Il2CppType *(*class_get_type_t)(Il2CppClass *klass);
 
 typedef Il2CppClass *(*class_from_type_t)(const Il2CppType *);
 
-typedef const Il2CppClass *(*image_get_class)(const Il2CppImage *, size_t index);
-
 typedef Il2CppClass *(*class_get_interfaces_t)(Il2CppClass *klass, void **iter);
 
-typedef size_t (*image_get_class_count_t)(const Il2CppImage *);
+typedef Il2CppObject *(*type_get_object_t)(const Il2CppType *type);
+
+typedef Il2CppObject *(*object_new_t)(Il2CppClass *klass);
+
+typedef Il2CppObject *(*object_new_t)(Il2CppClass *klass);
+
+typedef Il2CppObject *(*runtime_invoke_t)(const MethodInfo *method,
+                                          void *obj, void **params, Il2CppException **exc);
 
 void *get_il2cpp() {
     void *mod = 0;
@@ -155,7 +165,7 @@ DWORD getOffsetFromB_Hex(std::string hex, DWORD offset, bool idk = false) {
     return hexdw + offset;
 }
 
-typedef struct Metadata {
+struct Metadata {
     void *file;
     const Il2CppGlobalMetadataHeader *header;
     const Il2CppMetadataRegistration *registartion;
@@ -517,42 +527,25 @@ std::string readHexStrFromMem(const void *addr, size_t len) {
     ret += buffer;
     return ret;
 }
-// Some modified version of this:
-// https://github.com/Jupiops/NEWQuizDuelHookLibrary/blob/master/x64/jni/include/utils.h
-#define getByte(x) ((('A' <= (x[0] & (~0x20)) && (x[0] & (~0x20)) <= 'F') ? ((x[0] & (~0x20)) - 'A' + 0xa) : (('0' <= x[0] && x[0] <= '9') ? x[0] - '0' : 0)) << 4 | (('A' <= (x[1] & (~0x20)) && (x[1] & (~0x20)) <= 'F') ? ((x[1] & (~0x20)) - 'A' + 0xa) : (('0' <= x[1] && x[1] <= '9') ? x[1] - '0' : 0)))
 
-DWORD findPatternInMem(const char *pattern, uintptr_t start, intptr_t size, uintptr_t libBase) {
-    const char *pat = pattern;
-    if (pat == "NONE") return 0;
-    DWORD firstMatch = 0;
-    DWORD rangeStart = start;
-    DWORD rangeEnd = start + size;
-
-    for (DWORD pCur = rangeStart; pCur < rangeEnd; pCur++) {
-        if (!*pat)
-            return firstMatch - libBase;
-
-        if (*(unsigned char *) pat == '\?' || *(unsigned char *) pCur == getByte(pat)) {
-            if (!firstMatch)
-                firstMatch = pCur;
-
-            if (!pat[2]) {
-                if (pattern[0] == 'E' && (pattern[1] == '8' || pattern[1] == '9')) {
-                    DWORD address = firstMatch + 1;
-                    if (address < libBase)
-                        address += libBase;
-                    return *(int32_t *) address + (address + 4) - libBase;
-                }
-                return firstMatch - libBase;
-            }
-
-            if (*(unsigned short *) pat == '\?\?' || *(unsigned char *) pat != '\?')
-                pat += 3;
-            else
-                pat += 2;
+DWORD findPattern(const char *pattern, DWORD address, DWORD len) {
+    std::string fixedpar = fixhex(std::string(pattern));
+    const char *pat = fixedpar.c_str();
+    DWORD match = 0;
+    for (DWORD pCur = address; pCur < address + len; pCur++) {
+        if (!pat[0]) return match;
+        char curmem[3];
+        sprintf(curmem, "%02X", *(char *) pCur);
+        if ((pat[0] == '\?' && pat[1] == '\?') || (pat[0] == '\?' && pat[1] == curmem[1]) ||
+            (pat[0] == curmem[0] && pat[1] == '\?') ||
+            (pat[0] == curmem[0] && pat[1] == curmem[1])) {
+            if (!match) match = pCur;
+            if (!pat[2]) return match;
+            pat += 2;
         } else {
-            pat = pattern;
-            firstMatch = 0;
+            if (match) pCur = match;
+            pat = fixedpar.c_str();
+            match = 0;
         }
     }
     return 0;
@@ -571,7 +564,7 @@ const char *readFileTxt(const char *myFile) {
     return std::string(vec.begin(), vec.end()).c_str();
 }
 
-typedef struct MetaDataUtils {
+struct MetaDataUtils {
     static void *LoadMetadataDat() {
         pid_t pid = getpid();
         char pagacke_path[255] = {0};
@@ -626,7 +619,7 @@ typedef struct MetaDataUtils {
 
     static const char *getFirstPattern() {
 #ifdef __arm__
-        return "14 ? 9F E5 14 ? 9F E5 14 ? 9F E5 ? ? ? ? ? ? 8F E0 ? ? ? ? ? ? ? EA";
+        return "14 ?? 9F E5 14 ?? 9F E5 14 ?? 9F E5 ?? ?? ?? ?? ?? ?? 8F E0 ?? ?? ?? ?? ?? ?? ?? E?";
 #else
         return "NONE";
 #endif
@@ -640,7 +633,7 @@ typedef struct MetaDataUtils {
         } else {
             if (s_Il2CppMetadataRegistration) return s_Il2CppMetadataRegistration;
 
-            DWORD Method2Call_Offset = findPatternInMem(getFirstPattern(), libInfo.startAddr,
+            DWORD Method2Call_Offset = findPattern(getFirstPattern(), libInfo.startAddr,
                                                         libInfo.size, 0) - libInfo.startAddr;
             DWORD BOffset = Method2Call_Offset + 24;
             DWORD fB = getOffsetFromB_Hex(
@@ -656,6 +649,11 @@ typedef struct MetaDataUtils {
         return s_Il2CppMetadataRegistration;
     }
 };
+
+Il2CppReflectionType *GetMonoTypeFromIl2CppClass(Il2CppClass *klass) {
+    auto type_get_object = (type_get_object_t) dlsym(get_il2cpp(), "il2cpp_type_get_object");
+    return (Il2CppReflectionType *) type_get_object(&klass->byval_arg);
+}
 
 DWORD abs(DWORD val) {
     if (val < 0)

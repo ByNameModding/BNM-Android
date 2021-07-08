@@ -5,6 +5,7 @@
 #include <memory>
 #include <algorithm>
 #include <limits>
+#include <vector>
 
 #if defined(_GHIDRA_) || defined(_IDA_)
 typedef unsigned __int8 uint8_t;
@@ -937,7 +938,7 @@ typedef struct Il2CppDefaults {
     Il2CppClass *uint32_shared_enum;
     Il2CppClass *uint64_shared_enum;
 } Il2CppDefaults;
-extern Il2CppDefaults il2cpp_defaults;
+Il2CppDefaults il2cpp_defaults;
 typedef struct Il2CppClass Il2CppClass;
 typedef struct MethodInfo MethodInfo;
 typedef struct FieldInfo FieldInfo;
@@ -1443,7 +1444,7 @@ typedef struct Il2CppInternalThread {
 #ifdef __cplusplus
     void *handle;
 #else
-    void *handle;
+    void* handle;
 #endif //__cplusplus
     void *native_handle;
     Il2CppArray *cached_culture_info;
@@ -1465,7 +1466,7 @@ typedef struct Il2CppInternalThread {
 #ifdef __cplusplus
     void *synch_cs;
 #else
-    void *synch_cs;
+    void* synch_cs;
 #endif //__cplusplus
     bool threadpool_thread;
     bool thread_interrupt_requested;
@@ -1517,3 +1518,7 @@ enum PackingSize {
     SixtyFour,
     OneHundredTwentyEight
 };
+typedef struct Il2CppReflectionType {
+    Il2CppObject object;
+    const Il2CppType *type;
+} Il2CppReflectionType;

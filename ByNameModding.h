@@ -341,13 +341,22 @@ public:
         void *val = (void *) (((char *) obj) + sizeof(Il2CppObject));
         return val;
     }
-
-    template<typename T>
-    static T Object_Box_My(T obj) {
-        Il2CppObject *val = (Il2CppObject *) (((char *) obj) - sizeof(Il2CppObject));
-        return *(T *) val;
+	
+	const Il2CppType *GetIl2CppType(){
+        auto class_get_type = (class_get_type_t) dlsym(get_il2cpp(),
+                                                                OBFUSCATE(
+                                                                        "il2cpp_class_get_type"));
+        return class_get_type(klass);
     }
-
+	
+    void *CreateNewClass(void **args, int args_count) {
+        auto object_new = (object_new_t) dlsym(get_il2cpp(), "il2cpp_object_new");
+        auto runtime_invoke = (runtime_invoke_t) dlsym(get_il2cpp(), "il2cpp_runtime_invoke");
+        auto method = GetMethodInfoByName(".ctor", args_count);
+        Il2CppObject* instance = object_new(klass);
+        runtime_invoke(method, instance, args, NULL);
+        return (void *) instance;
+    }
 };
 
 void *get_Method(const char *str) {
