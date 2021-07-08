@@ -80,8 +80,6 @@ typedef Il2CppObject *(*type_get_object_t)(const Il2CppType *type);
 
 typedef Il2CppObject *(*object_new_t)(Il2CppClass *klass);
 
-typedef Il2CppObject *(*object_new_t)(Il2CppClass *klass);
-
 typedef Il2CppObject *(*runtime_invoke_t)(const MethodInfo *method,
                                           void *obj, void **params, Il2CppException **exc);
 
