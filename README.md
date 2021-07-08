@@ -119,7 +119,7 @@ struct MetaDataUtils {
 }
 const char *readFileTxt(const char *myFile);
 
-DWORD findPattern(const char *pattern, DWORD address, DWORD len)
+DWORD findPattern(const char *pattern, DWORD address, DWORD len);
 
 std::string readHexStrFromMem(const void *addr, size_t len); // For armv7 finder
 
