@@ -4,6 +4,7 @@ Modding (hacking) il2cpp games by classes, methods, fields names.
 # Information
 Status: **Ready to use** <br/>
 Bugs: **Everything is fixed. but it is not exactly :)** <br/>
+Unity 2021 support: **Soon** <br/>
 
 # Classes and files structure:
 ```cpp
