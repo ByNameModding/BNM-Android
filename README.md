@@ -5,12 +5,12 @@ Modding (hacking) il2cpp games by classes, methods, fields names on Android.
 SubstrateHook (MSHook) for Il2CppRegistartion and MetadataRegistartion finder (only armeabi-v7a)
 
 # Unity support
-| Il2Cpp Version | Unity Version   |
-| -------------- | --------------- |
-| 24.0           | 2017.x - 2018.x |
-| 24.1           | 2018.3.x        |
-| 24.2           | 2019.x          |
-| 27.0           | 2020.x - 2021.x |
+| Il2Cpp Version | Unity Version     |
+| -------------- | ----------------- |
+| 24.0           | 2017.x - 2018.2.x |
+| 24.1           | 2018.3.x          |
+| 24.2           | 2019.x            |
+| 27.0           | 2020.x - 2021.x   |
 
 ## You need to select Unity version in ByNameModding.h
 
