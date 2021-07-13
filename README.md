@@ -123,35 +123,35 @@ void *hack_thread(void *) {
     MSHookFunction((void *)MainLoop_d1.GetMethodOffsetByName("MoveNext", 0), (void *) MainLoop$$MoveNext, (void **) &old_MainLoop$$MoveNext);
 	
 	
-	//! Find metohod by name and parameters names
-	/** 
-	In UnityEngine.Physics we have 16 Raycast methods
-	Some have the same number of parameters.
-	For example:
-	We need:
-	Raycast(Ray ray, out RaycastHit hitInfo)
-	but LoadClass finds by number of parameters:
-	Raycast(Vector3 origin, Vector3 direction)
-	Now this is not a problem.
-	**/
-	const char *Raycast_Params[] = {"ray", "hitInfo"};
-	auto RayCastOffset = LoadClass("UnityEngine", "Physics", false).GetMethodOffsetByName("Raycast", Raycast_Params);
-	
-	
-	//! Find Class by name and method name
-	//! GetLC_ByClassAndMethodName
-	/**
-	Example from among us:
-	We have HatManager class and <>c class in it.
-	To get in il2cpp 
-	In Il2Cpp the class is named not like this:
-	HatManager.<>c
-	Like this:
-	<>c
-	And to Get it you need use:
-	GetLC_ByClassAndMethodName
-	**/
-	// Then you can get any method
-	auto HatManager_c = LoadClass::GetLC_ByClassAndMethodName("", "<>c", "<GetUnlockedHats>b__10_0");
+    //! Find metohod by name and parameters names
+    /** 
+    In UnityEngine.Physics we have 16 Raycast methods
+    Some have the same number of parameters.
+    For example:
+    We need:
+    Raycast(Ray ray, out RaycastHit hitInfo)
+    but LoadClass finds by number of parameters:
+    Raycast(Vector3 origin, Vector3 direction)
+    Now this is not a problem.
+    **/
+    const char *Raycast_Params[] = {"ray", "hitInfo"};
+    auto RayCastOffset = LoadClass("UnityEngine", "Physics", false).GetMethodOffsetByName("Raycast", Raycast_Params);
+    
+    
+    //! Find Class by name and method name
+    //! GetLC_ByClassAndMethodName
+    /**
+    Example from among us:
+    We have HatManager class and <>c class in it.
+    To get in il2cpp 
+    In Il2Cpp the class is named not like this:
+    HatManager.<>c
+    Like this:
+    <>c
+    And to Get it you need use:
+    GetLC_ByClassAndMethodName
+    **/
+    // Then you can get any method
+    auto HatManager_c = LoadClass::GetLC_ByClassAndMethodName("", "<>c", "<GetUnlockedHats>b__10_0");
 }
 ```
