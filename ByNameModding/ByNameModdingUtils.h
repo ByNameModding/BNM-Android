@@ -24,6 +24,7 @@ DWORD Il2CppRegistrationOffset = 0x0;
 #define InitResolveFunc(x, y) *reinterpret_cast<void **>(&x) = get_Method(y)
 #define InitFunc(x, y) if (y != 0) *(void **)(&x) = (void *)(y)
 #define FieldBN(type, inst, nameSpacec, clazzz, _new, fieldName) *(type *) ((uint64_t)inst + LoadClass(nameSpacec, clazzz, _new).GetFieldOffset(fieldName))
+#define FieldBNStatic(type, nameSpacec, clazzz, _new, fieldName, key) *(type *) ((uint64_t) LoadClass(nameSpacec, clazz, _new).klass->static_fields + LoadClass(nameSpacec, clazzz _new).GetFieldOffset(fieldName))
 
 void *s_Il2CppMetadataRegistration = 0;
 void *s_Il2CppCodeRegistration = 0;
