@@ -123,11 +123,7 @@ class LoadClass {
                     if (CheckObj(name) && CheckObj(namespace_)) {
                         if (strcmp(name, _name) == 0 && strcmp(_namespace, namespace_) == 0) {
                             ClassIndex = i;
-                            auto thisclass = metadata->GetTypeInfoFromTypeDefinitionIndex(i);
-                            LOGIBNM("%s; %s ;%d; %d; %d", name, namespace_,
-                                    thisclass->typeDefinition->method_count,
-                                    thisclass->method_count, typeDefinition->method_count);
-                            return thisclass;
+                            return metadata->GetTypeInfoFromTypeDefinitionIndex(i);
                         }
                     }
                 }
