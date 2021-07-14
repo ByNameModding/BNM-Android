@@ -59,6 +59,6 @@
 #endif
 
 #include "ByNameModding/ByNameModdingUtils.h"
-#include "ByNameModding/LoadClass.h"
+#include "ByNameModding/LoadClass_Field.h"
 
 
