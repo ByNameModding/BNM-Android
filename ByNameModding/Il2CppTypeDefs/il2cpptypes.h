@@ -1,5 +1,110 @@
 #pragma once
 
+struct monoString {
+    void *klass;
+    void *monitor;
+    int length;
+    char chars[255];
+
+    std::string get_string() {
+        std::u16string u16_string(reinterpret_cast<const char16_t *>(chars));
+        std::wstring wide_string(u16_string.begin(), u16_string.end());
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> convert;
+        return convert.to_bytes(wide_string);
+    }
+
+    char *getChars() {
+        return chars;
+    }
+
+    int getLength() {
+        return length;
+    }
+
+};
+
+template<typename T>
+struct monoArray {
+    void *klass;
+    void *monitor;
+    void *bounds;
+    int32_t max_length;
+    T m_Items[65535];
+
+    int32_t getLength() {
+        return max_length;
+    }
+
+    T *getPointer() {
+        return m_Items;
+    }
+};
+
+template<typename T>
+struct monoList {
+    void *klass;
+    void *monitor;
+    monoArray<T> *Items;
+    int32_t size;
+    int32_t version;
+    void *syncRoot;
+
+    T* getItems() {
+        return Items->getPointer();
+    }
+
+    int32_t getSize() {
+        return size;
+    }
+
+    int32_t getVersion() {
+        return version;
+    }
+
+    void Add(T val) {
+        Items->m_Items[size] = val;
+        size++;
+        ++version;
+    }
+};
+typedef struct Il2CppObject Il2CppObject;
+template<typename TKey, typename TValue>
+struct monoDictionary {
+    void *klass;
+    void *monitor;
+    monoArray<int *> *buckets;
+    monoArray<void *> *entries;
+    int32_t count;
+    int32_t version;
+    int32_t freeList;
+    int32_t freeCount;
+    Il2CppObject *comparer;
+    monoArray<TKey> *keys;
+    monoArray<TValue> *values;
+    void *syncRoot;
+
+    TKey getKeys() {
+        return keys->getPointer();
+    }
+
+    TValue getValues() {
+        return values->getPointer();
+    }
+
+    void *getNumKeys() {
+        return keys->getLength();
+    }
+
+    void *getNumValues() {
+        return values->getLength();
+    }
+
+    int getSize() {
+        return count;
+    }
+};
+
+
 enum PackingSize {
     Zero,
     One,
@@ -189,10 +294,9 @@ typedef struct Il2CppDomain Il2CppDomain;
 typedef struct Il2CppImage Il2CppImage;
 typedef struct Il2CppException Il2CppException;
 typedef struct Il2CppProfiler Il2CppProfiler;
-typedef struct Il2CppObject Il2CppObject;
 typedef struct Il2CppReflectionMethod Il2CppReflectionMethod;
 typedef struct Il2CppReflectionType Il2CppReflectionType;
-typedef struct Il2CppString Il2CppString;
+typedef monoString Il2CppString;
 typedef struct Il2CppThread Il2CppThread;
 typedef struct Il2CppAsyncResult Il2CppAsyncResult;
 typedef struct Il2CppManagedMemorySnapshot Il2CppManagedMemorySnapshot;
@@ -201,7 +305,6 @@ typedef struct Il2CppClass Il2CppClass;
 typedef struct MethodInfo MethodInfo;
 typedef struct MethodInfo MethodInfo;
 typedef struct FieldInfo FieldInfo;
-typedef struct Il2CppObject Il2CppObject;
 typedef struct MemberInfo MemberInfo;
 typedef struct Il2CppGuid Il2CppGuid;
 typedef struct Il2CppImage Il2CppImage;
@@ -220,7 +323,6 @@ typedef struct Il2CppAssembly Il2CppAssembly;
 typedef struct Il2CppException Il2CppException;
 typedef struct Il2CppImage Il2CppImage;
 typedef struct Il2CppDomain Il2CppDomain;
-typedef struct Il2CppString Il2CppString;
 typedef struct Il2CppReflectionMethod Il2CppReflectionMethod;
 typedef struct Il2CppAsyncCall Il2CppAsyncCall;
 typedef struct Il2CppIUnknown Il2CppIUnknown;

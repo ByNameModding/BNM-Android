@@ -1,13 +1,19 @@
 #pragma once
 
-//! define don't support floating pointer values
+//! define - don't support floating pointer values
 //#define IL2CPP_VERSION 240 //! From 2017 to 2018.2.x
-//#define IL2CPP_VERSION 241 //! 2018.3.x
+#define IL2CPP_VERSION 241 //! 2018.3.x
 //#define IL2CPP_VERSION 242 //! 2019.x
-#define IL2CPP_VERSION 270 //! 2020.x - 2021.x
-#define UNITY20 //! If unity 2020.x
+//#define IL2CPP_VERSION 270 //! 2020.x - 2021.x
+//#define UNITY20 //! If unity 2020.x
 
+//! Includes
 #include <iostream>
+#include <string>
+#include <locale>
+#include <codecvt>
+#include <sstream>
+#include <dlfcn.h>
 #include <dlfcn.h>
 #include <iomanip>
 #include <sstream>
@@ -31,34 +37,21 @@
 #include <limits>
 #include <vector>
 
-#define BNMTAG "ByNameModding"
-#define LOGIBNM(...) ((void)__android_log_print(4,  BNMTAG, __VA_ARGS__))
 
 #include "ByNameModding/Il2CppTypeDefs/il2cpptypes.h"
-
 #if IL2CPP_VERSION == 240
-
 #include "ByNameModding/Il2CppTypeDefs/24.0.h"
-
 #elif IL2CPP_VERSION == 241
-
 #include "ByNameModding/Il2CppTypeDefs/24.1.h"
-
 #elif IL2CPP_VERSION == 242
-
 #include "ByNameModding/Il2CppTypeDefs/24.2.h"
-
 #elif IL2CPP_VERSION == 270
-
 #include "ByNameModding/Il2CppTypeDefs/27.0.h"
-
 #else
-
 #include "ByNameModding/Il2CppTypeDefs/24.2.h"
-
 #endif
-
+typedef Il2CppReflectionType MonoType;
 #include "ByNameModding/ByNameModdingUtils.h"
 #include "ByNameModding/LoadClass_Field.h"
-
+#include "ByNameModding/BasicStructs/BasicStructs.h"
 

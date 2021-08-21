@@ -1,29 +1,45 @@
 #pragma once
-
+using namespace std;
+#include "macros.h"
 typedef unsigned long DWORD;
-#ifdef __arm__
-DWORD MetadataRegistrationOffset = 0x0;
-DWORD Il2CppRegistrationOffset = 0x0;
-
-#define HOOK(offset, a, b) if (offset != 0) MSHookFunction((void *)offset, (void *) a, (void **) &b)
-#elif defined(__i386__) //x86
-
-DWORD MetadataRegistrationOffset = 0x0;
-DWORD Il2CppRegistrationOffset = 0x0;
+#if defined(__ARM_ARCH_7A__) // armv7
 
 #include <Substrate/SubstrateHook.h>
 #include <Substrate/CydiaSubstrate.h>
 
-#define HOOK(offset, a, b) if (offset != 0) MSHookFunction((void *)offset, (void *) a, (void **) &b)
+DWORD MetadataRegistrationOffset = 0x0;
+DWORD Il2CppRegistrationOffset = 0x0;
+
+#elif defined(__i386__) //x86
+
+#include <Substrate/SubstrateHook.h>
+#include <Substrate/CydiaSubstrate.h>
+
+DWORD MetadataRegistrationOffset = 0x0;
+DWORD Il2CppRegistrationOffset = 0x0;
+
 #elif defined(__aarch64__) //arm64-v8a
+
+#include <And64InlineHook/And64InlineHook.hpp>
 
 DWORD MetadataRegistrationOffset = 0x0;
 DWORD Il2CppRegistrationOffset = 0x0;
 
 #endif
-#define InitResolveFunc(x, y) *reinterpret_cast<void **>(&x) = get_Method(y)
+
+auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
+    if (ptr != 0){
+#if defined(__aarch64__)
+        A64HookFunction((void *)ptr, (void *) newMethod, (void **) &oldBytes);
+#else
+        MSHookFunction((void *)ptr, (void *) newMethod, (void **) &oldBytes);
+#endif
+    }
+};
+#define InitResolveFunc(x, y) *(void **)(&x) = get_Method(y)
 #define InitFunc(x, y) if (y != 0) *(void **)(&x) = (void *)(y)
-#define FieldBN(type, inst, nameSpacec, clazzz, _new, fieldName) (LoadClass(nameSpacec, clazzz, _new).GetFieldByName<type>(fieldName, inst))
+#define FieldBN(type, inst, nameSpacec, clazzz, _new, fieldName, key) (LoadClass(OBFUSCATES_KEY_BNM(nameSpacec, key), OBFUSCATES_KEY_BNM(clazzz, key), _new).GetFieldByName<type>(OBFUSCATES_KEY_BNM(fieldName, key), inst))
+#define FieldBNC(type, inst, nameSpacec, clazzz, _new, fieldName) (LoadClass(nameSpacec, clazzz, _new).GetFieldByName<type>(fieldName, inst))
 
 void *s_Il2CppMetadataRegistration = 0;
 void *s_Il2CppCodeRegistration = 0;
@@ -31,12 +47,15 @@ void *s_Il2CppCodeRegistration = 0;
 void *get_il2cpp() {
     void *mod = 0;
     while (!mod) {
-        mod = dlopen("libil2cpp.so", RTLD_LAZY);
+        mod = dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
     }
     return mod;
 }
+bool IsNativeObjectAlive(void *o){
+    return o != NULL && *(intptr_t *)((uint64_t)o + 0x8) != 0;
+}
+#define DO_API(r, n, p) auto n = (r (*) p)dlsym(get_il2cpp(), OBFUSCATE_BNM(#n))
 
-#define DO_API(r, n, p) auto n = (r (*) p)dlsym(get_il2cpp(), #n)
 // Some modified version of this:
 // https://stackoverflow.com/a/15340456
 jmp_buf jump;
@@ -59,8 +78,8 @@ bool isNOT_Allocated(T x) {
 }
 
 const char *readFileTxt(const char *myFile) {
-    FILE *file = fopen(myFile, "r");
-    if (!file) return "";
+    FILE *file = fopen(myFile, OBFUSCATE_BNM("r"));
+    if (!file) return OBFUSCATE_BNM("");
     std::vector<char> vec;
     while (!feof(file)) {
         char a;
@@ -103,9 +122,9 @@ std::string revhexstr(std::string hex) {
 std::string fixhex(std::string str) {
     std::string out = str;
     std::string::size_type tmp;
-    if (out.find(std::string("0x")) != -1) {
-        tmp = out.find(std::string("0x"));
-        out.replace(tmp, 2, std::string(""));
+    if (out.find(std::string(OBFUSCATE_BNM("0x"))) != -1) {
+        tmp = out.find(std::string(OBFUSCATE_BNM("0x")));
+        out.replace(tmp, 2, std::string(OBFUSCATE_BNM("")));
     }
     for (int i = out.length() - 1; i >= 0; --i) {
         if (out[i] == ' ')
@@ -128,9 +147,9 @@ DWORD getOffsetFromB_Hex(std::string hex, DWORD offset, bool idk = false) {
     std::string strOffset = DWORD2HexStr(offset);
     hex = revhexstr(fixhex(hex));
     if (strOffset.length() < 7 && !idk) {
-        hex = std::string("00") + hex.substr(2);
+        hex = std::string(OBFUSCATE_BNM("00")) + hex.substr(2);
     } else {
-        hex = std::string("FF") + hex.substr(2);
+        hex = std::string(OBFUSCATE_BNM("FF")) + hex.substr(2);
     }
     DWORD hexdw = (HexStr2DWORD(hex) << 2) + 8; // get offset from fixed opcode "b #offset"
     if (DWORD2HexStr(hexdw).length() > strOffset.length()) {
@@ -289,19 +308,18 @@ struct Metadata {
     }
 
 #if IL2CPP_VERSION < 242
-
-    InvokerMethod GetMethodInvokerFromIndex(MethodIndex index) {
+    InvokerMethod GetMethodInvokerFromIndex(MethodIndex index)
+    {
         if (index == kMethodIndexInvalid)
             return NULL;
         return Il2CppRegistration->invokerPointers[index];
     }
-
-    Il2CppMethodPointer GetMethodPointerFromIndex(MethodIndex index) {
+    Il2CppMethodPointer GetMethodPointerFromIndex(MethodIndex index)
+    {
         if (index == kMethodIndexInvalid)
             return NULL;
         return Il2CppRegistration->methodPointers[index];
     }
-
 #else
 
     InvokerMethod GetMethodInvoker(const Il2CppImage *image, uint32_t token) {
@@ -362,13 +380,13 @@ struct LibInfo {
 LibInfo GetLibInfo(const char *libraryName) {
     LibInfo retMap = {};
     char line[512] = {0};
-    FILE *fp = fopen("/proc/self/maps", "rt");
+    FILE *fp = fopen(OBFUSCATE_BNM("/proc/self/maps"), OBFUSCATE_BNM("rt"));
     if (fp != NULL) {
         while (fgets(line, sizeof(line), fp)) {
             if (strstr(line, libraryName)) {
                 LibInfo tmpMap;
                 char tmpPathname[400] = {0};
-                sscanf(line, "%llx-%llx %*s %*ld %*s %*d %s",
+                sscanf(line, OBFUSCATE_BNM("%llx-%llx %*s %*ld %*s %*d %s"),
                        (long long unsigned *) &tmpMap.startAddr,
                        (long long unsigned *) &tmpMap.endAddr,
                        tmpPathname);
@@ -395,7 +413,7 @@ std::string readHexStrFromMem(const void *addr, size_t len) {
     if (memcpy(temp, addr, len) == NULL)
         return ret;
     for (int i = 0; i < len; i++) {
-        sprintf(&buffer[i * 2], "%02X", (unsigned char) temp[i]);
+        sprintf(&buffer[i * 2], OBFUSCATE_BNM("%02X"), (unsigned char) temp[i]);
     }
     ret += buffer;
     return ret;
@@ -408,7 +426,7 @@ DWORD findPattern(const char *pattern, DWORD address, DWORD len) {
     for (DWORD pCur = address; pCur < address + len; pCur++) {
         if (!pat[0]) return match;
         char curmem[3];
-        sprintf(curmem, "%02X", *(char *) pCur);
+        sprintf(curmem, OBFUSCATE_BNM("%02X"), *(char *) pCur);
         if ((pat[0] == '\?' && pat[1] == '\?') || (pat[0] == '\?' && pat[1] == curmem[1]) ||
             (pat[0] == curmem[0] && pat[1] == '\?') ||
             (pat[0] == curmem[0] && pat[1] == curmem[1])) {
@@ -429,11 +447,11 @@ struct MetaDataUtils {
     static void *LoadMetadataDat() {
         pid_t pid = getpid();
         char pagacke_path[255] = {0};
-        sprintf(pagacke_path, "/proc/%d/cmdline", pid);
+        sprintf(pagacke_path, OBFUSCATE_BNM("/proc/%d/cmdline"), pid);
         const char *current_pakage_name = readFileTxt(pagacke_path);
         std::string dat_path =
-                std::string("/sdcard/Android/data/") + current_pakage_name +
-                std::string("/files/il2cpp/Metadata/global-metadata.dat");
+                std::string(OBFUSCATE_BNM("/sdcard/Android/data/")) + current_pakage_name +
+                std::string(OBFUSCATE_BNM("/files/il2cpp/Metadata/global-metadata.dat"));
         void *dat = MapFile2Mem(dat_path.c_str());
         if (dat) {
             return dat;
@@ -483,15 +501,16 @@ struct MetaDataUtils {
     }
 
     static const char *getFirstPattern() {
-#ifdef __arm__
-        return "14 ?? 9F E5 14 ?? 9F E5 14 ?? 9F E5 ?? ?? ?? ?? ?? ?? 8F E0 ?? ?? ?? ?? ?? ?? ?? E?";
+#if defined(__ARM_ARCH_7A__)
+        return OBFUSCATE_BNM(
+                "14 ?? 9F E5 14 ?? 9F E5 14 ?? 9F E5 ?? ?? ?? ?? ?? ?? 8F E0 ?? ?? ?? ?? ?? ?? ?? E?");
 #else
-        return "NONE";
+        return OBFUSCATE_BNM("NONE");
 #endif
     }
 
     static void *getRegister() {
-        LibInfo libInfo = GetLibInfo("libil2cpp.so");
+        LibInfo libInfo = GetLibInfo(OBFUSCATE_BNM("libil2cpp.so"));
         if (s_Il2CppMetadataRegistration) return s_Il2CppMetadataRegistration;
         if (MetadataRegistrationOffset != 0x0) {
             s_Il2CppMetadataRegistration = (void *) (libInfo.startAddr +
@@ -517,18 +536,15 @@ struct MetaDataUtils {
     }
 };
 
-Il2CppReflectionType *GetMonoTypeFromIl2CppClass(Il2CppClass *klass) {
-    DO_API(Il2CppObject*, il2cpp_type_get_object, (const Il2CppType * type));
-#if IL2CPP_VERSION > 240
-    return (Il2CppReflectionType *) il2cpp_type_get_object(&klass->byval_arg);
-#else
-    return (Il2CppReflectionType *) il2cpp_type_get_object(klass->byval_arg);
-#endif
-}
-
 DWORD abs(DWORD val) {
     if (val < 0)
         return -val;
     return val;
+}
+
+template<typename T>
+static T UnBoxObject(T obj) {
+    void *val = (void *) (((char *) obj) + sizeof(Il2CppObject));
+    return *(T *) val;
 }
 

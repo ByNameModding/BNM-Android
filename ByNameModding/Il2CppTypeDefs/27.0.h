@@ -6,9 +6,7 @@ typedef struct Il2CppStackFrameInfo {
     int ilOffset;
     const char *filePath;
 } Il2CppStackFrameInfo;
-
 typedef void(*Il2CppMethodPointer)();
-
 typedef struct Il2CppMethodDebugInfo {
     Il2CppMethodPointer methodPointer;
     int32_t code_size;
@@ -46,43 +44,27 @@ typedef struct {
 } Il2CppDebuggerTransport;
 typedef uint16_t Il2CppChar;
 typedef char Il2CppNativeChar;
-
 typedef void (*il2cpp_register_object_callback)(Il2CppObject **arr, int size,
                                                 void *userdata);
-
 typedef void (*il2cpp_WorldChangedCallback)();
-
 typedef void (*Il2CppFrameWalkFunc)(const Il2CppStackFrameInfo *info, void *user_data);
-
 typedef void (*Il2CppProfileFunc)(Il2CppProfiler *prof);
-
 typedef void (*Il2CppProfileMethodFunc)(Il2CppProfiler *prof,
                                         const MethodInfo *method);
-
 typedef void (*Il2CppProfileAllocFunc)(Il2CppProfiler *prof, Il2CppObject *obj,
                                        Il2CppClass *klass);
-
 typedef void (*Il2CppProfileGCFunc)(Il2CppProfiler *prof, Il2CppGCEvent event,
                                     int generation);
-
 typedef void (*Il2CppProfileGCResizeFunc)(Il2CppProfiler *prof, int64_t new_size);
-
 typedef void (*Il2CppProfileFileIOFunc)(Il2CppProfiler *prof,
                                         Il2CppProfileFileIOKind kind, int count);
-
 typedef void (*Il2CppProfileThreadFunc)(Il2CppProfiler *prof, unsigned long tid);
-
 typedef const Il2CppNativeChar *(*Il2CppSetFindPlugInCallback)(
         const Il2CppNativeChar *);
-
 typedef void (*Il2CppLogCallback)(const char *);
-
 typedef size_t(*Il2CppBacktraceFunc)(Il2CppMethodPointer *buffer, size_t maxSize);
-
 typedef uintptr_t il2cpp_array_size_t;
-
 typedef void ( *SynchronizationContextCallback)(intptr_t arg);
-
 typedef uint16_t Il2CppMethodSlot;
 static const uint16_t kInvalidIl2CppMethodSlot = 65535;
 static const int ipv6AddressSize = 16;
@@ -476,11 +458,11 @@ typedef struct Il2CppType {
     union {
         void *dummy;
         TypeDefinitionIndex __klassIndex;
-        const Il2CppTypeDefinition *typeDefinition;
+        const Il2CppTypeDefinition* typeDefinition;
         const Il2CppType *type;
         Il2CppArrayType *array;
         GenericParameterIndex __genericParameterIndex;
-        const Il2CppGenericParameter *genericParameter;
+        const Il2CppGenericParameter* genericParameter;
         Il2CppGenericClass *generic_class;
     } data;
     unsigned int attrs: 16;
@@ -496,7 +478,7 @@ typedef struct Il2CppMetadataFieldInfo {
     uint32_t token;
 } Il2CppMetadataFieldInfo;
 typedef struct Il2CppMetadataMethodInfo {
-    const Il2CppMethodDefinition *handle;
+    const Il2CppMethodDefinition* handle;
     const char *name;
     const Il2CppType *return_type;
     uint32_t token;
@@ -530,7 +512,7 @@ typedef struct Il2CppInterfaceOffsetInfo {
     int32_t offset;
 } Il2CppInterfaceOffsetInfo;
 typedef struct Il2CppGenericParameterInfo {
-    const Il2CppGenericContainer *container;
+    const Il2CppGenericContainer* container;
     const char *name;
     uint16_t num;
     uint16_t flags;
@@ -735,17 +717,12 @@ typedef struct Il2CppWindowsRuntimeTypeName {
     Il2CppHString typeName;
     enum Il2CppWindowsRuntimeTypeKind typeKind;
 } Il2CppWindowsRuntimeTypeName;
-
 typedef void (*PInvokeMarshalToNativeFunc)(void *managedStructure,
                                            void *marshaledStructure);
-
 typedef void (*PInvokeMarshalFromNativeFunc)(void *marshaledStructure,
                                              void *managedStructure);
-
 typedef void (*PInvokeMarshalCleanupFunc)(void *marshaledStructure);
-
 typedef struct Il2CppIUnknown *(*CreateCCWFunc)(Il2CppObject *obj);
-
 typedef struct Il2CppInteropData {
     Il2CppMethodPointer delegatePInvokeWrapperFunction;
     PInvokeMarshalToNativeFunc pinvokeMarshalToNativeFunction;
@@ -769,9 +746,7 @@ typedef struct CustomAttributesCache {
     int count;
     Il2CppObject **attributes;
 } CustomAttributesCache;
-
 typedef void (*CustomAttributesCacheGenerator)(CustomAttributesCache *);
-
 typedef struct FieldInfo {
     const char *name;
     const Il2CppType *type;
@@ -802,10 +777,8 @@ typedef struct ParameterInfo {
     uint32_t token;
     const Il2CppType *parameter_type;
 } ParameterInfo;
-
 typedef void (*InvokerMethod)(Il2CppMethodPointer, const MethodInfo *, void *, void **,
                               void *);
-
 typedef enum MethodVariableKind {
     kMethodVariableKind_This,
     kMethodVariableKind_Parameter,
@@ -887,11 +860,11 @@ typedef struct MethodInfo {
     const ParameterInfo *parameters;
     union {
         const Il2CppRGCTXData *rgctx_data;
-        const Il2CppMethodDefinition *methodDefinition;
+        const Il2CppMethodDefinition* methodDefinition;
     };
     union {
         const Il2CppGenericMethod *genericMethod;
-        const Il2CppGenericContainer *genericContainer;
+        const Il2CppGenericContainer* genericContainer;
     };
     uint32_t token;
     uint16_t flags;
@@ -919,7 +892,7 @@ typedef struct Il2CppClass {
     Il2CppClass *declaringType;
     Il2CppClass *parent;
     Il2CppGenericClass *generic_class;
-    const Il2CppTypeDefinition *typeDefinition;
+    const Il2CppTypeDefinition* typeDefinition;
     const Il2CppInteropData *interopData;
     Il2CppClass *klass;
     FieldInfo *fields;
@@ -937,7 +910,7 @@ typedef struct Il2CppClass {
     uint32_t cctor_started;
     uint32_t cctor_finished;
     __attribute__((aligned(8))) size_t cctor_thread;
-    const Il2CppGenericContainer *genericContainer;
+    const Il2CppGenericContainer* genericContainer;
     uint32_t instance_size;
     uint32_t actualSize;
     uint32_t element_size;
@@ -989,7 +962,7 @@ typedef struct Il2CppClass_0 {
     Il2CppClass *declaringType;
     Il2CppClass *parent;
     Il2CppGenericClass *generic_class;
-    const Il2CppTypeDefinition *typeDefinition;
+    const Il2CppTypeDefinition* typeDefinition;
     const Il2CppInteropData *interopData;
     Il2CppClass *klass;
     FieldInfo *fields;
@@ -1011,7 +984,7 @@ typedef struct Il2CppClass_1 {
 #else
     __attribute__((aligned(8))) size_t cctor_thread;
 #endif
-    const Il2CppGenericContainer *genericContainer;
+    const Il2CppGenericContainer* genericContainer;
     uint32_t instance_size;
     uint32_t actualSize;
     uint32_t element_size;
@@ -1094,7 +1067,7 @@ typedef struct Il2CppImage {
     uint32_t typeCount;
     uint32_t exportedTypeCount;
     uint32_t customAttributeCount;
-    const Il2CppTypeDefinition *metadataHandle;
+    const Il2CppTypeDefinition* metadataHandle;
     Il2CppNameToTypeHandleHashTable *nameToClassHashTable;
     const Il2CppCodeGenModule *codeGenModule;
     uint32_t token;
@@ -1277,11 +1250,6 @@ typedef struct Il2CppArraySize {
     il2cpp_array_size_t max_length;
     __attribute__((aligned(8))) void *vector[32];
 } Il2CppArraySize;
-typedef struct Il2CppString {
-    Il2CppObject object;
-    int32_t length;
-    Il2CppChar chars[32];
-} Il2CppString;
 typedef struct Il2CppReflectionType {
     Il2CppObject object;
     const Il2CppType *type;
