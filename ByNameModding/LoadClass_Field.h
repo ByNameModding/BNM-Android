@@ -4,15 +4,15 @@ using namespace std;
 template<typename T>
 struct Field {
     static bool CheckIfStatic(FieldInfo *fieldInfo) {
-        if ((fieldInfo->type->attrs & 0x10) == 0)
+        if (!fieldInfo || !fieldInfo->type)
             return false;
 
-        if ((fieldInfo->type->attrs & 0x40) != 0)
-            return false;
+        if ((fieldInfo->type->attrs & 0x10) != 0)
+            return true;
 
         if (fieldInfo->offset == -1)
             LOGIBNM(OBFUSCATE_BNM("Thread static fields is not supported!"));
-        return true;
+        return false;
     }
 
     FieldInfo *thiz;
@@ -44,7 +44,7 @@ struct Field {
     }
 
     T get() {
-        if (!init || thread_static) return T();
+        if (!init || thread_static || (statik && (!thiz->parent || !thiz->parent->static_fields))) return T();
         if (statik) {
             return *(T *) ((uint64_t) thiz->parent->static_fields + thiz->offset);
         }
@@ -52,7 +52,7 @@ struct Field {
     }
 
     void set(T val) {
-        if (!init || thread_static) return;
+        if (!init || thread_static || (statik && (!thiz->parent || !thiz->parent->static_fields))) return;
         if (statik) {
             *(T *) ((uint64_t) thiz->parent->static_fields + thiz->offset) = val;
             return;
