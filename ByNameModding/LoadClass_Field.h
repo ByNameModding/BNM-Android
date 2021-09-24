@@ -356,7 +356,7 @@ public:
                     int paramIndex = 0;
                     for (ParameterIndex i = parameterStart; i < parameterEnd; i++) {
                         auto param = metadata->GetParameterDefinitionFromIndex(i);
-                        if (metadata->GetStringFromIndex(param->nameIndex) == params_names[paramIndex]) {
+                        if (metadata->GetStringFromIndex(param->nameIndex) != params_names[paramIndex]) {
                             ok = false;
                             break;
                         }
@@ -368,11 +368,11 @@ public:
         } else {
             for (int i = 0; i < klass->method_count; i++) {
                 const MethodInfo *method = klass->methods[i];
-                if (name == method->name == 0 && method->parameters_count == paramcount) {
+                if (name == method->name && method->parameters_count == paramcount) {
                     bool ok = true;
                     for (int i = 0; i < paramcount; i++) {
                         auto param = method->parameters + i;
-                        if (param->name == params_names[i]) {
+                        if (param->name != params_names[i]) {
                             ok = false;
                             break;
                         }
