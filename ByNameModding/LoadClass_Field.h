@@ -475,7 +475,7 @@ public:
 
     const Il2CppType *GetIl2CppType() {
         if (!klass) return nullptr;
-#if IL2CPP_VERSION > 240
+#if UNITY_VER > 172
         return &klass->byval_arg;
 #else
         return klass->byval_arg;
@@ -484,10 +484,10 @@ public:
     MonoType *GetMonoType() {
         if (!klass) return nullptr;
         DO_API(Il2CppObject*, il2cpp_type_get_object, (const Il2CppType * type));
-#if IL2CPP_VERSION > 240
+#if UNITY_VER > 172
         return (MonoType *) il2cpp_type_get_object(&klass->byval_arg);
 #else
-        return (Il2CppReflectionType *) il2cpp_type_get_object(klass->byval_arg);
+        return (MonoType *) il2cpp_type_get_object(klass->byval_arg);
 #endif
     }
 
@@ -513,10 +513,11 @@ void *get_Extern_Method(string str) {
     DO_API(void*, il2cpp_resolve_icall, (const char *str));
     return il2cpp_resolve_icall(str.c_str());
 }
-monoString *(*mono_CreateString)(void *, const char *);
+
 monoString *
 CreateMonoString(string str, bool il2cpp = true) {
     if (!il2cpp) {
+        static monoString *(*mono_CreateString)(void *, const char *);
         if (!mono_CreateString)
             InitFunc(mono_CreateString, LoadClass(OBFUSCATE("System"), OBFUSCATE("String")).GetMethodOffsetByName(OBFUSCATE("CreateString"), 1));
         return mono_CreateString(NULL, str.c_str());

@@ -230,7 +230,7 @@ struct Metadata {
         Il2CppClass *typeInfo = GetTypeInfoFromTypeDefinitionIndex(methodDefinition->declaringType);
         MethodInfo *newMethod = new MethodInfo();
         newMethod->name = GetStringFromIndex(methodDefinition->nameIndex);
-#if IL2CPP_VERSION < 242
+#if UNITY_VER < 191
         newMethod->methodPointer = GetMethodPointerFromIndex(methodDefinition->methodIndex);
         newMethod->invoker_method = GetMethodInvokerFromIndex(methodDefinition->invokerIndex);
 #else
@@ -238,7 +238,11 @@ struct Metadata {
         newMethod->invoker_method = GetMethodInvoker(typeInfo->image,
                                                      methodDefinition->token);
 #endif
+#if UNITY_VER > 174
         newMethod->klass = typeInfo;
+#else
+        newMethod->declaring_type = typeInfo;
+#endif
         newMethod->return_type = GetIl2CppTypeFromIndex(methodDefinition->returnType);
         ParameterInfo *parameters = CheckObj((ParameterInfo *) calloc(
                 methodDefinition->parameterCount, sizeof(ParameterInfo)));
@@ -263,20 +267,29 @@ struct Metadata {
         newMethod->flags = methodDefinition->flags;
         newMethod->iflags = methodDefinition->iflags;
         newMethod->slot = methodDefinition->slot;
-        newMethod->parameters_count = static_cast<const uint8_t>(methodDefinition->parameterCount);
+        newMethod->parameters_count = (const uint8_t)methodDefinition->parameterCount;
         newMethod->is_inflated = false;
         newMethod->token = methodDefinition->token;
+#if UNITY_VER < 202
         newMethod->methodDefinition = methodDefinition;
         if (newMethod->genericContainer)
             newMethod->is_generic = true;
-
+#else
+        newMethod->methodMetadataHandle = (Il2CppMetadataMethodDefinitionHandle)methodDefinition;
+        if (newMethod->genericContainerHandle)
+            newMethod->is_generic = true;
+#endif
         return newMethod;
     }
 
     const TypeDefinitionIndex GetIndexForTypeDefinition(const Il2CppClass *typeDefinition) {
         const Il2CppTypeDefinition *typeDefinitions = (const Il2CppTypeDefinition *) (
                 (const char *) file + header->typeDefinitionsOffset);
+#if UNITY_VER < 202
         ptrdiff_t index = typeDefinition->typeDefinition - typeDefinitions;
+#else
+        ptrdiff_t index = (const Il2CppTypeDefinition *)typeDefinition->typeMetadataHandle - typeDefinitions;
+#endif
         return static_cast<TypeDefinitionIndex>(index);
     }
 
@@ -286,8 +299,13 @@ struct Metadata {
         newField->type = GetIl2CppTypeFromIndex(fieldDefinition->typeIndex);
         newField->name = GetStringFromIndex(fieldDefinition->nameIndex);
         newField->parent = klass;
+#if UNITY_VER < 202
         newField->offset = registartion->fieldOffsets[GetIndexForTypeDefinition(klass)][index -
                                                                                         klass->typeDefinition->fieldStart];
+#else
+        newField->offset = registartion->fieldOffsets[GetIndexForTypeDefinition(klass)][index -
+                ((const Il2CppTypeDefinition *)klass->typeMetadataHandle)->fieldStart];
+#endif
         newField->token = fieldDefinition->token;
         return newField;
     }
@@ -307,7 +325,7 @@ struct Metadata {
         return parameters + index;
     }
 
-#if IL2CPP_VERSION < 242
+#if UNITY_VER < 191
     InvokerMethod GetMethodInvokerFromIndex(MethodIndex index)
     {
         if (index == kMethodIndexInvalid)
@@ -350,8 +368,6 @@ struct Metadata {
     }
 
 };
-
-
 // For finder
 bool isfinder;
 
@@ -445,6 +461,8 @@ DWORD findPattern(const char *pattern, DWORD address, DWORD len) {
 
 struct MetaDataUtils {
     static void *LoadMetadataDat() {
+        
+#ifndef MEMORY_METADATA
         pid_t pid = getpid();
         char pagacke_path[255] = {0};
         sprintf(pagacke_path, OBFUSCATE_BNM("/proc/%d/cmdline"), pid);
@@ -452,10 +470,23 @@ struct MetaDataUtils {
         std::string dat_path =
                 std::string(OBFUSCATE_BNM("/sdcard/Android/data/")) + current_pakage_name +
                 std::string(OBFUSCATE_BNM("/files/il2cpp/Metadata/global-metadata.dat"));
-        void *dat = MapFile2Mem(dat_path.c_str());
-        if (dat) {
+            void *dat = MapFile2Mem(dat_path.c_str());
+            if (dat) {
+                return dat;
+            }
+#else
+        LibInfo libInfo = GetLibInfo(OBFUSCATE_BNM("global-metadata.dat"));
+
+        if (libInfo.startAddr != 0){
+#ifdef COPY_METADATA
+            void *dat = malloc(libInfo.size);
+            memcpy(dat, (void *)libInfo.startAddr, libInfo.size);
             return dat;
+#else
+            return (void *)libInfo.startAddr;
+#endif
         }
+#endif
         return NULL;
     }
 
