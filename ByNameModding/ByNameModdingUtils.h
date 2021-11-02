@@ -1,48 +1,56 @@
 #pragma once
-using namespace std;
-#include "macros.h"
 typedef unsigned long DWORD;
-#if defined(__ARM_ARCH_7A__) // armv7
 
-#include <Substrate/SubstrateHook.h>
-#include <Substrate/CydiaSubstrate.h>
-
-DWORD MetadataRegistrationOffset = 0x0;
-DWORD Il2CppRegistrationOffset = 0x0;
-
-#elif defined(__i386__) //x86
-
-#include <Substrate/SubstrateHook.h>
-#include <Substrate/CydiaSubstrate.h>
-
-DWORD MetadataRegistrationOffset = 0x0;
-DWORD Il2CppRegistrationOffset = 0x0;
-
-#elif defined(__aarch64__) //arm64-v8a
-
-#include <And64InlineHook/And64InlineHook.hpp>
-
-DWORD MetadataRegistrationOffset = 0x0;
-DWORD Il2CppRegistrationOffset = 0x0;
-
-#endif
-
-auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
-    if (ptr != 0){
-#if defined(__aarch64__)
-        A64HookFunction((void *)ptr, (void *) newMethod, (void **) &oldBytes);
-#else
-        MSHookFunction((void *)ptr, (void *) newMethod, (void **) &oldBytes);
-#endif
-    }
+struct TypeFinder {
+    bool byNameOnly;
+    const char *name;
+    const char *namespaze;
+    const Il2CppType* ToIl2CppType();
 };
-#define InitResolveFunc(x, y) *(void **)(&x) = get_Method(y)
-#define InitFunc(x, y) if (y != 0) *(void **)(&x) = (void *)(y)
-#define FieldBN(type, inst, nameSpacec, clazzz, _new, fieldName, key) (LoadClass(OBFUSCATES_KEY_BNM(nameSpacec, key), OBFUSCATES_KEY_BNM(clazzz, key), _new).GetFieldByName<type>(OBFUSCATES_KEY_BNM(fieldName, key), inst))
-#define FieldBNC(type, inst, nameSpacec, clazzz, _new, fieldName) (LoadClass(nameSpacec, clazzz, _new).GetFieldByName<type>(fieldName, inst))
+template<typename T>
+constexpr TypeFinder GetType();
+void InitIl2cppMethods();
+typedef std::vector<const Il2CppAssembly*> AssemblyVector;
+typedef std::vector<const Il2CppClass*> TypeVector;
 
-void *s_Il2CppMetadataRegistration = 0;
-void *s_Il2CppCodeRegistration = 0;
+AssemblyVector *(*Assembly$$GetAllAssemblies_t)();
+
+AssemblyVector *Assembly$$GetAllAssemblies(){
+    if (!Assembly$$GetAllAssemblies_t)
+        InitIl2cppMethods();
+    return Assembly$$GetAllAssemblies_t();
+}
+
+bool (*Class$$Init_t)(Il2CppClass *);
+
+bool Class$$Init(Il2CppClass *cls){
+    if (!Class$$Init_t)
+        InitIl2cppMethods();
+    return Class$$Init_t(cls);
+}
+void (*old_Image_GetTypes)(...);
+void new_Image_GetTypes(const Il2CppImage* image, bool exportedOnly_UNUSED_IN_IL2CPP_SRC, TypeVector* target);
+
+void (*Image$$GetTypes_t)(const Il2CppImage* image, bool exportedOnly_UNUSED_IN_IL2CPP_SRC, TypeVector* target);
+void Image$$GetTypes(const Il2CppImage* image, bool exportedOnly_UNUSED_IN_IL2CPP_SRC, TypeVector* target){
+    if (!Image$$GetTypes_t)
+        InitIl2cppMethods();
+    Image$$GetTypes_t(image, exportedOnly_UNUSED_IN_IL2CPP_SRC, target);
+}
+Il2CppClass* (*old_Class_FromIl2CppType)(const Il2CppType* type);
+Il2CppClass* new_Class_FromIl2CppType(const Il2CppType* type);
+
+Il2CppClass* (*old_Class_FromName)(const Il2CppImage* image, const char* namespaze, const char *name);
+Il2CppClass* new_Class_FromName(const Il2CppImage* image, const char* namespaze, const char *name);
+
+bool (*old_Class_Init)(Il2CppClass *klass);
+bool new_Class_Init(Il2CppClass *klass) ;
+
+#define InitResolveFunc(x, y) *reinterpret_cast<void **>(&x) = get_Method(y)
+#define InitFunc(x, y) if (y != 0) *(void **)(&x) = (void *)(y)
+#define FieldBN(type, inst, nameSpacec, clazzz, fieldName) (LoadClass(OBFUSCATES_BNM(nameSpacec), OBFUSCATES_BNM(clazzz)).GetFieldByName<type>(OBFUSCATES_BNM(fieldName), inst))
+#define FieldBNC(type, inst, nameSpacec, clazzz, fieldName) (LoadClass(nameSpacec, clazzz).GetFieldByName<type>(fieldName, inst))
+
 
 void *get_il2cpp() {
     void *mod = 0;
@@ -55,56 +63,28 @@ bool IsNativeObjectAlive(void *o){
     return o != NULL && *(intptr_t *)((uint64_t)o + 0x8) != 0;
 }
 #define DO_API(r, n, p) auto n = (r (*) p)dlsym(get_il2cpp(), OBFUSCATE_BNM(#n))
-
 // Some modified version of this:
 // https://stackoverflow.com/a/15340456
 jmp_buf jump;
 
-void segv(int sig) {
+void segv([[maybe_unused]] int sig) {
     longjmp(jump, 1);
 }
 
 template<typename T>
 bool isNOT_Allocated(T x) {
-    volatile char c;
+    [[maybe_unused]] volatile char c;
     bool illegal = false;
-    signal(SIGSEGV, segv);
+
+    volatile auto old_sig = signal(SIGSEGV, segv);
+
     if (!setjmp (jump))
         c = *(char *) (x);
     else
         illegal = true;
-    signal(SIGSEGV, SIG_DFL);
+    signal(SIGSEGV, old_sig);
     return illegal;
 }
-
-const char *readFileTxt(const char *myFile) {
-    FILE *file = fopen(myFile, OBFUSCATE_BNM("r"));
-    if (!file) return OBFUSCATE_BNM("");
-    std::vector<char> vec;
-    while (!feof(file)) {
-        char a;
-        fread(&a, 1, 1, file);
-        vec.push_back(a);
-    }
-    fclose(file);
-    return std::string(vec.begin(), vec.end()).c_str();
-}
-
-//https://github.com/4ch12dy/XB1nLib/blob/master/XB1nLib.c#L29
-void *MapFile2Mem(const char *file_path) {
-    int fd;
-    struct stat st;
-    size_t len_file;
-    void *p;
-    if ((fd = open(file_path, O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IROTH)) < 0) return NULL;
-    if ((fstat(fd, &st)) < 0) return NULL;
-    len_file = st.st_size;
-    if ((p = mmap(NULL, len_file, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
-        return NULL;
-    close(fd);
-    return p;
-}
-
 
 template<typename T>
 T CheckObj(T obj) {
@@ -133,241 +113,18 @@ std::string fixhex(std::string str) {
     return out;
 }
 
-std::string DWORD2HexStr(DWORD hex) {
-    stringstream stream;
-    stream << std::hex << hex;
-    return stream.str();
-}
-
 DWORD HexStr2DWORD(std::string hex) {
     return strtoull(hex.c_str(), NULL, 16);
 }
 
-DWORD getOffsetFromB_Hex(std::string hex, DWORD offset, bool idk = false) {
-    std::string strOffset = DWORD2HexStr(offset);
-    hex = revhexstr(fixhex(hex));
-    if (strOffset.length() < 7 && !idk) {
-        hex = std::string(OBFUSCATE_BNM("00")) + hex.substr(2);
-    } else {
-        hex = std::string(OBFUSCATE_BNM("FF")) + hex.substr(2);
-    }
-    DWORD hexdw = (HexStr2DWORD(hex) << 2) + 8; // get offset from fixed opcode "b #offset"
-    if (DWORD2HexStr(hexdw).length() > strOffset.length()) {
-        return HexStr2DWORD(DWORD2HexStr(hexdw + offset).substr(
-                DWORD2HexStr(hexdw).length() - strOffset.length()));
-    }
-    return hexdw + offset;
+bool Is_B_BL_Hex_arm64(std::string hex) {
+    DWORD hexw = HexStr2DWORD(revhexstr(fixhex(hex)));
+    return (hexw & 0xFC000000) == 0x14000000 || (hexw & 0xFC000000) == 0x94000000;
 }
 
-struct Metadata {
-    void *file;
-    const Il2CppGlobalMetadataHeader *header;
-    const Il2CppMetadataRegistration *registartion;
-    const Il2CppCodeRegistration *Il2CppRegistration;
-    float version;
-    int32_t ImagesCount;
-    const Il2CppImageDefinition *ImageDefinitionTable;
-    const Il2CppTypeDefinition *TypeDefinitionTable;
-    const Il2CppFieldDefinition *FieldDefinitionTable;
-    const Il2CppMethodDefinition *MethodDefinitionTable;
-    const Il2CppParameterDefinition *ParameterDefinitionTable;
-    Il2CppClass **TypeInfoDefinitionTable;
-
-    const Il2CppType *GetIl2CppTypeFromIndex(TypeIndex index) {
-        return CheckObj(registartion->types[index]);
-    }
-
-    const Il2CppImageDefinition *getImageDefinitionByIndex(ImageIndex index) {
-        const Il2CppImageDefinition *imageDef = (const Il2CppImageDefinition *) (
-                ImageDefinitionTable + index);
-        return imageDef;
-    }
-
-    const Il2CppTypeDefinition *getTypeDefinitionByIndex(TypeDefinitionIndex index) {
-        const Il2CppTypeDefinition *typeDef = (const Il2CppTypeDefinition *) (TypeDefinitionTable +
-                                                                              index);
-        return typeDef;
-    }
-
-    const Il2CppFieldDefinition *getFieldDefinitionByIndex(FieldIndex index) {
-        const Il2CppFieldDefinition *fieldDef = (const Il2CppFieldDefinition *) (
-                FieldDefinitionTable + index);
-        return fieldDef;
-    }
-
-    const Il2CppMethodDefinition *getMethodDefinitionByIndex(MethodIndex index) {
-        const Il2CppMethodDefinition *methodDefinition = (const Il2CppMethodDefinition *) (
-                MethodDefinitionTable + index);
-        return methodDefinition;
-    }
-
-    const Il2CppParameterDefinition *getParameterDefinitionByIndex(ParameterIndex index) {
-        const Il2CppParameterDefinition *parameterDefinition = (const Il2CppParameterDefinition *) (
-                ParameterDefinitionTable + index);
-        return parameterDefinition;
-    }
-
-    Il2CppClass *GetTypeInfoFromTypeDefinitionIndex(TypeDefinitionIndex index) {
-        if (index == kTypeIndexInvalid)
-            return NULL;
-
-        if (!TypeInfoDefinitionTable[index]) {
-            Il2CppClass *klass = FromTypeDefinition(index);
-            TypeInfoDefinitionTable[index] = klass;
-        }
-
-        return TypeInfoDefinitionTable[index];
-    }
-
-    const char *GetStringFromIndex(StringIndex index) {
-        const char *strings = (const char *) ((uint64_t) file + header->stringOffset) + index;
-        return strings;
-    }
-
-
-    MethodInfo *GetMethodInfoFromIndex(MethodIndex index) {
-        const Il2CppMethodDefinition *methodDefinition = getMethodDefinitionByIndex(index);
-        Il2CppClass *typeInfo = GetTypeInfoFromTypeDefinitionIndex(methodDefinition->declaringType);
-        MethodInfo *newMethod = new MethodInfo();
-        newMethod->name = GetStringFromIndex(methodDefinition->nameIndex);
-#if IL2CPP_VERSION < 242
-        newMethod->methodPointer = GetMethodPointerFromIndex(methodDefinition->methodIndex);
-        newMethod->invoker_method = GetMethodInvokerFromIndex(methodDefinition->invokerIndex);
-#else
-        newMethod->methodPointer = GetMethodPointer(typeInfo->image, methodDefinition->token);
-        newMethod->invoker_method = GetMethodInvoker(typeInfo->image,
-                                                     methodDefinition->token);
-#endif
-        newMethod->klass = typeInfo;
-        newMethod->return_type = GetIl2CppTypeFromIndex(methodDefinition->returnType);
-        ParameterInfo *parameters = CheckObj((ParameterInfo *) calloc(
-                methodDefinition->parameterCount, sizeof(ParameterInfo)));
-        ParameterInfo *newParameter = parameters;
-        for (uint16_t paramIndex = 0;
-             paramIndex < methodDefinition->parameterCount; ++paramIndex) {
-            const Il2CppParameterDefinition *parameterDefinition = CheckObj(
-                    getParameterDefinitionByIndex(
-                            (methodDefinition->parameterStart + paramIndex)));
-            if (!isNOT_Allocated(parameterDefinition) && parameterDefinition != NULL) {
-                newParameter->name = CheckObj(
-                        GetStringFromIndex(parameterDefinition->nameIndex));
-                newParameter->position = paramIndex;
-                newParameter->token = CheckObj(parameterDefinition->token);
-                newParameter->parameter_type = CheckObj(GetIl2CppTypeFromIndex(
-                        parameterDefinition->typeIndex));
-                newParameter++;
-            }
-        }
-        newMethod->parameters = parameters;
-
-        newMethod->flags = methodDefinition->flags;
-        newMethod->iflags = methodDefinition->iflags;
-        newMethod->slot = methodDefinition->slot;
-        newMethod->parameters_count = static_cast<const uint8_t>(methodDefinition->parameterCount);
-        newMethod->is_inflated = false;
-        newMethod->token = methodDefinition->token;
-        newMethod->methodDefinition = methodDefinition;
-        if (newMethod->genericContainer)
-            newMethod->is_generic = true;
-
-        return newMethod;
-    }
-
-    const TypeDefinitionIndex GetIndexForTypeDefinition(const Il2CppClass *typeDefinition) {
-        const Il2CppTypeDefinition *typeDefinitions = (const Il2CppTypeDefinition *) (
-                (const char *) file + header->typeDefinitionsOffset);
-        ptrdiff_t index = typeDefinition->typeDefinition - typeDefinitions;
-        return static_cast<TypeDefinitionIndex>(index);
-    }
-
-    FieldInfo *GetFieldInfoFromIndexAndClass(FieldIndex index, Il2CppClass *klass) {
-        const Il2CppFieldDefinition *fieldDefinition = getFieldDefinitionByIndex(index);
-        FieldInfo *newField = new FieldInfo();
-        newField->type = GetIl2CppTypeFromIndex(fieldDefinition->typeIndex);
-        newField->name = GetStringFromIndex(fieldDefinition->nameIndex);
-        newField->parent = klass;
-        newField->offset = registartion->fieldOffsets[GetIndexForTypeDefinition(klass)][index -
-                                                                                        klass->typeDefinition->fieldStart];
-        newField->token = fieldDefinition->token;
-        return newField;
-    }
-
-    Il2CppClass *FromTypeDefinition(TypeDefinitionIndex index) {
-        const Il2CppTypeDefinition *typeDefinition = (const Il2CppTypeDefinition *) (
-                (const char *) file + header->typeDefinitionsOffset) + index;
-        //! This is more safer and this should work on all versions of unity
-        DO_API(Il2CppClass*, il2cpp_class_from_il2cpp_type, (const Il2CppType * type));
-        return il2cpp_class_from_il2cpp_type(
-                GetIl2CppTypeFromIndex(typeDefinition->byvalTypeIndex));
-    }
-
-    const Il2CppParameterDefinition *GetParameterDefinitionFromIndex(ParameterIndex index) {
-        const Il2CppParameterDefinition *parameters = (const Il2CppParameterDefinition *) (
-                (const char *) file + header->parametersOffset);
-        return parameters + index;
-    }
-
-#if IL2CPP_VERSION < 242
-    InvokerMethod GetMethodInvokerFromIndex(MethodIndex index)
-    {
-        if (index == kMethodIndexInvalid)
-            return NULL;
-        return Il2CppRegistration->invokerPointers[index];
-    }
-    Il2CppMethodPointer GetMethodPointerFromIndex(MethodIndex index)
-    {
-        if (index == kMethodIndexInvalid)
-            return NULL;
-        return Il2CppRegistration->methodPointers[index];
-    }
-#else
-
-    InvokerMethod GetMethodInvoker(const Il2CppImage *image, uint32_t token) {
-        uint32_t rid = token & 0x00FFFFFF;
-        if (rid == 0)
-            return NULL;
-
-        int32_t index = image->codeGenModule->invokerIndices[rid - 1];
-
-        if (index == kMethodIndexInvalid)
-            return NULL;
-        return Il2CppRegistration->invokerPointers[index];
-    }
-
-    Il2CppMethodPointer GetMethodPointer(const Il2CppImage *image, uint32_t token) {
-        uint32_t rid = token & 0x00FFFFFF;
-        if (rid == 0)
-            return NULL;
-        return image->codeGenModule->methodPointers[rid - 1];
-    }
-
-#endif
-
-    const Il2CppMethodDefinition *GetMethodDefinitionFromIndex(MethodIndex index) {
-        const Il2CppMethodDefinition *methods = (const Il2CppMethodDefinition *) (
-                (const char *) file + header->methodsOffset);
-        return methods + index;
-    }
-
-};
-
-
-// For finder
-bool isfinder;
-
-void *(*old_regget)(void *codeRegistration, void *metadataRegistration,
-                    void *codeGenOptions);
-
-// For finder
-void *
-regget(void *codeRegistration, void *metadataRegistration, void *codeGenOptions) {
-    if (isfinder) {
-        s_Il2CppCodeRegistration = codeRegistration;
-        s_Il2CppMetadataRegistration = metadataRegistration;
-        return 0;
-    } else {
-        return old_regget(codeRegistration, metadataRegistration, codeGenOptions);
-    }
+bool Is_B_BL_Hex(std::string hex) {
+    DWORD hexw = HexStr2DWORD(revhexstr(fixhex(hex)));
+    return ((hexw & 0xFC000000) == 0x14000000 || (hexw & 0xFC000000) == 0x94000000) || (hexw & 0x0A000000) == 0x0A000000;
 }
 
 struct LibInfo {
@@ -419,122 +176,58 @@ std::string readHexStrFromMem(const void *addr, size_t len) {
     return ret;
 }
 
-DWORD findPattern(const char *pattern, DWORD address, DWORD len) {
-    std::string fixedpar = fixhex(std::string(pattern));
-    const char *pat = fixedpar.c_str();
-    DWORD match = 0;
-    for (DWORD pCur = address; pCur < address + len; pCur++) {
-        if (!pat[0]) return match;
-        char curmem[3];
-        sprintf(curmem, OBFUSCATE_BNM("%02X"), *(char *) pCur);
-        if ((pat[0] == '\?' && pat[1] == '\?') || (pat[0] == '\?' && pat[1] == curmem[1]) ||
-            (pat[0] == curmem[0] && pat[1] == '\?') ||
-            (pat[0] == curmem[0] && pat[1] == curmem[1])) {
-            if (!match) match = pCur;
-            if (!pat[2]) return match;
-            pat += 2;
-        } else {
-            if (match) pCur = match;
-            pat = fixedpar.c_str();
-            match = 0;
-        }
-    }
-    return 0;
+bool Is_x86_call_hex(std::string hex) {
+    return hex.substr(0, 2) == OBFUSCATES_BNM("E8");
 }
-
-
-struct MetaDataUtils {
-    static void *LoadMetadataDat() {
-        pid_t pid = getpid();
-        char pagacke_path[255] = {0};
-        sprintf(pagacke_path, OBFUSCATE_BNM("/proc/%d/cmdline"), pid);
-        const char *current_pakage_name = readFileTxt(pagacke_path);
-        std::string dat_path =
-                std::string(OBFUSCATE_BNM("/sdcard/Android/data/")) + current_pakage_name +
-                std::string(OBFUSCATE_BNM("/files/il2cpp/Metadata/global-metadata.dat"));
-        void *dat = MapFile2Mem(dat_path.c_str());
-        if (dat) {
-            return dat;
-        }
-        return NULL;
+/*
+ * Branch decoding based on
+ * https://github.com/aquynh/capstone/
+*/
+bool Decode_Branch_or_Call_Hex(std::string hex, DWORD offset, DWORD *outOffset) {
+    bool arm = false;
+    if (!(arm = Is_B_BL_Hex(hex)) && !Is_x86_call_hex(hex)) return false;
+    if (arm) {
+        DWORD insn = HexStr2DWORD(revhexstr(fixhex(hex)));
+        DWORD imm = ((insn & (((uint32_t)1 << 24) - 1) << 0) >> 0) << 2;
+        DWORD SignExtendedImm = (int32_t)(imm << (32 - 26)) >> (32 - 26);
+        *outOffset = SignExtendedImm + offset + (Is_B_BL_Hex_arm64(hex) ? 0 : 8);
+    } else {
+        *outOffset = offset + HexStr2DWORD(revhexstr(fixhex(hex)).substr(0, 8)) + 5;
     }
-
-    static const Il2CppGlobalMetadataHeader *LoadMetadataDatHeader() {
-        return (const Il2CppGlobalMetadataHeader *) LoadMetadataDat();
+    return true;
+}
+DWORD FindNext_B_BL_offset(DWORD start, DWORD libstart, int index = 1) {
+#if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
+    int offset = 0;
+    std::string curHex = readHexStrFromMem((const void*)start, 4);
+    DWORD outOffset = 0;
+    DWORD start_inlib = start - libstart;
+    bool out = true;
+    while (!(out = Decode_Branch_or_Call_Hex(curHex, start_inlib, &outOffset)) || index != 1) {
+        offset += 4;
+        curHex = readHexStrFromMem((const void*)(start + offset), 4);
+        start_inlib += 4;
+        if (out)
+            index--;
     }
-
-    static Metadata *CrateMetadata() {
-        auto *data = new Metadata();
-        auto *metadata = LoadMetadataDat();
-        if (!metadata) return NULL;
-        auto *header = (const Il2CppGlobalMetadataHeader *) metadata;
-        auto *registration = (const Il2CppMetadataRegistration *) getRegister();
-        if (!registration) return NULL;
-        data->version = header->version;
-        if (header->version == 24)
-            if (header->stringLiteralOffset == 264)
-                data->version = 24.2f;
-            else
-                for (int i = 0; i < header->imagesCount; i++)
-                    if (((const Il2CppTypeDefinition *) ((uint64_t) metadata +
-                                                         header->typeDefinitionsOffset) +
-                         i)->token != 1)
-                        data->version = 24.1f;
-        data->file = metadata;
-        data->header = header;
-        data->registartion = registration;
-        data->Il2CppRegistration = (const Il2CppCodeRegistration *) s_Il2CppCodeRegistration;
-        data->ImagesCount = header->imagesCount / sizeof(Il2CppImageDefinition);
-        data->TypeInfoDefinitionTable = (Il2CppClass **) calloc(
-                header->typeDefinitionsCount / sizeof(Il2CppTypeDefinition), sizeof(Il2CppClass *));
-        data->ImageDefinitionTable = (const Il2CppImageDefinition *) ((uint64_t) metadata +
-                                                                      header->imagesOffset);
-        data->TypeDefinitionTable = (const Il2CppTypeDefinition *) ((uint64_t) metadata +
-                                                                    header->typeDefinitionsOffset);
-        data->FieldDefinitionTable = (const Il2CppFieldDefinition *) ((uint64_t) metadata +
-                                                                      header->fieldsOffset);
-        data->MethodDefinitionTable = (const Il2CppMethodDefinition *) ((uint64_t) metadata +
-                                                                        header->methodsOffset);
-        data->ParameterDefinitionTable = (const Il2CppParameterDefinition *) ((uint64_t) metadata +
-                                                                              header->parametersOffset);
-        return data;
+    return outOffset + libstart;
+#elif defined(__i386__)
+    int offset = 0;
+    std::string curHex = readHexStrFromMem((const void*)start, 1);
+    DWORD outOffset = 0;
+    DWORD start_inlib = start - libstart;
+    bool out = true;
+    while (!(out = Is_x86_call_hex(curHex)) || index != 1) {
+        offset += 1;
+        curHex = readHexStrFromMem((const void*)(start + offset), 1);
+        start_inlib += 1;
+        if (out)
+            index--;
     }
-
-    static const char *getFirstPattern() {
-#if defined(__ARM_ARCH_7A__)
-        return OBFUSCATE_BNM(
-                "14 ?? 9F E5 14 ?? 9F E5 14 ?? 9F E5 ?? ?? ?? ?? ?? ?? 8F E0 ?? ?? ?? ?? ?? ?? ?? E?");
-#else
-        return OBFUSCATE_BNM("NONE");
+    Decode_Branch_or_Call_Hex(readHexStrFromMem((const void*)(start + offset), 5), start_inlib, &outOffset);
+    return outOffset + libstart;
 #endif
-    }
-
-    static void *getRegister() {
-        LibInfo libInfo = GetLibInfo(OBFUSCATE_BNM("libil2cpp.so"));
-        if (s_Il2CppMetadataRegistration) return s_Il2CppMetadataRegistration;
-        if (MetadataRegistrationOffset != 0x0) {
-            s_Il2CppMetadataRegistration = (void *) (libInfo.startAddr +
-                                                     MetadataRegistrationOffset);
-            s_Il2CppCodeRegistration = (void *) (libInfo.startAddr + Il2CppRegistrationOffset);
-        } else {
-            DWORD Method2Call_Offset = findPattern(getFirstPattern(), libInfo.startAddr,
-                                                   libInfo.size) - libInfo.startAddr;
-            DWORD BOffset = Method2Call_Offset + 24;
-            DWORD fB = getOffsetFromB_Hex(
-                    readHexStrFromMem((const void *) (BOffset + libInfo.startAddr), 4), BOffset);
-            DWORD Method2Hook_offset = getOffsetFromB_Hex(
-                    readHexStrFromMem((const void *) (fB + libInfo.startAddr), 4), fB);
-            if (Method2Hook_offset == 0 || BOffset == 0 || fB == 0) return 0;
-            HOOK((libInfo.startAddr + Method2Hook_offset), regget, old_regget);
-            void *(*Il2CppCodegenRegistration)(void *);
-            InitFunc(Il2CppCodegenRegistration, (Method2Call_Offset + libInfo.startAddr));
-            isfinder = true;
-            Il2CppCodegenRegistration(0);
-            isfinder = false;
-        }
-        return s_Il2CppMetadataRegistration;
-    }
-};
+}
 
 DWORD abs(DWORD val) {
     if (val < 0)
@@ -548,3 +241,69 @@ static T UnBoxObject(T obj) {
     return *(T *) val;
 }
 
+static Il2CppThread *CurThread;
+void BNM_Attach(){
+    if (CurThread) return;
+    DO_API(Il2CppDomain*, il2cpp_domain_get, ());
+    DO_API(Il2CppThread*, il2cpp_thread_attach, (Il2CppDomain * domain));
+    CurThread = il2cpp_thread_attach(il2cpp_domain_get());
+}
+void BNM_DeAttach(){
+    if (!CurThread) return;
+    DO_API(Il2CppDomain*, il2cpp_domain_get, ());
+    DO_API(void, il2cpp_thread_detach, (Il2CppThread * thread));
+    il2cpp_thread_detach(CurThread);
+    CurThread = nullptr;
+}
+void InitIl2cppMethods(){
+#if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
+    int count = 1;
+#elif defined(__i386__)
+    int count = 2;
+#endif
+    LibInfo libInfo = GetLibInfo(OBFUSCATE_BNM("libil2cpp.so"));
+
+    //! il2cpp::vm::Class::FromIl2CppType HOOK
+    if (!old_Class_FromIl2CppType){
+        DWORD from_type_adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_class_from_type"));
+        from_type_adr = FindNext_B_BL_offset(from_type_adr, libInfo.startAddr, count);
+        HOOK(from_type_adr, new_Class_FromIl2CppType, old_Class_FromIl2CppType);
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromIl2CppType in lib: 0x%x"), (DWORD)from_type_adr - libInfo.startAddr);
+    }
+
+    //! il2cpp::vm::Class::FromName HOOK
+    if (!old_Class_FromName){
+        DWORD from_name_adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_class_from_name"));
+        from_name_adr = FindNext_B_BL_offset(FindNext_B_BL_offset(from_name_adr, libInfo.startAddr, count), libInfo.startAddr, count);
+        HOOK(from_name_adr, new_Class_FromName, old_Class_FromName);
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromName in lib: 0x%x"), (DWORD)from_name_adr - libInfo.startAddr);
+    }
+
+    //! il2cpp::vm::Class::Init HOOK
+    if (!Class$$Init_t){
+        DWORD Init_adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_array_new_specific"));
+        Class$$Init_t = (bool (*)(Il2CppClass *))(FindNext_B_BL_offset(FindNext_B_BL_offset(Init_adr, libInfo.startAddr, count), libInfo.startAddr, count));
+        HOOK(Class$$Init_t, new_Class_Init, old_Class_Init);
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::Init in lib: 0x%x"), (DWORD)Class$$Init_t - libInfo.startAddr);
+    }
+
+    //! il2cpp::vm::Image::GetTypes HOOK
+    if (!Image$$GetTypes_t){
+        DO_API(const Il2CppImage*, il2cpp_get_corlib, ());
+        DO_API(Il2CppClass*, il2cpp_class_from_name, (const Il2CppImage * image, const char* namespaze, const char *name));
+        DO_API(const MethodInfo*, il2cpp_class_get_method_from_name, (Il2CppClass * klass, const char* name, int argsCount));
+        auto corlib = il2cpp_get_corlib();
+        auto assemblyClass = il2cpp_class_from_name(corlib, OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("Assembly"));
+        DWORD GetTypesAdr = (DWORD) il2cpp_class_get_method_from_name(assemblyClass, OBFUSCATE_BNM("GetTypes"), 1)->methodPointer;
+        Image$$GetTypes_t = (void (*)(const Il2CppImage *, bool, TypeVector *))FindNext_B_BL_offset(FindNext_B_BL_offset(FindNext_B_BL_offset(GetTypesAdr, libInfo.startAddr, count), libInfo.startAddr, count+1), libInfo.startAddr, count);
+        HOOK(Image$$GetTypes_t, new_Image_GetTypes, old_Image_GetTypes);
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Image::GetTypes in lib: 0x%x"), (DWORD)Image$$GetTypes - libInfo.startAddr);
+    }
+
+    //! il2cpp::vm::Assembly::GetAllAssemblies GET
+    if (!Assembly$$GetAllAssemblies_t){
+        DWORD adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_get_assemblies"));
+        Assembly$$GetAllAssemblies_t = (AssemblyVector *(*)(void))(FindNext_B_BL_offset(adr, libInfo.startAddr, 1));
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies in lib: 0x%x"), (DWORD)Assembly$$GetAllAssemblies_t - libInfo.startAddr);
+    }
+}

@@ -1,9 +1,8 @@
 #pragma once
 
-using namespace std;
-#include "../macros.h"
+#define _USE_MATH_DEFINES
 #include <math.h>
-
+typedef struct IVector3 IVector3;
 struct Vector3
 {
     union {
@@ -15,11 +14,11 @@ struct Vector3
         float data[3];
     };
     inline Vector3();
+    inline Vector3(IVector3 a);
     inline Vector3(float data[]);
     inline Vector3(float value);
     inline Vector3(float x, float y);
     inline Vector3(float x, float y, float z);
-
 
     /**
      * Constructors.
@@ -162,7 +161,8 @@ struct Vector3
      * @return: A new vector.
      */
     static inline Vector3 Normalized(Vector3 v);
-
+    inline Vector3 Normalize();
+    inline Vector3 NormalizeEuler();
     /**
      * Returns an arbitrary vector orthogonal to the input.
      * This vector is not normalized.
@@ -324,7 +324,6 @@ Vector3::Vector3(float value) : x(value), y(value), z(value) {}
 Vector3::Vector3(float x, float y) : x(x), y(y), z(0) {}
 Vector3::Vector3(float x, float y, float z) : x(x), y(y), z(z) {}
 
-
 Vector3 Vector3::zero() { return Vector3(0, 0, 0); }
 Vector3 Vector3::One() { return Vector3(1, 1, 1); }
 Vector3 Vector3::Right() { return Vector3(1, 0, 0); }
@@ -437,7 +436,28 @@ Vector3 Vector3::Normalized(Vector3 v)
         return Vector3::zero();
     return v / mag;
 }
-
+Vector3 Vector3::Normalize()
+{
+    float mag = Magnitude(*this);
+    if (mag == 0)
+        return Vector3::zero();
+    *this /= mag;
+    return *this;
+}
+float NormalizeAngele(float a){
+    while (a > 360)
+        a -= 360;
+    while (a < 0)
+        a += 360;
+    return a;
+}
+Vector3 Vector3::NormalizeEuler()
+{
+    x = NormalizeAngele(x);
+    y = NormalizeAngele(y);
+    z = NormalizeAngele(z);
+    return *this;
+}
 Vector3 Vector3::Orthogonal(Vector3 v)
 {
     return v.z < v.x ? Vector3(v.y, -v.x, 0) : Vector3(0, -v.z, v.y);
@@ -633,5 +653,38 @@ bool operator!=(const Vector3 lhs, const Vector3 rhs)
 }
 
 std::string to_string(Vector3 a) {
+    return to_string(a.x) + OBFUSCATES_BNM(", ") + to_string(a.y) + OBFUSCATES_BNM(", ") + to_string(a.z);
+}
+
+typedef struct IVector3 {
+    float x;
+    float y;
+    float z;
+    inline IVector3(float x, float y, float z);
+    inline IVector3(Vector3 a);
+    inline IVector3();
+
+};
+IVector3::IVector3() {};
+Vector3::Vector3(IVector3 a) : x(a.x), y(a.y), z(a.z) {};
+bool operator==(const IVector3 lhs, const Vector3 rhs)
+{
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
+}
+bool operator==(const IVector3 lhs, const IVector3 rhs)
+{
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
+}
+bool operator!=(const IVector3 lhs, const Vector3 rhs)
+{
+    return !(lhs == rhs);
+}
+bool operator!=(const IVector3 lhs, const IVector3 rhs)
+{
+    return !(lhs == rhs);
+}
+IVector3::IVector3(float x, float y, float z) : x(x), y(y), z(z) {}
+IVector3::IVector3(Vector3 a) : x(a.x), y(a.y), z(a.z) {}
+std::string to_string(IVector3 a) {
     return to_string(a.x) + OBFUSCATES_BNM(", ") + to_string(a.y) + OBFUSCATES_BNM(", ") + to_string(a.z);
 }

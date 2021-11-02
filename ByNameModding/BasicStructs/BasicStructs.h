@@ -5,3 +5,4 @@
 #include "Vector2.h"
 #include "RaycastHit.h"
 #include "Ray.h"
+#include "Rect.h"

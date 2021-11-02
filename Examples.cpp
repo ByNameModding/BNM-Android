@@ -5,7 +5,7 @@
 * Il2CppResolver
 * https://github.com/MJx0/IL2CppResolver/blob/master/Android/test/src/demo.cpp
 * MJx0's IL2CppResolver doesn't work
-* get_method working ONLY with extren methods
+* get_method working ONLY with extren unity methods
 */
 void *set_fov(float value) {
     int (*Screen$$get_height)();
@@ -62,7 +62,7 @@ void Update(void *instance){
     old_Update(instance);
 	
     /** We have: public static FPSControler LocalPlayer; **/
-    myPlayer = FieldBN(void *, 0, "", "FPSControler", false, "LocalPlayer", '('); // false - old method
+    myPlayer = FieldBN(void *, 0, "", "FPSControler", "LocalPlayer");
 	
 	if (IsNativeObjectAlive(myPlayer)) { // Normal check is unity Object (UnityEngine.Object) not null
 	
@@ -72,45 +72,84 @@ void Update(void *instance){
 		
 		//! Get and Set palyer name
 		if (!setName){
-			auto nameF = FieldBN(monoString *, myPlayer, "", "FPSControler", false, "Name", '6'); // '6' - OFFUSCATE key
+			auto nameF = FieldBN(monoString *, myPlayer, "", "FPSControler", "Name");
 			LOGI("myPlayer old name is %s", nameF()->get_string().c_str());
-			nameF = CreateMonoString("ByNameModding_Player", true); // true - il2cpp method
-			LOGI("myPlayer new name is %s", nameF()->get_string().c_str());
+			/* monoString::CreateMethod::MONO - using System.String.CreateString(sbyte *value)
+			 * monoString::CreateMethod::IL2CPP - using il2cpp_string_new
+			 * monoString::CreateMethod::C_LIKE - C like creating
+			 * C_LIKE - Defalut
+			*/
+			nameF = CreateMonoString("ByNameModding_Player", monoString::CreateMethod::C_LIKE); 
+			std::string newName = nameF; // operator std::string()
+			LOGI("myPlayer new name is %s", newName.c_str());
 			setName = true;
 		}
 		
 		//! Parse monoList
 		if (!parseLst){
-			auto Lst = FieldBN(monoList<monoString *> *, myPlayer, "", "FPSControler", false, "AllPlayersNames", '*');
-			for (int32_t i = 0; i < Lst->getSize(); i++){
-				auto name = Lst->getItems()[i];
+			auto Lst = FieldBN(monoList<monoString *> *, myPlayer, "", "FPSControler", "AllPlayersNames")->toCPPList();
+			for (auto name : Lst){
 				if (name)
-					LOGI("Player name at %d in list is %s", i, name->get_string().c_str());
+					LOGI("Found Player name %s", name->get_string().c_str());
 			}
 			parseLst = false;
 		}
 	}
 }
-
-//! Find using metadata exampele
-void *instance_from_IEnumerator;
-bool (*old_MainLoop$$MoveNext)(...);
-bool MainLoop$$MoveNext(void *instance) {
-    LOGI("MainLoop$$MoveNext");
-    instance_from_IEnumerator = FieldBN(void *, instance, "", "<MainLoop>d__1", true, "<>4__this", '{'); // true - new method
-    return old_MainLoop$$MoveNext(instance);
+namespace geokar2006 {
+    class BNM_ExampleClass {
+	//NewClassInit(namespace, class, parent class namespace, parent class name, parent class size); // for System.Object only sizeof(Il2CppObject)
+    NewClassInit(geokar2006, BNM_ExampleClass, "UnityEngine", "MonoBehaviour", sizeof(Il2CppObject) + sizeof(void *));
+        void FixedUpdate();
+        void Update();
+        void Awake();
+        void Start();
+        void LateUpdate();
+		int FixedFrames = 0;
+		int LateFrames = 0;
+		int Frames = 0;
+    NewMethodInit(GetType<void>(), FixedUpdate, 0); // 0 - args count 
+    NewMethodInit(GetType<void>(), LateUpdate, 0);
+    NewMethodInit(GetType<void>(), Update, 0);
+    NewMethodInit(GetType<void>(), Awake, 0);
+    NewMethodInit(GetType<void>(), Start, 0);
+    };
 }
-
+void geokar2006::BNM_ExampleClass::Awake(){
+	LOGI("geokar2006::BNM_ExampleClass::Awake Called!");
+}
+void geokar2006::BNM_ExampleClass::Start(){
+	LOGI("geokar2006::BNM_ExampleClass::Start Called!");
+}
+void geokar2006::BNM_ExampleClass::FixedUpdate(){
+	if (FixedFrames == 10)
+		LOGI("geokar2006::BNM_ExampleClass::FixedUpdate Called!");
+	FixedFrames++;
+	if (FixedFrames == 11) FixedFrames = 0;
+}
+void geokar2006::BNM_ExampleClass::LateUpdate(){
+	if (LateFrames == 10)
+		LOGI("geokar2006::BNM_ExampleClass::LateUpdate Called!");
+	LateFrames++;
+	if (LateFrames == 11) LateFrames = 0;
+}
+void geokar2006::BNM_ExampleClass::Update(){
+	if (Frames == 10)
+		LOGI("geokar2006::BNM_ExampleClass::Update Called!");
+	Frames++;
+	if (Frames == 11) Frames = 0;
+}
 void *hack_thread(void *) {
     do {
         sleep(1);
     } while (!isLibraryLoaded(libName));
+	sleep(2); // Il2cpp can be not initialized
 	
+	InitNewClasses(); // Add new clases to il2cpp 
 	
-    //! Create new class exampele
+    //! Create new instance of class exampele
     GameObject = LoadClass("UnityEngine", "GameObject");
     ExampleClass = LoadClass("", "ExampleClass");
-	
 	
     //! Find exampele
     auto Transform = LoadClass("UnityEngine", "Transform");
@@ -118,18 +157,9 @@ void *hack_thread(void *) {
     auto FPSControler = LoadClass("", "FPSControler");
 	
     InitFunc(get_Transform, Component.GetMethodOffsetByName("get_transform", 0)); // 0 - parameters count in original c# method
-    InitFunc(set_position,  Transform.GetMethodOffsetByName("set_position", 1); // Injected methods not supported if you use ByNameModding BasicStructs
+    InitFunc(set_position,  Transform.GetMethodOffsetByName("set_position", 1); // For Injected methods use IVector3 IVector2 IQuaternion ("Injected" structs can be converted to normal) Quartenion a = IQuartenion(2, 14, 13, 0);
 	
     HOOK(FPSControler.GetMethodOffsetByName("Update", 0), Update, old_Update); // ByNameModding HOOK lambda
-	
-	
-    //! Find using metadata exampele
-	
-    /** Class generated by IEnumerator MainLoop(); **/
-    auto MainLoop_d1 = LoadClass("", "<MainLoop>d__1", true); // true - new method to find class
-    // Only using new method you can get class with CompilerGeneratedAttribute
-	
-    MSHookFunction((void *)MainLoop_d1.GetMethodOffsetByName("MoveNext", 0), (void *) MainLoop$$MoveNext, (void **) &old_MainLoop$$MoveNext);
 	
 	
     //! Find metohod by name and parameters names
@@ -143,8 +173,16 @@ void *hack_thread(void *) {
     Raycast(Vector3 origin, Vector3 direction)
     Now this is not a problem.
     **/
-    auto RayCastOffset = LoadClass("UnityEngine", "Physics", false).GetMethodOffsetByName("Raycast", {"ray", "hitInfo"});
+    auto RayCastOffset1 = LoadClass("UnityEngine", "Physics").GetMethodOffsetByName("Raycast", {"ray", "hitInfo"});
+    /**
+	Or you can find by parameters type
+	**/
+	auto RayCastOffset2 = LoadClass("UnityEngine", "Physics").GetMethodOffsetByName("Raycast", {GetType<Ray>().ToIl2CppType(), GetType<RaycastHit>().ToIl2CppType()});
     
+	/**
+	Or all together
+	**/
+	auto RayCastOffset3 = LoadClass("UnityEngine", "Physics").GetMethodOffsetByName("Raycast", {"ray", "hitInfo"}, {GetType<Ray>().ToIl2CppType(), GetType<RaycastHit>().ToIl2CppType()});
     
     //! Find Class by name and method name
     //! GetLC_ByClassAndMethodName

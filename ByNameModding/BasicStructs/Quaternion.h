@@ -1,13 +1,13 @@
 #pragma once
-
-using namespace std;
-#include "../macros.h"
 #include <math.h>
 #include <iostream>
-#include "vector3.h"
+#include "Vector3.h"
 
 #define SMALL_FLOAT 0.0000000001
-
+#define PI 3.14159265358979323846264338327950288419716939937510f
+#define Deg2Rad (2.f * PI / 360.f)
+#define Rad2Deg (1.f / Deg2Rad)
+struct IQuaternion;
 struct Quaternion
 {
     union
@@ -31,7 +31,7 @@ struct Quaternion
     inline Quaternion(Vector3 vector, float scalar);
     inline Quaternion(float x, float y, float z, float w);
     inline Quaternion(float Pitch, float Yaw, float Roll);
-
+    inline Quaternion(IQuaternion a);
 
     /**
      * Constants for common quaternions.
@@ -270,6 +270,7 @@ Quaternion::Quaternion(float Pitch, float Yaw, float Roll) {
     w = tmp.w;
 }
 
+Quaternion Quaternion::Identity() { return Quaternion(0, 0, 0, 1); }
 
 
 inline Vector3 Quaternion::Up(Quaternion q)
@@ -337,6 +338,9 @@ Quaternion Quaternion::FromEuler(Vector3 rotation)
 
 Quaternion Quaternion::FromEuler(float x, float y, float z)
 {
+    (x -= 180) *= Deg2Rad;
+    (y -= 180) *= Deg2Rad;
+    (z -= 180) *= Deg2Rad;
     float cx = cosf(x * 0.5f);
     float cy = cosf(y * 0.5f);
     float cz = cosf(z * 0.5f);
@@ -523,18 +527,15 @@ void Quaternion::ToAngleAxis(Quaternion rotation, float &angle, Vector3 &axis)
         axis.z = rotation.z / s;
     }
 }
-
 Vector3 Quaternion::ToEuler(Quaternion rotation)
 {
     float sqw = rotation.w * rotation.w;
     float sqx = rotation.x * rotation.x;
     float sqy = rotation.y * rotation.y;
     float sqz = rotation.z * rotation.z;
-    // If normalized is one, otherwise is correction factor
     float unit = sqx + sqy + sqz + sqw;
     float test = rotation.x * rotation.w - rotation.y * rotation.z;
     Vector3 v;
-    // sinfgularity at north pole
     if (test > 0.4995f * unit)
     {
         v.y = 2 * atan2f(rotation.y, rotation.x);
@@ -542,7 +543,6 @@ Vector3 Quaternion::ToEuler(Quaternion rotation)
         v.z = 0;
         return v;
     }
-    // sinfgularity at south pole
     if (test < -0.4995f * unit)
     {
         v.y = -2 * atan2f(rotation.y, rotation.x);
@@ -558,7 +558,7 @@ Vector3 Quaternion::ToEuler(Quaternion rotation)
     // Roll
     v.z = atan2f(2 * rotation.w * rotation.z + 2 * rotation.x * rotation.y,
                  1 - 2 * (rotation.z * rotation.z + rotation.x * rotation.x));
-    return v;
+    return (v * Rad2Deg) + 180;
 }
 
 struct Quaternion& Quaternion::operator+=(const float rhs)
@@ -659,10 +659,7 @@ Vector3 operator*(Quaternion lhs, const Vector3 rhs)
 
 bool operator==(const Quaternion lhs, const Quaternion rhs)
 {
-    return lhs.x == rhs.x &&
-           lhs.y == rhs.y &&
-           lhs.z == rhs.z &&
-           lhs.w == rhs.w;
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
 }
 
 bool operator!=(const Quaternion lhs, const Quaternion rhs)
@@ -671,5 +668,39 @@ bool operator!=(const Quaternion lhs, const Quaternion rhs)
 }
 
 std::string to_string(Quaternion a) {
+    return to_string(a.x) + OBFUSCATES_BNM(", ") + to_string(a.y) + OBFUSCATES_BNM(", ") + to_string(a.z) + OBFUSCATES_BNM(", ") + to_string(a.w);
+}
+struct IQuaternion {
+    float x;
+    float y;
+    float z;
+    float w;
+    inline IQuaternion(float x, float y, float z, float w);
+    inline IQuaternion(Quaternion a);
+    inline IQuaternion();
+
+};
+bool operator==(const IQuaternion lhs, const Quaternion rhs)
+{
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
+}
+bool operator==(const IQuaternion lhs, const IQuaternion rhs)
+{
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
+}
+bool operator!=(const IQuaternion lhs, const Quaternion rhs)
+{
+    return !(lhs == rhs);
+}
+bool operator!=(const IQuaternion lhs, const IQuaternion rhs)
+{
+    return !(lhs == rhs);
+}
+IQuaternion::IQuaternion(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
+IQuaternion::IQuaternion(Quaternion a) : x(a.x), y(a.y), z(a.z), w(a.w) {}
+IQuaternion::IQuaternion() {}
+Quaternion::Quaternion(IQuaternion a) : x(a.x), y(a.y), z(a.z), w(a.w) {};
+
+std::string to_string(IQuaternion a) {
     return to_string(a.x) + OBFUSCATES_BNM(", ") + to_string(a.y) + OBFUSCATES_BNM(", ") + to_string(a.z) + OBFUSCATES_BNM(", ") + to_string(a.w);
 }
