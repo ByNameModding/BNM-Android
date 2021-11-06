@@ -256,19 +256,13 @@ static inline uint32_t GetTokenRowId(uint32_t token)
 {
     return token & 0x00FFFFFF;
 }
-typedef struct Il2CppImageGlobalMetadata Il2CppImageGlobalMetadata;
-typedef struct Il2CppCustomAttributeTypeRange Il2CppCustomAttributeTypeRange;
-typedef struct Il2CppTypeDefinition Il2CppTypeDefinition;
-typedef struct Il2CppMethodDefinition Il2CppMethodDefinition;
-typedef struct Il2CppGenericContainer Il2CppGenericContainer;
-typedef struct Il2CppGenericParameter Il2CppGenericParameter;
-typedef uint32_t EncodedMethodIndex;
 typedef const struct ___Il2CppMetadataImageHandle* Il2CppMetadataImageHandle;
 typedef const struct ___Il2CppMetadataCustomAttributeHandle* Il2CppMetadataCustomAttributeHandle;
 typedef const struct ___Il2CppMetadataTypeHandle* Il2CppMetadataTypeHandle;
 typedef const struct ___Il2CppMetadataMethodHandle* Il2CppMetadataMethodDefinitionHandle;
 typedef const struct ___Il2CppMetadataGenericContainerHandle* Il2CppMetadataGenericContainerHandle;
 typedef const struct ___Il2CppMetadataGenericParameterHandle* Il2CppMetadataGenericParameterHandle;
+typedef uint32_t EncodedMethodIndex;
 typedef enum Il2CppMetadataUsage
 {
     kIl2CppMetadataUsageInvalid,

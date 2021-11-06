@@ -10,9 +10,7 @@ Il2CppTypeEnum BNM_cls_type = (Il2CppTypeEnum)(Il2CppTypeEnum::IL2CPP_TYPE_VALUE
 bool InitBNMAssembly() {
     DO_API(const Il2CppImage*, il2cpp_assembly_get_image, (const Il2CppAssembly * assembly));
     AssemblyVector *LoadedAssemblies = Assembly$$GetAllAssemblies();
-    const Il2CppAssembly ** assemblies = &(*LoadedAssemblies)[0];
-    for (int32_t i = 0; i < LoadedAssemblies->size(); i++){
-        auto assembly = assemblies[i];
+    for (auto assembly : *LoadedAssemblies){
 #if UNITY_VER > 174
         if (assembly->aname.name == OBFUSCATE("ByNameModding"))
             return true;
@@ -27,7 +25,7 @@ bool InitBNMAssembly() {
         BNM_Image->name = OBFUSCATE("ByNameModding.dll");
 #if UNITY_VER > 182
         BNM_Image->assembly = 0;
-        BNM_Image->customAttributeCount = -1;
+        BNM_Image->customAttributeCount = 0;
 #if UNITY_VER < 201
         BNM_Image->customAttributeStart = -1;
 #endif
@@ -39,7 +37,9 @@ bool InitBNMAssembly() {
         ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->exportedTypeStart = -1;
         ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->typeCount = 0;
         ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->exportedTypeCount = 0;
-        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->customAttributeCount = -1;
+        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->nameIndex = -1;
+        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->assemblyIndex = -1;
+        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->customAttributeCount = 0;
         ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->customAttributeStart = -1;
 #else
         BNM_Image->typeStart = -1;
@@ -203,18 +203,15 @@ static inline _BNMStaticField_##_name BNMStaticField_##_name = _BNMStaticField_#
 void InitNewClasses(){
     for (int i = 0; i < Clases4Add->size(); i++){
         NewClass *klass = (*Clases4Add)[i];
-        auto* type = new Il2CppType();
+        auto type = new Il2CppType();
         type->type = BNM_cls_type;
-        type->pinned = 30;
-        type->byref = 30;
+        type->pinned = 0;
+        type->byref = 0;
         type->num_mods = 0;
         type->data.type = type;
         if (!BNM_assembly)
             InitBNMAssembly();
         BNM_Image->typeCount++;
-#if UNITY_VER > 201
-        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->typeCount++;
-#endif
 #if UNITY_VER < 202
         type->data.klassIndex
 #else
@@ -222,15 +219,18 @@ void InitNewClasses(){
 #endif
         = BNM_Image->typeCount;
         auto parentLC = LoadClass(klass->GetBaseNameSapce(), klass->GetBaseName());
+        Il2CppClass *parent = parentLC.GetIl2CppClass();
         std::vector<VirtualInvokeData> newVTable;
         std::vector<Il2CppRuntimeInterfaceOffsetPair> newInterOffsets;
-        if (parentLC.klass->interfaceOffsets) {
-            for (uint16_t nI = 0; nI < parentLC.klass->interface_offsets_count; ++nI) {
-                newInterOffsets.push_back(parentLC.klass->interfaceOffsets[nI]);
+        if (parent && parent->interfaceOffsets) {
+            for (uint16_t nI = 0; nI < parent->interface_offsets_count; ++nI) {
+                newInterOffsets.push_back(parent->interfaceOffsets[nI]);
             }
         }
-        for (uint16_t v = 0; v < parentLC.klass->vtable_count; ++v) {
-            newVTable.push_back(parentLC.klass->vtable[v]);
+        if (parent){
+            for (uint16_t v = 0; v < parent->vtable_count; ++v) {
+                newVTable.push_back(parent->vtable[v]);
+            }
         }
         const MethodInfo **methods = NULL;
         if (klass->Methods4Add != 0 && !klass->Methods4Add->empty()) {
@@ -240,12 +240,16 @@ void InitNewClasses(){
                 auto virtualMethod = method->virtualMethod;
                 if (virtualMethod && !method->statik){
                     bool vInit = false;
-                    if (!parentLC.GetIl2CppClass()->initialized){
-                        Class$$Init(parentLC.GetIl2CppClass());
+#if UNITY_VER > 184
+                    if (parent && !parent->initialized_and_no_error){
+#else
+                    if (parent && !parent->initialized){
+#endif
+                        Class$$Init(parent);
                     }
-                    if (parentLC.GetIl2CppClass()->interfaceOffsets){
-                        for (uint16_t mi = 0; mi < parentLC.GetIl2CppClass()->interface_offsets_count; ++mi) {
-                            auto &inter = parentLC.GetIl2CppClass()->interfaceOffsets[mi];
+                    if (parent && parent->interfaceOffsets){
+                        for (uint16_t mi = 0; mi < parent->interface_offsets_count; ++mi) {
+                            auto &inter = parent->interfaceOffsets[mi];
 #if UNITY_VER > 174
                             if (inter.interfaceType == virtualMethod->klass){
 #else
@@ -259,8 +263,8 @@ void InitNewClasses(){
                             }
                         }
                     }
-                    if (parentLC.GetIl2CppClass()->interfaceOffsets && !vInit){
-                        auto* b = parentLC.GetIl2CppClass();
+                    if (parent && parent->interfaceOffsets && !vInit){
+                        auto b = parent;
                         while (b != nullptr) {
 #if UNITY_VER > 174
                             if (virtualMethod->klass == b) {
@@ -311,7 +315,7 @@ void InitNewClasses(){
                     auto newParam = new ParameterInfo ();
                     newParam->name = (OBFUSCATES_BNM("arg") + to_string(ip)).c_str();
                     newParam->position = ip;
-                    if (method->args_types && !method->args_types->empty() && i < method->args_types->size())
+                    if (method->args_types && !method->args_types->empty() && ip < method->args_types->size())
                         newParam->parameter_type = (*method->args_types)[ip].ToIl2CppType();
                 }
                 methods[m] = method->thizMethod;
@@ -334,7 +338,23 @@ void InitNewClasses(){
             klass->thizClass->method_count = 0;
             klass->thizClass->methods = NULL;
         }
-        klass->thizClass->parent = parentLC.GetIl2CppClass();
+        if (parent){
+            klass->thizClass->parent = parent;
+#if UNITY_VER > 182
+            if (parent && !parent->initialized_and_no_error){
+#else
+            if (parent && !parent->initialized){
+#endif
+                Class$$Init(parent);
+            }
+            klass->thizClass->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
+            klass->thizClass->typeHierarchy = (Il2CppClass**)calloc(klass->thizClass->typeHierarchyDepth, sizeof(Il2CppClass*));
+            klass->thizClass->typeHierarchy[klass->thizClass->typeHierarchyDepth - 1] = klass->thizClass;
+            memcpy(klass->thizClass->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(Il2CppClass*));
+        } else {
+            klass->thizClass->typeHierarchyDepth = 1;
+        }
+
         klass->thizClass->image = BNM_Image;
         klass->thizClass->name = klass->GetName();
         klass->thizClass->namespaze = klass->GetNameSapce();
@@ -381,20 +401,25 @@ void InitNewClasses(){
         klass->thizClass->init_pending = 0;
 #if UNITY_VER < 202
         klass->thizClass->genericContainerIndex = -1;
+
 #else
         klass->thizClass->genericContainerHandle = NULL;
+        klass->thizClass->typeMetadataHandle = NULL;
 #endif
 #if UNITY_VER == 202
         klass->thizClass->valuetype = 1;
 #endif
+
         klass->thizClass->token = -1;
-        klass->thizClass->has_references = 1;
+        klass->thizClass->has_references = 0;
         klass->thizClass->has_finalize = 0;
         klass->thizClass->size_inited = 1;
         klass->thizClass->has_cctor = 0;
         klass->thizClass->enumtype = 0;
         klass->thizClass->minimumAlignment = 8;
         klass->thizClass->is_generic = 0;
+
+
         size_t fields_size = 0;
         if (klass->Fields4Add)
             fields_size += klass->Fields4Add->size();
@@ -411,7 +436,7 @@ void InitNewClasses(){
                     newField->type = field->MYtype.ToIl2CppType();
                     newField->parent = klass->thizClass;
                     newField->offset = field->offset;
-                    ((Il2CppType *) newField->type)->attrs = newField->token = field->attributes; // FIELD_ATTRIBUTE_PUBLIC
+                    newField->token = (((Il2CppType *)newField->type)->attrs | field->attributes); // FIELD_ATTRIBUTE_PUBLIC
                     newField++;
                 }
                 klass->Fields4Add->clear();
@@ -423,7 +448,7 @@ void InitNewClasses(){
                     newField->type = field->MYtype.ToIl2CppType();
                     newField->parent = klass->thizClass;
                     newField->offset = field->offset;
-                    ((Il2CppType *)newField->type)->attrs = newField->token = field->attributes; // FIELD_ATTRIBUTE_PUBLIC and FIELD_ATTRIBUTE_STATIC
+                    newField->token = (((Il2CppType *)newField->type)->attrs | field->attributes); // FIELD_ATTRIBUTE_PUBLIC and FIELD_ATTRIBUTE_STATIC
                     newField++;
                 }
                 klass->StaticFields4Add->clear();
@@ -433,7 +458,7 @@ void InitNewClasses(){
             klass->thizClass->fields = fields;
         }
         BNM_classes.push_back(klass->thizClass);
-        LOGIBNM(OBFUSCATE_BNM("[InitNewClasses] Added new class: [%s]::[%s]"), klass->GetNameSapce(), klass->GetName());
+        LOGIBNM(OBFUSCATE_BNM("[InitNewClasses] Added new class: [%s]::[%s] parent is [%s]::[%s]"), klass->GetNameSapce(), klass->GetName(), klass->GetBaseNameSapce(), klass->GetBaseName());
     }
     Clases4Add->clear();
 }

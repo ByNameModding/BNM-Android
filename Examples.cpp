@@ -55,7 +55,7 @@ void *NewExampleClass(){
 bool setName;
 bool parseLst;
 void *(*get_Transform)(void *instance);
-void (*set_position)(void *Transform, Vector3 pos);
+void (*set_position)(void *Transform, IVector3 pos);
 void *myPlayer;
 void (*old_Update)(...);
 void Update(void *instance){
