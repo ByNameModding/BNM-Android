@@ -1,10 +1,9 @@
 #pragma once
 #include <android/log.h>
-#include <mega_obfuscator.hpp>
 
 //! Write your sting obfuscator
-#define OBFUSCATE_BNM(str) OBFUSCATE(str) // const char *
-#define OBFUSCATES_BNM(str) OBFUSCATES(str) // std::string
+#define OBFUSCATE_BNM(str) str // const char *
+#define OBFUSCATES_BNM(str) std::string(str) // std::string
 #define BNMTAG OBFUSCATE_BNM("ByNameModding")
 
 #ifdef BNM_INFO

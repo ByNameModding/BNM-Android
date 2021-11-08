@@ -224,11 +224,9 @@ public:
                         CheckObj(klass->namespaze), CheckObj(klass->name), CheckObj(name.c_str()),
                         paramcount);
                 return 0;
-            } else if (!res || abs((DWORD) GetOffset(res)) <
-                               abs((DWORD) GetLibInfo(OBFUSCATE_BNM("libil2cpp.so")).startAddr)) {
+            } else if (!res) {
                 try_count++;
-            } else if (abs((DWORD) GetOffset(res)) >
-                       abs((DWORD) GetLibInfo(OBFUSCATE_BNM("libil2cpp.so")).startAddr)) {
+            } else {
                 break;
             }
         } while (true);
@@ -267,9 +265,9 @@ public:
             if (try_count == 10 && !res) {
                 LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), CheckObj(klass->namespaze), CheckObj(klass->name), CheckObj(name.c_str()), paramcount);
                 return 0;
-            } else if (!res || abs((DWORD) GetOffset(res)) < abs((DWORD) GetLibInfo(OBFUSCATE_BNM("libil2cpp.so")).startAddr)) {
+            } else if (!res) {
                 try_count++;
-            } else if (abs((DWORD) GetOffset(res)) > abs((DWORD) GetLibInfo(OBFUSCATE_BNM("libil2cpp.so")).startAddr)) {
+            } else {
                 break;
             }
         } while (true);
@@ -314,9 +312,9 @@ public:
             if (try_count == 10 && !res) {
                 LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), CheckObj(klass->namespaze), CheckObj(klass->name), CheckObj(name.c_str()), paramcount);
                 return 0;
-            } else if (!res || abs((DWORD) GetOffset(res)) < abs((DWORD) GetLibInfo(OBFUSCATE_BNM("libil2cpp.so")).startAddr)) {
+            } else if (!res) {
                 try_count++;
-            } else if (abs((DWORD) GetOffset(res)) > abs((DWORD) GetLibInfo(OBFUSCATE_BNM("libil2cpp.so")).startAddr)) {
+            } else {
                 break;
             }
         } while (true);
@@ -359,9 +357,9 @@ public:
             if (try_count == 10 && !res) {
                 LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), CheckObj(klass->namespaze), CheckObj(klass->name), CheckObj(name.c_str()), paramcount);
                 return 0;
-            } else if (!res || abs((DWORD) GetOffset(res)) < abs((DWORD) GetLibInfo(OBFUSCATE_BNM("libil2cpp.so")).startAddr)) {
+            } else if (!res) {
                 try_count++;
-            } else if (abs((DWORD) GetOffset(res)) > abs((DWORD) GetLibInfo(OBFUSCATE_BNM("libil2cpp.so")).startAddr)) {
+            } else {
                 break;
             }
         } while (true);
