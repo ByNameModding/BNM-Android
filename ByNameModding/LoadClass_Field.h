@@ -484,8 +484,8 @@ monoString *CreateMonoString(string str, monoString::CreateMethod crateMethod) {
         static monoString *(*mono_CreateString)(void *, const char *);
         if (!mono_CreateString)
             InitFunc(mono_CreateString,
-                     LoadClass(OBFUSCATES("System"), OBFUSCATES("String")).GetMethodOffsetByName(
-                             OBFUSCATES("CreateString"), {LoadClass(OBFUSCATES("System"), OBFUSCATES("SByte")).GetIl2CppType()}));
+                     LoadClass(OBFUSCATES_BNM("System"), OBFUSCATES_BNM("String")).GetMethodOffsetByName(
+                             OBFUSCATES_BNM("CreateString"), {LoadClass(OBFUSCATES_BNM("System"), OBFUSCATES_BNM("SByte")).GetIl2CppType()}));
         return mono_CreateString(NULL, str.c_str());
     } else if (crateMethod == monoString::IL2CPP) {
         DO_API(monoString*, il2cpp_string_new, (const char *str));
