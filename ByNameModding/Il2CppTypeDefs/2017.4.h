@@ -94,7 +94,13 @@ typedef struct
     void* (*realloc_func)(void *ptr, size_t size);
     void* (*aligned_realloc_func)(void *ptr, size_t size, size_t alignment);
 } Il2CppMemoryCallbacks;
+#if _MSC_VER
+typedef wchar_t Il2CppChar;
+#elif __has_feature(cxx_unicode_literals)
+typedef char16_t Il2CppChar;
+#else
 typedef uint16_t Il2CppChar;
+#endif
 typedef char Il2CppNativeChar;
 typedef void (*il2cpp_register_object_callback)(Il2CppObject** arr, int size, void* userdata);
 typedef void (*il2cpp_WorldChangedCallback)();
@@ -903,7 +909,7 @@ typedef struct Il2CppClass
     struct Il2CppClass** typeHierarchy;
     uint32_t cctor_started;
     uint32_t cctor_finished;
-    __attribute__((aligned(8))) uint64_t cctor_thread;
+    __attribute__((aligned(8))) uint64_t cctor_thread; // 100
     GenericContainerIndex genericContainerIndex;
     CustomAttributeIndex customAttributeIndex;
     uint32_t instance_size;

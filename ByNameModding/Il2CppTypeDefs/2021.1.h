@@ -119,7 +119,13 @@ typedef struct
     int(*send)(void *buf, int len);
     int(*recv)(void *buf, int len);
 } Il2CppDebuggerTransport;
+#if _MSC_VER
+typedef wchar_t Il2CppChar;
+#elif __has_feature(cxx_unicode_literals)
+typedef char16_t Il2CppChar;
+#else
 typedef uint16_t Il2CppChar;
+#endif
 typedef char Il2CppNativeChar;
 typedef void (*il2cpp_register_object_callback)(Il2CppObject** arr, int size, void* userdata);
 typedef void (*il2cpp_WorldChangedCallback)();

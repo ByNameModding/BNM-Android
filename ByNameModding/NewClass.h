@@ -1,10 +1,8 @@
 #pragma once
-#include "NewClass_structs.h"
 
-static Il2CppAssembly* BNM_assembly = nullptr;
-static Il2CppImage * BNM_Image = nullptr;
-static std::vector<Il2CppClass *> BNM_classes;
+
 std::vector<NewClass *> *Clases4Add;
+std::vector<Il2CppClass *> *hookedClasses;
 Il2CppTypeEnum BNM_cls_type = (Il2CppTypeEnum)(Il2CppTypeEnum::IL2CPP_TYPE_VALUETYPE | 384); // I forgot what is 384
 
 bool InitBNMAssembly() {
@@ -15,12 +13,12 @@ bool InitBNMAssembly() {
         if (assembly->aname.name == OBFUSCATE("ByNameModding"))
             return true;
 #else
-        if (assembly->aname.nameIndex == -0x424e4d) //B(42) N(4e) M(4d) BNM
+        if (assembly->imageIndex == -0x424e4d)
             return true;
 #endif
     }
 
-    if (!BNM_assembly){
+    if (!BNM_Assembly){
         BNM_Image = new Il2CppImage();
         BNM_Image->name = OBFUSCATE("ByNameModding.dll");
 #if UNITY_VER > 182
@@ -47,39 +45,38 @@ bool InitBNMAssembly() {
 #endif
         BNM_Image->typeCount = 0;
         BNM_Image->exportedTypeCount = 0;
-        BNM_assembly = new Il2CppAssembly();
+        BNM_Assembly = new Il2CppAssembly();
 #if UNITY_VER > 174
-        BNM_assembly->image = BNM_Image;
-        BNM_assembly->image->assembly = BNM_assembly;
-        BNM_assembly->aname.name = BNM_Image->nameNoExt;
+        BNM_Assembly->image = BNM_Image;
+        BNM_Assembly->image->assembly = BNM_Assembly;
+        BNM_Assembly->aname.name = BNM_Image->nameNoExt;
 #else
-        BNM_assembly->aname.nameIndex = -0x424e4d; //B(42) N(4e) M(4d) BNM
+        BNM_Image->assemblyIndex = -0x424e4d;
+        BNM_Assembly->imageIndex = -0x424e4d;
 #endif
-        BNM_assembly->referencedAssemblyStart = -1;
-        BNM_assembly->referencedAssemblyCount = 0;
-        LoadedAssemblies->push_back(BNM_assembly);
+        BNM_Assembly->referencedAssemblyStart = -1;
+        BNM_Assembly->referencedAssemblyCount = 0;
+        LoadedAssemblies->push_back(BNM_Assembly);
     }
     return true;
 }
 Il2CppClass* new_Class_FromIl2CppType(const Il2CppType* type){
-    Il2CppClass* klass = old_Class_FromIl2CppType(type);
-    if (!klass)
-        for (auto clazz : BNM_classes) {
+    if (!type) return nullptr;
+    for (auto clazz : BNM_classes) {
 #if UNITY_VER < 181
-            if (clazz->byval_arg == type)
+        if (clazz->byval_arg == type)
 #else
-            if (&clazz->byval_arg == type)
+        if (&clazz->byval_arg == type)
 #endif
-            {
-                klass = clazz;
-                break;
-            }
+        {
+            return clazz;
         }
-    return klass;
+    }
+    return old_Class_FromIl2CppType(type);
 }
 Il2CppClass* new_Class_FromName(const Il2CppImage* image, const char* namespaze, const char *name){
     if (!image) return nullptr;
-    if (!strcmp(image->name, OBFUSCATE_BNM("ByNameModding.dll"))){
+    if (image->name == OBFUSCATES_BNM("ByNameModding.dll")){
         for (auto BNM_class : BNM_classes) {
             if (!strcmp(namespaze, BNM_class->namespaze) && !strcmp(name, BNM_class->name)){
                 return BNM_class;
@@ -93,13 +90,13 @@ Il2CppClass* new_Class_FromName(const Il2CppImage* image, const char* namespaze,
 bool new_Class_Init(Il2CppClass *klass) {
     if (!klass)
         return false;
-    if (strcmp(klass->image->name, OBFUSCATE_BNM("ByNameModding.dll")))
+    if (klass->image->name != OBFUSCATES_BNM("ByNameModding.dll"))
         return old_Class_Init(klass);
     return true;
 }
 
 void new_Image_GetTypes(const Il2CppImage* image, bool exportedOnly_UNUSED_IN_IL2CPP_SRC, TypeVector* target) {
-    if (strcmp(image->name, OBFUSCATE_BNM("ByNameModding.dll"))) {
+    if (image->name != OBFUSCATES_BNM("ByNameModding.dll")) {
         return old_Image_GetTypes(image, exportedOnly_UNUSED_IN_IL2CPP_SRC, target);
     } else {
         for (auto BNM_class : BNM_classes) {
@@ -107,7 +104,7 @@ void new_Image_GetTypes(const Il2CppImage* image, bool exportedOnly_UNUSED_IN_IL
         }
     }
 }
-
+#if __cplusplus >= 201703
 void AddNewClass(NewClass *klass){
     if (!Clases4Add)
         Clases4Add = new std::vector<NewClass *>();
@@ -150,7 +147,7 @@ struct _BNMMethod_##_name : NewMethod { \
 public: \
 static inline _BNMMethod_##_name BNMMethod_##_name = _BNMMethod_##_name()
 
-#define NewStaticNethodInit(_type, _name, args, ...) \
+#define NewStaticMethodInit(_type, _name, args, ...) \
 private: \
 struct _BNMStaticMethod_##_name : NewMethod { \
     _BNMStaticMethod_##_name() { \
@@ -199,7 +196,6 @@ struct _BNMStaticField_##_name : NewField { \
 }; \
 static inline _BNMStaticField_##_name BNMStaticField_##_name = _BNMStaticField_##_name()
 
-
 void InitNewClasses(){
     for (int i = 0; i < Clases4Add->size(); i++){
         NewClass *klass = (*Clases4Add)[i];
@@ -208,16 +204,9 @@ void InitNewClasses(){
         type->pinned = 0;
         type->byref = 0;
         type->num_mods = 0;
-        type->data.type = type;
-        if (!BNM_assembly)
+        if (!BNM_Assembly)
             InitBNMAssembly();
         BNM_Image->typeCount++;
-#if UNITY_VER < 202
-        type->data.klassIndex
-#else
-        type->data.__klassIndex
-#endif
-        = BNM_Image->typeCount;
         auto parentLC = LoadClass(klass->GetBaseNameSapce(), klass->GetBaseName());
         Il2CppClass *parent = parentLC.GetIl2CppClass();
         std::vector<VirtualInvokeData> newVTable;
@@ -349,8 +338,8 @@ void InitNewClasses(){
             }
             klass->thizClass->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
             klass->thizClass->typeHierarchy = (Il2CppClass**)calloc(klass->thizClass->typeHierarchyDepth, sizeof(Il2CppClass*));
-            klass->thizClass->typeHierarchy[klass->thizClass->typeHierarchyDepth - 1] = klass->thizClass;
             memcpy(klass->thizClass->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(Il2CppClass*));
+            klass->thizClass->typeHierarchy[klass->thizClass->typeHierarchyDepth - 1] = klass->thizClass;
         } else {
             klass->thizClass->typeHierarchyDepth = 1;
         }
@@ -401,7 +390,6 @@ void InitNewClasses(){
         klass->thizClass->init_pending = 0;
 #if UNITY_VER < 202
         klass->thizClass->genericContainerIndex = -1;
-
 #else
         klass->thizClass->genericContainerHandle = NULL;
         klass->thizClass->typeMetadataHandle = NULL;
@@ -436,7 +424,7 @@ void InitNewClasses(){
                     newField->type = field->MYtype.ToIl2CppType();
                     newField->parent = klass->thizClass;
                     newField->offset = field->offset;
-                    newField->token = (((Il2CppType *)newField->type)->attrs | field->attributes); // FIELD_ATTRIBUTE_PUBLIC
+                    newField->token = newField->type->attrs | field->attributes; // FIELD_ATTRIBUTE_PUBLIC
                     newField++;
                 }
                 klass->Fields4Add->clear();
@@ -448,7 +436,7 @@ void InitNewClasses(){
                     newField->type = field->MYtype.ToIl2CppType();
                     newField->parent = klass->thizClass;
                     newField->offset = field->offset;
-                    newField->token = (((Il2CppType *)newField->type)->attrs | field->attributes); // FIELD_ATTRIBUTE_PUBLIC and FIELD_ATTRIBUTE_STATIC
+                    newField->token = newField->type->attrs | field->attributes; // FIELD_ATTRIBUTE_PUBLIC and FIELD_ATTRIBUTE_STATIC
                     newField++;
                 }
                 klass->StaticFields4Add->clear();
@@ -462,3 +450,4 @@ void InitNewClasses(){
     }
     Clases4Add->clear();
 }
+#endif

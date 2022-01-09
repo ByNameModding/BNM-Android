@@ -1,6 +1,5 @@
 #pragma once
 
-monoString *CreateMonoString(string str, monoString::CreateMethod way = monoString::C_LIKE);
 
 template<typename T>
 struct Field {
@@ -8,7 +7,7 @@ struct Field {
         if (!fieldInfo || !fieldInfo->type)
             return false;
 
-        if ((fieldInfo->type->attrs & 0x10) != 0)
+        if (fieldInfo->type->attrs & 0x0010)
             return true;
 
         if (fieldInfo->offset == -1)
@@ -35,79 +34,68 @@ struct Field {
             thread_static = thiz->offset == -1;
         }
     }
-
+	
     DWORD GetOffset() {
         return thiz->offset;
+    }
+
+    T* getPointer() {
+        if (!init || thread_static || (statik && (!thiz->parent || !thiz->parent->static_fields)))
+            return 0;
+
+        if (statik) {
+            return (T *) ((uint64_t) thiz->parent->static_fields + thiz->offset);
+        }
+        return (T *) ((uint64_t) instance + thiz->offset);
     }
 
     T get() {
         if (!init || thread_static || (statik && (!thiz->parent || !thiz->parent->static_fields)))
             return T();
-        if (statik) {
-            return *(T *) ((uint64_t) thiz->parent->static_fields + thiz->offset);
-        }
-        return *(T *) ((uint64_t) instance + thiz->offset);
+        return *getPointer();
     }
 
     void set(T val) {
         if (!init || thread_static || (statik && (!thiz->parent || !thiz->parent->static_fields)))
             return;
-        if (statik) {
-            *(T *) ((uint64_t) thiz->parent->static_fields + thiz->offset) = val;
-            return;
-        }
-        *(T *) ((uint64_t) instance + thiz->offset) = val;
+        *getPointer() = val;
     }
 
     operator T() {
         return get();
     }
 
-    Field operator=(T val) {
-        set(val);
-        return *this;
-    }
-
-
-    void setInstance(void *val) {
-        init = IsNativeObjectAlive(val) && thiz != 0;
-        instance = val;
-    }
-
-    void setInstanceDanger(void *val) {
-        init = true;
-        instance = val;
-    }
-
-    bool operator==(Field other) {
-        if (!init) return false;
-        return (thiz->type == other.type && thiz->parent == other.parent &&
-                thiz->offset == other.offset && thiz->name == other.name &&
-                thiz->token == other.token);
-    }
-
     T operator()() {
         return get();
     }
-};
+	
+    void operator=(T val) {
+        set(val);
+    }
 
+    Field<T> setInstance(void *val) {
+        init = IsNativeObjectAlive(val) && thiz != 0;
+        instance = val;
+        return *this;
+    }
+
+    Field<T> setInstanceDanger(void *val) {
+        init = true;
+        instance = val;
+        return *this;
+    }
+
+};
 class LoadClass {
+
     Il2CppClass *GetClassFromName(string _namespace, string _name) {
-        DO_API(Il2CppDomain*, il2cpp_domain_get, ());
-        DO_API(const Il2CppAssembly**, il2cpp_domain_get_assemblies, (const Il2CppDomain * domain, size_t * size));
         DO_API(const Il2CppImage*, il2cpp_assembly_get_image, (const Il2CppAssembly * assembly));
-        auto dom = il2cpp_domain_get();
-        if (!dom) {
-            return nullptr;
-        }
-        size_t assemb_count;
-        auto assemblies = il2cpp_domain_get_assemblies(dom, &assemb_count);
-        for (int i = 0; i < assemb_count; i++) {
+        for (auto asmb : *Assembly$$GetAllAssemblies()) {
             TypeVector clases;
-            Image$$GetTypes(il2cpp_assembly_get_image(assemblies[i]), false, &clases);
+            Image$$GetTypes(il2cpp_assembly_get_image(asmb), false, &clases);
             for (auto cls : clases){
                 if (!cls) continue;
-                if (CheckObj(cls->name) == _name && CheckObj(cls->namespaze) == _namespace){
+                if (cls->name == _name && cls->namespaze == _namespace){
                     return (Il2CppClass *)cls;
                 }
             }
@@ -123,7 +111,14 @@ public:
     LoadClass(Il2CppClass *clazz) {
         klass = clazz;
     }
-
+    LoadClass(const Il2CppType *type) {
+        DO_API(Il2CppClass*, il2cpp_class_from_il2cpp_type, (const Il2CppType * type));
+        klass = il2cpp_class_from_il2cpp_type(type);
+    }
+    LoadClass(const MonoType *type) {
+        DO_API(Il2CppClass*, il2cpp_class_from_il2cpp_type, (const Il2CppType * type));
+        klass = il2cpp_class_from_il2cpp_type(type->type);
+    }
     LoadClass(string namespaze, string clazz) {
         Il2CppClass *thisclass;
         int try_count = 0;
@@ -141,23 +136,24 @@ public:
 
     LoadClass(string _namespace, string _name, string dllname) {
         Il2CppClass *thisclass = nullptr;
-        DO_API(const Il2CppAssembly*, il2cpp_domain_assembly_open, (Il2CppDomain * domain, const char *name));
-        DO_API(Il2CppDomain*, il2cpp_domain_get, ());
         DO_API(const Il2CppImage*, il2cpp_assembly_get_image, (const Il2CppAssembly * assembly));
-        auto *dll = il2cpp_assembly_get_image(il2cpp_domain_assembly_open(il2cpp_domain_get(), dllname.c_str()));
+        const Il2CppImage *dll;
+        for (auto asemb : *Assembly$$GetAllAssemblies()){
+            if (dllname == il2cpp_assembly_get_image(asemb)->name)
+                dll = il2cpp_assembly_get_image(asemb);
+        }
         int try_count = 0;
         do {
-            auto dom = il2cpp_domain_get();
-            if (dom) {
+            if (!dll)
+                break;
                 TypeVector clases;
                 Image$$GetTypes(dll, false, &clases);
                 for (auto cls : clases){
                     if (!cls) continue;
-                    if (CheckObj(cls->name) == _name && CheckObj(cls->namespaze) == _namespace){
+                    if (cls->name == _name && cls->namespaze == _namespace){
                         thisclass = (Il2CppClass*)cls;
                     }
                 }
-            }
 
             if (try_count == 10 && !thisclass) {
                 LOGIBNM(OBFUSCATE_BNM("Class: [%s].[%s] - not founded"), _namespace.c_str(),
@@ -177,7 +173,7 @@ public:
         if (!klass) return nullptr;
         DO_API(FieldInfo *, il2cpp_class_get_field_from_name,
                (Il2CppClass * klass, const char *name));
-        return il2cpp_class_get_field_from_name(klass, name.c_str());
+        return il2cpp_class_get_field_from_name(klass, str2char(name));
     }
 
     template<typename T>
@@ -192,8 +188,8 @@ public:
         return GetOffset(GetFieldInfoByName(name));
     }
 
-    static DWORD GetOffset(FieldInfo *filed) {
-        return filed->offset;
+    static DWORD GetOffset(FieldInfo *field) {
+        return field->offset;
     }
 
     static DWORD GetOffset(MethodInfo *methodInfo) {
@@ -203,7 +199,7 @@ public:
     static DWORD GetOffset(const MethodInfo *methodInfo) {
         return (DWORD) methodInfo->methodPointer;
     }
-
+	
     const MethodInfo *GetMethodInfoByName(string name, int paramcount) {
         if (!klass) return nullptr;
         DO_API(const MethodInfo*, il2cpp_class_get_method_from_name,
@@ -221,7 +217,7 @@ public:
             res = GetMethodInfoByName(name, paramcount);
             if (try_count == 10 && !res) {
                 LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"),
-                        CheckObj(klass->namespaze), CheckObj(klass->name), CheckObj(name.c_str()),
+                        klass->namespaze, klass->name, name.c_str(),
                         paramcount);
                 return 0;
             } else if (!res) {
@@ -263,7 +259,7 @@ public:
         do {
             res = GetMethodInfoByName(name, params_names);
             if (try_count == 10 && !res) {
-                LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), CheckObj(klass->namespaze), CheckObj(klass->name), CheckObj(name.c_str()), paramcount);
+                LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), klass->namespaze, klass->name, name.c_str(), paramcount);
                 return 0;
             } else if (!res) {
                 try_count++;
@@ -310,7 +306,7 @@ public:
         do {
             res = GetMethodInfoByName(name, params_names, params_types);
             if (try_count == 10 && !res) {
-                LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), CheckObj(klass->namespaze), CheckObj(klass->name), CheckObj(name.c_str()), paramcount);
+                LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), klass->namespaze, klass->name, name.c_str(), paramcount);
                 return 0;
             } else if (!res) {
                 try_count++;
@@ -355,11 +351,11 @@ public:
         do {
             res = GetMethodInfoByName(name, params_types);
             if (try_count == 10 && !res) {
-                LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), CheckObj(klass->namespaze), CheckObj(klass->name), CheckObj(name.c_str()), paramcount);
+                LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), klass->namespaze, klass->name, name.c_str(), paramcount);
                 return 0;
             } else if (!res) {
                 try_count++;
-            } else {
+            } else  {
                 break;
             }
         } while (true);
@@ -368,24 +364,16 @@ public:
 
     static LoadClass GetLC_ByClassAndMethodName(string _namespace, string _name, string methodName) {
         LoadClass out;
-        DO_API(Il2CppDomain*, il2cpp_domain_get, ());
         DO_API(const Il2CppImage*, il2cpp_assembly_get_image, (const Il2CppAssembly * assembly));
-        DO_API(const Il2CppAssembly**, il2cpp_domain_get_assemblies, (const Il2CppDomain * domain, size_t * size));
-        auto dom = il2cpp_domain_get();
-        if (!dom) {
-            return out;
-        }
-        size_t assemb_count;
-        auto assemblies = il2cpp_domain_get_assemblies(dom, &assemb_count);
-        for (int i = 0; i < assemb_count; i++) {
+        for (auto asmb : *Assembly$$GetAllAssemblies()) {
             TypeVector clases;
-            Image$$GetTypes(il2cpp_assembly_get_image(assemblies[i]), false, &clases);
+            Image$$GetTypes(il2cpp_assembly_get_image(asmb), false, &clases);
             for (auto cls : clases){
                 if (!cls) continue;
-                if (CheckObj(cls->name) == _name && CheckObj(cls->namespaze) == _namespace){
+                if (cls->name == _name && cls->namespaze == _namespace){
                     for (int i = 0; i < cls->method_count; i++) {
                         const MethodInfo *method = cls->methods[i];
-                        if (method && methodName == CheckObj(method->name)) {
+                        if (method && methodName == method->name) {
                             out = LoadClass((Il2CppClass*)cls);
                             return out;
                         }
@@ -415,40 +403,45 @@ public:
     }
 
     template<typename T>
-    T BoxObject(T obj) {
+    Il2CppObject* BoxObject(T obj) {
         if (!klass) return nullptr;
         DO_API(Il2CppObject*, il2cpp_value_box, (Il2CppClass * klass, void * data));
-        return *(T *) il2cpp_value_box(klass, *(void **) obj);
+        return il2cpp_value_box(klass, (void *) obj);
     }
 
-    const Il2CppType *GetIl2CppType() {
+    Il2CppType *GetIl2CppType() {
         if (!klass) return nullptr;
-#if UNITY_VER > 172
-        return &klass->byval_arg;
+#if UNITY_VER > 174
+        return (Il2CppType *)&klass->byval_arg;
 #else
-        return klass->byval_arg;
+        return (Il2CppType *)klass->byval_arg;
 #endif
     }
 
     MonoType *GetMonoType() {
         if (!klass) return nullptr;
         DO_API(Il2CppObject*, il2cpp_type_get_object, (const Il2CppType * type));
-#if UNITY_VER > 172
+#if UNITY_VER > 174
         return (MonoType *) il2cpp_type_get_object(&klass->byval_arg);
 #else
         return (MonoType *) il2cpp_type_get_object(klass->byval_arg);
 #endif
     }
 
-    void *CreateNewClass(void **args, int args_count = -1, std::vector<std::string> arg_names = {}) {
+    template<typename ...Args>
+    void *CreateNewObjectCtor(int args_count, std::vector<std::string> arg_names, Args ... args) {
         if (!klass) return nullptr;
-        DO_API(Il2CppObject*, il2cpp_runtime_invoke, (const MethodInfo * method, void *obj, void **params, Il2CppException **exc));
-        const MethodInfo *method;
-        method = arg_names.empty() ? GetMethodInfoByName(OBFUSCATES_BNM(".ctor"), args_count)
+        const MethodInfo *method = arg_names.empty() ? GetMethodInfoByName(OBFUSCATES_BNM(".ctor"), args_count)
                                    : GetMethodInfoByName(OBFUSCATES_BNM(".ctor"), arg_names);
         Il2CppObject *instance = (Il2CppObject *) CreateNewInstance();
-        il2cpp_runtime_invoke(method, instance, args, NULL);
+        void (*ctor)(...);
+        InitFunc(ctor, method->methodPointer);
+        ctor(instance, args...);
         return (void *) instance;
+    }
+    template<typename ...Args>
+    void *CreateNewObject(Args ... args) {
+        return CreateNewObjectCtor(sizeof...(Args), {}, args...);
     }
 
     void *CreateNewInstance() {
@@ -460,43 +453,25 @@ public:
     Il2CppClass *GetIl2CppClass() {
         return klass;
     }
+    std::string GetClassName(){
+        if (klass)
+            return OBFUSCATES_BNM("[") + klass->namespaze + OBFUSCATES_BNM("]::[") + klass->name + OBFUSCATES_BNM("]");
+        return OBFUSCATES_BNM("Klass not loaded!");
+    }
 };
 
-void *get_Extern_Method(string str) {
+monoString *monoString::Empty() {
+    return LoadClass(OBFUSCATES("System"), OBFUSCATES("String")).GetFieldByName<monoString *>(OBFUSCATES("Empty"))();
+}
+monoString *CreateMonoString(const char *str) {
+    DO_API(monoString*, il2cpp_string_new, (const char *str));
+    return il2cpp_string_new(str);
+}
+monoString *CreateMonoString(std::string str) {
+    return CreateMonoString(str2char(str));
+}
+
+void *getExternMethod(string str) {
     DO_API(void*, il2cpp_resolve_icall, (const char *str));
     return il2cpp_resolve_icall(str.c_str());
-}
-char* conv2monoLikeStr(const char*arr, int len){
-    int size = (len+1)*2;
-    char out[size];
-    memset(out, 0, size);
-    int g = 0;
-    for (int i = 0; i < size; i++){
-        if (i== 0 || i % 2 == 0){
-            out[i] = arr[g];
-            g++;
-        }
-    }
-    return out;
-}
-monoString *CreateMonoString(string str, monoString::CreateMethod crateMethod) {
-    if (crateMethod == monoString::MONO) {
-        static monoString *(*mono_CreateString)(void *, const char *);
-        if (!mono_CreateString)
-            InitFunc(mono_CreateString,
-                     LoadClass(OBFUSCATES_BNM("System"), OBFUSCATES_BNM("String")).GetMethodOffsetByName(
-                             OBFUSCATES_BNM("CreateString"), {LoadClass(OBFUSCATES_BNM("System"), OBFUSCATES_BNM("SByte")).GetIl2CppType()}));
-        return mono_CreateString(NULL, str.c_str());
-    } else if (crateMethod == monoString::IL2CPP) {
-        DO_API(monoString*, il2cpp_string_new, (const char *str));
-        return il2cpp_string_new(str.c_str());
-    } else {
-        int len = str.length();
-        int size = (len + 1) * 2;
-        monoString *out = (monoString*) malloc(sizeof(monoString) + size);
-        memcpy((void*)out->chars, (void *)conv2monoLikeStr(str.c_str(), len), size);
-        out->length = len;
-        out->monitor = nullptr;
-        return out;
-    }
 }

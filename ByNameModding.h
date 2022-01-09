@@ -19,6 +19,9 @@
 //! INFO LOGS
 #define BNM_INFO
 
+//! ERROR LOGS
+#define BNM_ERROR
+
 #ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS // If you want try port for windows
 #endif
@@ -53,7 +56,6 @@
 #include <limits>
 #include <vector>
 #include "ByNameModding/macros.h"
-#include <elf.h>
 
 
 #if UNITY_VER == 171
@@ -86,8 +88,10 @@
 using namespace std;
 typedef Il2CppReflectionType MonoType;
 #include "ByNameModding/ByNameModdingUtils.h"
-#include "ByNameModding/Il2CppTypeDefs/Il2Cpp_mono_types.h"
+#include "ByNameModding/Il2CppTypeDefs/il2cpp_mono_types.h"
 #include "ByNameModding/LoadClass_Field.h"
 #include "ByNameModding/BasicStructs/BasicStructs.h"
+#include "ByNameModding/NewClass_structs.h"
 #include "ByNameModding/NewClass.h"
+
 

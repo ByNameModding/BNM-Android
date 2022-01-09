@@ -1,68 +1,73 @@
 #pragma once
 #include <list>
 #include <map>
+#include <cstdlib>
+#include "monoConvert.h"
+
 
 struct monoString {
-    void *klass;
-    void *monitor;
+    unsigned char data[sizeof(void *) * 2]; /*void *klass; and void *monitor;*/
     int length;
-    char chars[255];
+    monoChar chars[0];
 
     std::string get_string() {
-        if (isNOT_Allocated(chars))
-            return OBFUSCATE_BNM("ERROR");
-        std::string out;
-        for (int i = 0; i < length * 2; i++){
-            if (chars[i])
-                out += chars[i];
-        }
-        return out;
+        return get_const_char();
     }
-
-    std::string get_string_old() {
-        if (isNOT_Allocated(chars))
-            return OBFUSCATE_BNM("ERROR");
-        std::u16string u16_string(reinterpret_cast<const char16_t *>(chars));
-        std::wstring wide_string(u16_string.begin(), u16_string.end());
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> convert;
-        return convert.to_bytes(wide_string);
-    }
-
-    enum CreateMethod {
-        IL2CPP,
-        MONO,
-        C_LIKE
-    };
-
     const char *get_const_char() {
-        return get_string().c_str();
+        if (!this || !isAllocated(chars))
+            return OBFUSCATE_BNM("ERROR");
+        return monoConvert::utf16_to_utf8(chars, length);
     }
-
-    char *getChars() {
-        return chars;
+    std::string get_string_old() {
+        if (!this || !isAllocated(chars))
+            return OBFUSCATE_BNM("ERROR");
+        try {
+            return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(std::wstring(chars, chars + length));
+        } catch(std::exception& e) {
+            return OBFUSCATE_BNM("ERROR");
+        }
     }
-
+    std::string get_string_old_unsafe() {
+        return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(std::wstring(chars, chars + length));
+    }
     operator std::string(){
         return get_string();
     }
-
     operator const char *(){
-        return get_string().c_str();
+        return get_const_char();
     }
-
-    int getLength() {
-        return length;
+    unsigned int getHash() {
+        if (!this)
+            return 0;
+        monoChar* p = chars;
+        unsigned int h = 0;
+        for (int i = 0; i < length; i++)
+        {
+            h = (h << 5) - h + *p;
+            p++;
+        }
+        return h;
     }
-
+    static monoString *Create(std::string str){
+        return Create(str2char(str));
+    }
+    static monoString *Create(const char *str){
+        const size_t length = strlen(str);
+        const size_t utf16Size = sizeof(monoChar) * length;
+        monoString *ret = (monoString*)malloc(sizeof(monoString) + utf16Size);
+        ret->length = length;
+        memcpy(ret->chars, monoConvert::utf8_to_utf16(str, ret->length), utf16Size);
+        return (monoString*)ret;
+    }
+    static monoString* Empty();
 };
 
 template<typename T>
 struct monoArray {
-    void *klass;
-    void *monitor;
-    void *bounds;
+    Il2CppObject obj;
+    Il2CppArrayBounds *bounds;
     int32_t max_length;
-    T m_Items[65535];
+    T m_Items[0];
 
     int32_t getLength() {
         return max_length;
@@ -71,39 +76,35 @@ struct monoArray {
     T *getPointer() {
         return m_Items;
     }
-    std::vector<T> toCPPlist(){
-        std::vector<T> ret;
+    template<typename V = T>
+    std::vector<V> toCPPlist(){
+        std::vector<V> ret;
         for (int i = 0; i < max_length; i++){
             ret.push_back(m_Items[i]);
         }
         return ret;
     }
+    bool copyFrom(std::vector<T> vec){
+        return set(vec.data(), vec.size());
+    }
+    bool copyFrom(T *arr, int size){
+        if (size > max_length) return false;
+        memset((void *)m_Items, 0, sizeof(T) * max_length);
+        for (int i = 0; i < size; i++)
+            m_Items[i] = arr[i];
+        return true;
+    }
+    T operator[] (int index) {
+        return m_Items[index];
+    }
+
 };
 template<typename T>
-int32_t GetArraySize(monoArray<T> *array, bool unityObj){
-    int32_t out = 0;
-    bool check;
-    if (unityObj)
-        check = [](auto obj){
-            return IsNativeObjectAlive(*(void **)obj);
-        };
-    else
-        check = [](auto obj){
-            return (*(void **)obj) != 0;
-        };
-    for (int32_t i = 0; i < array->max_length;i++){
-        if (check(array[i])) out++;
-    }
-    return out;
-}
-template<typename T>
 struct monoList {
-    void *klass;
-    void *monitor;
+    Il2CppObject obj;
     monoArray<T> *Items;
     int32_t size;
     int32_t version;
-    void *syncRoot;
 
     T* getItems() {
         return Items->getPointer();
@@ -116,13 +117,9 @@ struct monoList {
     int32_t getVersion() {
         return version;
     }
-
-    std::vector<T> toCPPlist(){
-        std::vector<T> ret;
-        for (int i = 0; i < size; i++){
-            ret.push_back(Items->m_Items[i]);
-        }
-        return ret;
+    template<typename V = T>
+    std::vector<V> toCPPlist(){
+        return Items->toCPPlist<V>();
     }
 
     void Add(T val) {
@@ -130,15 +127,14 @@ struct monoList {
         size++;
         version++;
     }
+    T operator[] (int index) {
+        return Items->m_Items[index];
+    }
 };
-uint GetHashCode(uint val){
-    return -1640531535 * (val >> 2);
-}
-typedef struct Il2CppObject Il2CppObject;
+
 template<typename TKey, typename TValue>
 struct monoDictionary {
-    void *klass;
-    void *monitor;
+    Il2CppObject obj;
     monoArray<int *> *buckets;
     monoArray<void *> *entries;
     int32_t count;

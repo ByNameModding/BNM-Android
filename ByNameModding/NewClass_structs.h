@@ -1,51 +1,68 @@
 #pragma once
-const Il2CppType* TypeFinder::ToIl2CppType(){
+Il2CppType *TypeFinder::ToIl2CppType(){
     if (byNameOnly){
-        return LoadClass(OBFUSCATE_BNM("System"), name).GetIl2CppType();
-    } else {
-        return LoadClass(namespaze, name).GetIl2CppType();
+        return (Il2CppType *)LoadClass(OBFUSCATE_BNM("System"), name).GetIl2CppType();
+    } else if (withMethodName) {
+        return (Il2CppType *)LoadClass::GetLC_ByClassAndMethodName(namespaze, name, methodName).GetIl2CppType();
+    }else {
+        return (Il2CppType *)LoadClass(namespaze, name).GetIl2CppType();
     }
 }
+
+#if __cplusplus < 201703
+namespace std {
+    template< class T, class U >
+    constexpr bool is_same_v = is_same<T, U>::value; // For C++11 and C++14
+    template <class _Tp>
+    constexpr bool is_pointer_v = is_pointer<_Tp>::value; // For C++11 and C++14
+}
+#endif
+
+// Get Game Mono type name at compile time
+constexpr TypeFinder GetGameType(const char *namespaze, const char *name, bool withMethodName = false, const char *methodname = OBFUSCATE_BNM("")){
+    return TypeFinder{false, name, namespaze, withMethodName, methodname};
+}
+
 // Get Il2Cpp Mono type name at compile time
 template<typename T>
 constexpr TypeFinder GetType(){
-    if constexpr (std::is_same_v<T, void>){
+    if (std::is_same_v<T, void>){
         return {true, OBFUSCATE_BNM("Void")};
-    } else if constexpr (std::is_same_v<T, bool>){
+    } else if (std::is_same_v<T, bool>){
         return {true, OBFUSCATE_BNM("Boolean")};
-    } else if constexpr (std::is_same_v<T, uint8_t>){
+    } else if (std::is_same_v<T, uint8_t> || std::is_same_v<T, unsigned char>){
         return {true, OBFUSCATE_BNM("Byte")};
-    } else if constexpr (std::is_same_v<T, int8_t>){
+    } else if (std::is_same_v<T, int8_t>){
         return {true, OBFUSCATE_BNM("SByte")};
-    } else if constexpr (std::is_same_v<T, int16_t>){
+    } else if (std::is_same_v<T, int16_t>){
         return {true, OBFUSCATE_BNM("Int16")};
-    } else if constexpr (std::is_same_v<T, uint16_t>){
+    } else if (std::is_same_v<T, uint16_t>){
         return {true, OBFUSCATE_BNM("UInt16")};
-    } else if constexpr (std::is_same_v<T, int32_t>){
+    } else if (std::is_same_v<T, int32_t>){
         return {true, OBFUSCATE_BNM("Int32")};
-    } else if constexpr (std::is_same_v<T, uint32_t>){
+    } else if (std::is_same_v<T, uint32_t>){
         return {true, OBFUSCATE_BNM("UInt32")};
-    } else if constexpr (std::is_same_v<T, intptr_t>){
+    } else if (std::is_same_v<T, intptr_t>){
         return {true, OBFUSCATE_BNM("IntPtr")};
-    } else if constexpr (std::is_same_v<T, int64_t>){
+    } else if (std::is_same_v<T, int64_t>){
         return {true, OBFUSCATE_BNM("Int64")};
-    } else if constexpr (std::is_same_v<T, uint64_t>){
+    } else if (std::is_same_v<T, uint64_t>){
         return {true, OBFUSCATE_BNM("UInt64")};
-    } else if constexpr (std::is_same_v<T, float>){
+    } else if (std::is_same_v<T, float>){
         return {true, OBFUSCATE_BNM("Single")};
-    } else if constexpr (std::is_same_v<T, double>){
+    } else if (std::is_same_v<T, double>){
         return {true, OBFUSCATE_BNM("Double")};
-    } else if constexpr (std::is_same_v<T, Il2CppString *> || std::is_same_v<T, monoString *>){
+    } else if (std::is_same_v<T, Il2CppString *> || std::is_same_v<T, monoString *>){
         return {true, OBFUSCATE_BNM("String")};
-    } else if constexpr (std::is_same_v<T, Vector3> || std::is_same_v<T, IVector3>){
+    } else if (std::is_same_v<T, Vector3> || std::is_same_v<T, IVector3>){
         return {false, OBFUSCATE_BNM("Vector3"), OBFUSCATE_BNM("UnityEngine")};
-    } else if constexpr (std::is_same_v<T, Vector2> || std::is_same_v<T, IVector2>){
+    } else if (std::is_same_v<T, Vector2> || std::is_same_v<T, IVector2>){
         return {false, OBFUSCATE_BNM("Vector2"), OBFUSCATE_BNM("UnityEngine")};
-    } else if constexpr (std::is_same_v<T, Color>){
+    } else if (std::is_same_v<T, Color>){
         return {false, OBFUSCATE_BNM("Color"), OBFUSCATE_BNM("UnityEngine")};
-    } else if constexpr (std::is_same_v<T, Ray>){
+    } else if (std::is_same_v<T, Ray>){
         return {false, OBFUSCATE_BNM("Ray"), OBFUSCATE_BNM("UnityEngine")};
-    } else if constexpr (std::is_same_v<T, RaycastHit>){
+    } else if (std::is_same_v<T, RaycastHit>){
         return {false, OBFUSCATE_BNM("RaycastHit"), OBFUSCATE_BNM("UnityEngine")};
     } else {
         return {true, OBFUSCATE_BNM("Object")};
@@ -113,6 +130,7 @@ struct NewClass {
         Methods4Add->push_back(method);
     }
 };
+#if __cplusplus >= 201703
 template<typename T> struct type {};
 template<typename>
 struct GetNewMethodCalls {};
@@ -177,3 +195,4 @@ public:
         return InvokeMethod(func, args, seq);
     }
 };
+#endif
