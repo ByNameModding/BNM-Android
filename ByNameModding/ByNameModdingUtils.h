@@ -297,8 +297,15 @@ void InitIl2cppMethods(){
         BNMdladdr((void*)il2cpp_get_corlib, &info);
         DWORD startAddr = (DWORD)info.dli_fbase;
         auto assemblyClass = il2cpp_class_from_name(corlib, OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("Assembly"));
-        DWORD GetTypesAdr = (DWORD) il2cpp_class_get_method_from_name(assemblyClass, OBFUSCATE_BNM("GetTypes"), 1)->methodPointer;
-        const int sCount
+        DWORD GetTypesAdr = 0;
+		for (int i = 0; i < assemblyClass->method_count; i++) {
+            const MethodInfo *method = assemblyClass->methods[i];
+            if (method && OBFUSCATES_BNM("GetTypes") == method->name && method->parameters_count == 1) {
+                GetTypesAdr = (DWORD) method->methodPointer;
+                break;
+            }
+        }
+		const int sCount
 #if UNITY_VER > 174
         = count + 1;
 #else
@@ -334,8 +341,15 @@ void InitIl2cppMethods(){
         BNMdladdr((void*)il2cpp_get_corlib, &info);
         DWORD startAddr = (DWORD)info.dli_fbase;
         auto assemblyClass = il2cpp_class_from_name(corlib, OBFUSCATE_BNM("System"), OBFUSCATE_BNM("AppDomain"));
-        const MethodInfo *getAssemb = il2cpp_class_get_method_from_name(assemblyClass, OBFUSCATE_BNM("GetAssemblies"), 1);
-        if (getAssemb){
+        const MethodInfo *getAssemb = 0;
+        for (int i = 0; i < assemblyClass->method_count; i++) {
+            const MethodInfo *method = assemblyClass->methods[i];
+            if (method && OBFUSCATES_BNM("GetAssemblies") == method->name && method->parameters_count == 1) {
+                getAssemb = method;
+                break;
+            }
+        }
+		if (getAssemb){
             DWORD GetTypesAdr = FindNext_B_BL_offset((DWORD) getAssemb->methodPointer, count);
             Assembly$$GetAllAssemblies_t = (AssemblyVector *(*)(void))(FindNext_B_BL_offset(GetTypesAdr, count+1));
             LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies by AppDomain in lib: 0x%x"), (DWORD)Assembly$$GetAllAssemblies_t - startAddr);
