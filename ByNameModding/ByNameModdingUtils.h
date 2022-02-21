@@ -18,7 +18,6 @@ struct TypeFinder {
     }
     operator LoadClass();
 };
-static bool LibLoaded = false;
 
 template<typename T>
 constexpr TypeFinder GetType();
@@ -112,11 +111,15 @@ char* str2char(std::string str) {
     writable[size] = '\0';
     return writable;
 }
+
+static bool BNM_LibLoaded = false;
+static char *BNM_LibPath;
+
 bool BNMil2cppLoaded(){
-    return LibLoaded;
+    return BNM_LibLoaded;
 }
 void *get_il2cpp() {
-    return dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
+    return dlopen(BNM_LibPath, RTLD_LAZY);
 }
 
 void (*old_BNM_il2cpp_init)(const char*);
@@ -124,7 +127,7 @@ void BNM_il2cpp_init(const char* domain_name){
     old_BNM_il2cpp_init(domain_name);
     InitIl2cppMethods();
     InitNewClasses();
-    LibLoaded = true;
+    BNM_LibLoaded = true;
 }
 
 DWORD FindNext_B_BL_offset(DWORD start, int index);
@@ -136,6 +139,8 @@ void *BNM_dlopen(const char *filename, int flag){
         void *simb = dlsym(mainLibDl, OBFUSCATE_BNM("il2cpp_init"));
         if (simb){
             libFound = true;
+            BNM_LibPath = (char*)calloc(strlen(filename), sizeof(char));
+            strcpy(BNM_LibPath, filename);
             HOOK(simb, BNM_il2cpp_init, old_BNM_il2cpp_init);
         }
         return mainLibDl;
@@ -345,7 +350,8 @@ void InitIl2cppMethods(){
         Class$$Init(assemblyClass);
         for (int i = 0; i < assemblyClass->method_count; i++) {
             const MethodInfo *method = assemblyClass->methods[i];
-            if (method && OBFUSCATES_BNM("GetTypes") == method->name && method->parameters_count == 1) {
+            if (!CheckObj(method)) continue;
+            if (!strcmp(OBFUSCATE_BNM("GetTypes"), method->name) && method->parameters_count == 1) {
                 GetTypesAdr = (DWORD) method->methodPointer;
                 break;
             }
@@ -398,7 +404,8 @@ void InitIl2cppMethods(){
         const MethodInfo *getAssemb = 0;
         for (int i = 0; i < assemblyClass->method_count; i++) {
             const MethodInfo *method = assemblyClass->methods[i];
-            if (method && OBFUSCATES_BNM("GetAssemblies") == method->name && method->parameters_count == 1) {
+            if (!CheckObj(method)) continue;
+            if (!strcmp(OBFUSCATE_BNM("GetAssemblies"), method->name) && method->parameters_count == 1) {
                 getAssemb = method;
                 break;
             }
