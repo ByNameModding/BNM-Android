@@ -1,23 +1,33 @@
 #pragma once
 typedef unsigned long DWORD;
-
+class LoadClass;
 struct TypeFinder {
     bool byNameOnly;
     const char *name;
     const char *namespaze;
     bool withMethodName;
     const char *methodName;
+    LoadClass ToLC();
     Il2CppType* ToIl2CppType();
+    Il2CppClass* ToIl2CppClass();
+    operator Il2CppType*(){
+        return ToIl2CppType();
+    }
+    operator Il2CppClass*(){
+        return ToIl2CppClass();
+    }
+    operator LoadClass();
 };
+static bool LibLoaded = false;
 
 template<typename T>
 constexpr TypeFinder GetType();
 void InitIl2cppMethods();
-typedef std::vector<const Il2CppAssembly*> AssemblyVector;
-typedef std::vector<const Il2CppClass*> TypeVector;
+void InitNewClasses();
+typedef std::vector<Il2CppAssembly*> AssemblyVector;
+typedef std::vector<Il2CppClass*> TypeVector;
 
 AssemblyVector *(*Assembly$$GetAllAssemblies_t)();
-
 AssemblyVector *Assembly$$GetAllAssemblies(){
     if (!Assembly$$GetAllAssemblies_t)
         InitIl2cppMethods();
@@ -45,20 +55,37 @@ Il2CppClass* new_Class_FromIl2CppType(const Il2CppType* type);
 
 Il2CppClass* (*old_Class_FromName)(const Il2CppImage* image, const char* namespaze, const char *name);
 Il2CppClass* new_Class_FromName(const Il2CppImage* image, const char* namespaze, const char *name);
-
 bool (*old_Class_Init)(Il2CppClass *klass);
 bool new_Class_Init(Il2CppClass *klass);
-static Il2CppAssembly* BNM_Assembly = nullptr;
-static Il2CppImage * BNM_Image = nullptr;
 static std::vector<Il2CppClass *> BNM_classes;
+static std::map<DWORD, std::vector<Il2CppClass *> *> BNM_classes_map;
+void *get_il2cpp();
+#define DO_API(r, n, p) auto n = (r (*) p)dlsym(get_il2cpp(), OBFUSCATE_BNM(#n))
+
+// Need due Image and Assembly in 2017.x- has index instead of pointer to Image and Assembly
 #if UNITY_VER <= 174
 Il2CppImage*(*old_GetImageFromIndex)(ImageIndex index);
 Il2CppImage* new_GetImageFromIndex(ImageIndex index){
-    if (index == -0x424e4d) {
-        return BNM_Image;
-    }else{
+    if (index < 0){
+        for (auto [img, clases] : BNM_classes_map){
+            if (((Il2CppImage*)img)->assemblyIndex == index)
+                return (Il2CppImage *)img;
+        }
+    } else {
         return old_GetImageFromIndex(index);
     }
+    return 0;
+}
+// All requests redirected to BNM and they are processed by it
+Il2CppAssembly* new_Assembly_Load(const char *name){
+    DO_API(Il2CppImage*, il2cpp_assembly_get_image, (const Il2CppAssembly * assembly));
+    for (auto asmb : *Assembly$$GetAllAssemblies()){
+        auto img = il2cpp_assembly_get_image(asmb);
+        if (img->name == std::string(name) || img->nameNoExt == std::string(name)){
+            return asmb;
+        }
+    }
+    return 0;
 }
 #endif
 void *getExternMethod(string str);
@@ -68,8 +95,11 @@ auto InitFunc = [](auto&& method, auto ptr) {
         *(void **)(&method) = (void *)(ptr);
     }
 };
-auto IsNativeObjectAlive = [](auto o) {
+auto BNM_IsUnityObjectAlive = [](auto o) {
     return o != NULL && *(intptr_t *)((uint64_t)o + 0x8) != 0;
+};
+auto BNM_IsSameUnityObject = [](auto o1, auto o2) {
+    return *(intptr_t *)((uint64_t)o1 + 0x8) == *(intptr_t *)((uint64_t)o2 + 0x8);
 };
 
 #define FieldBN(type, inst, nameSpacec, clazzz, fieldName) (LoadClass(OBFUSCATES_BNM(nameSpacec), OBFUSCATES_BNM(clazzz)).GetFieldByName<type>(OBFUSCATES_BNM(fieldName), inst))
@@ -83,21 +113,39 @@ char* str2char(std::string str) {
     return writable;
 }
 bool BNMil2cppLoaded(){
-    void *mod = BNMdlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
-    bool ret = mod != 0;
-    if (ret)
-        BNMdlclose(mod);
-    return ret;
+    return LibLoaded;
 }
 void *get_il2cpp() {
-    void *mod;
-    do {
-        mod = BNMdlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
-    } while (!mod);
-    return mod;
+    return dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
 }
 
-#define DO_API(r, n, p) auto n = (r (*) p)BNMdlsym(get_il2cpp(), OBFUSCATE_BNM(#n))
+void (*old_BNM_il2cpp_init)(const char*);
+void BNM_il2cpp_init(const char* domain_name){
+    old_BNM_il2cpp_init(domain_name);
+    InitIl2cppMethods();
+    InitNewClasses();
+    LibLoaded = true;
+}
+
+DWORD FindNext_B_BL_offset(DWORD start, int index);
+void *(*old_BNM_dlopen)(const char *, int);
+void *BNM_dlopen(const char *filename, int flag){
+    static bool libFound = false;
+    if (!libFound && std::string(filename).find(OBFUSCATE_BNM("il2cpp"))){
+        void *mainLibDl = old_BNM_dlopen(filename, flag);
+        void *simb = dlsym(mainLibDl, OBFUSCATE_BNM("il2cpp_init"));
+        if (simb){
+            libFound = true;
+            HOOK(simb, BNM_il2cpp_init, old_BNM_il2cpp_init);
+        }
+        return mainLibDl;
+    }
+    return old_BNM_dlopen(filename, flag);
+}
+__attribute__((constructor))
+void PrepareBNM() {
+    HOOK(dlopen, BNM_dlopen, old_BNM_dlopen);
+}
 
 std::string revhexstr(std::string hex) {
     std::string out;
@@ -174,7 +222,7 @@ DWORD FindNext_B_BL_offset(DWORD start, int index = 1) {
     int offset = 0;
     std::string curHex = readHexStrFromMem((const void*)start, 4);
     DWORD outOffset = 0;
-    bool out = true;
+    bool out;
     while (!(out = Decode_Branch_or_Call_Hex(curHex, start + offset, &outOffset)) || index != 1) {
         offset += 4;
         curHex = readHexStrFromMem((const void*)(start + offset), 4);
@@ -186,7 +234,7 @@ DWORD FindNext_B_BL_offset(DWORD start, int index = 1) {
     int offset = 0;
     std::string curHex = readHexStrFromMem((const void*)start, 1);
     DWORD outOffset = 0;
-    bool out = true;
+    bool out;
     while (!(out = Is_x86_call_hex(curHex)) || index != 1) {
         offset += 1;
         curHex = readHexStrFromMem((const void*)(start + offset), 1);
@@ -210,20 +258,6 @@ static T UnBoxObject(T obj) {
     return *(T *) val;
 }
 
-static Il2CppThread *CurThread;
-void BNM_Attach(){
-    if (CurThread) return;
-    DO_API(Il2CppDomain*, il2cpp_domain_get, ());
-    DO_API(Il2CppThread*, il2cpp_thread_attach, (Il2CppDomain * domain));
-    CurThread = il2cpp_thread_attach(il2cpp_domain_get());
-}
-void BNM_DeAttach(){
-    if (!CurThread) return;
-    DO_API(Il2CppDomain*, il2cpp_domain_get, ());
-    DO_API(void, il2cpp_thread_detach, (Il2CppThread * thread));
-    il2cpp_thread_detach(CurThread);
-    CurThread = nullptr;
-}
 auto isAllocated = [](auto x) -> bool {
     static jmp_buf jump;
     static sighandler_t handler = [](int) { longjmp(jump, 1); };
@@ -239,6 +273,20 @@ auto isAllocated = [](auto x) -> bool {
     signal(SIGSEGV, old_handler);
     return ok;
 };
+static Il2CppThread *CurThread;
+void BNM_Attach(){
+    if (CurThread) return;
+    DO_API(Il2CppDomain*, il2cpp_domain_get, ());
+    DO_API(Il2CppThread*, il2cpp_thread_attach, (Il2CppDomain * domain));
+    CurThread = il2cpp_thread_attach(il2cpp_domain_get());
+}
+void BNM_DeAttach(){
+    if (!CurThread) return;
+    DO_API(Il2CppDomain*, il2cpp_domain_get, ());
+    DO_API(void, il2cpp_thread_detach, (Il2CppThread * thread));
+    il2cpp_thread_detach(CurThread);
+    CurThread = nullptr;
+}
 template<typename T>
 T CheckObj(T obj) {
     if (!isAllocated(obj) || obj == NULL)
@@ -253,40 +301,36 @@ void InitIl2cppMethods(){
 #elif defined(__i386__) || defined(__x86_64__)
     int count = 2;
 #endif
-    usleep(1000);
     //! il2cpp::vm::Class::FromIl2CppType HOOK
     if (!old_Class_FromIl2CppType){
-        DWORD from_type_adr = (DWORD)BNMdlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_class_from_type"));
+        DWORD from_type_adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_class_from_type"));
         Dl_info info;
-        BNMdladdr((void*)from_type_adr, &info);
+        dladdr((void*)from_type_adr, &info);
         DWORD startAddr = (DWORD)info.dli_fbase;
         from_type_adr = FindNext_B_BL_offset(from_type_adr, count);
         HOOK(from_type_adr, new_Class_FromIl2CppType, old_Class_FromIl2CppType);
         LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromIl2CppType in lib: 0x%x"), (DWORD)from_type_adr - startAddr);
     }
-    usleep(1000);
     //! il2cpp::vm::Class::FromName HOOK
     if (!old_Class_FromName){
-        DWORD from_name_adr = (DWORD)BNMdlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_class_from_name"));
+        DWORD from_name_adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_class_from_name"));
         Dl_info info;
-        BNMdladdr((void*)from_name_adr, &info);
+        dladdr((void*)from_name_adr, &info);
         DWORD startAddr = (DWORD)info.dli_fbase;
         from_name_adr = FindNext_B_BL_offset(FindNext_B_BL_offset(from_name_adr, count), count);
         HOOK(from_name_adr, new_Class_FromName, old_Class_FromName);
         LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromName in lib: 0x%x"), (DWORD)from_name_adr - startAddr);
     }
-    usleep(1000);
     //! il2cpp::vm::Class::Init HOOK
     if (!Class$$Init_t){
-        DWORD Init_adr = (DWORD)BNMdlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_array_new_specific"));
+        DWORD Init_adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_array_new_specific"));
         Dl_info info;
-        BNMdladdr((void*)Init_adr, &info);
+        dladdr((void*)Init_adr, &info);
         DWORD startAddr = (DWORD)info.dli_fbase;
         Class$$Init_t = (bool (*)(Il2CppClass *))(FindNext_B_BL_offset(FindNext_B_BL_offset(Init_adr, count), count));
         HOOK(Class$$Init_t, new_Class_Init, old_Class_Init);
         LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::Init in lib: 0x%x"), (DWORD)Class$$Init_t - startAddr);
     }
-    usleep(1000);
     //! il2cpp::vm::Image::GetTypes HOOK
     if (!Image$$GetTypes_t){
         DO_API(const Il2CppImage*, il2cpp_get_corlib, ());
@@ -294,18 +338,19 @@ void InitIl2cppMethods(){
         DO_API(const MethodInfo*, il2cpp_class_get_method_from_name, (Il2CppClass * klass, const char* name, int argsCount));
         auto corlib = il2cpp_get_corlib();
         Dl_info info;
-        BNMdladdr((void*)il2cpp_get_corlib, &info);
+        dladdr((void*)il2cpp_get_corlib, &info);
         DWORD startAddr = (DWORD)info.dli_fbase;
-        auto assemblyClass = il2cpp_class_from_name(corlib, OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("Assembly"));
         DWORD GetTypesAdr = 0;
-		for (int i = 0; i < assemblyClass->method_count; i++) {
+        auto assemblyClass = il2cpp_class_from_name(corlib, OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("Assembly"));
+        Class$$Init(assemblyClass);
+        for (int i = 0; i < assemblyClass->method_count; i++) {
             const MethodInfo *method = assemblyClass->methods[i];
             if (method && OBFUSCATES_BNM("GetTypes") == method->name && method->parameters_count == 1) {
                 GetTypesAdr = (DWORD) method->methodPointer;
                 break;
             }
         }
-		const int sCount
+        const int sCount
 #if UNITY_VER > 174
         = count + 1;
 #else
@@ -315,22 +360,30 @@ void InitIl2cppMethods(){
         HOOK(Image$$GetTypes_t, new_Image_GetTypes, old_Image_GetTypes);
         LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Image::GetTypes in lib: 0x%x"), (DWORD)Image$$GetTypes_t - startAddr);
     }
-    usleep(1000);
 #if UNITY_VER <= 174
     //! il2cpp::vm::MetadataCache::GetImageFromIndex HOOK
     if (!old_GetImageFromIndex){
-        DWORD adr = (DWORD)BNMdlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_assembly_get_image"));
+        DWORD adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_assembly_get_image"));
         Dl_info info;
-        BNMdladdr((void*)adr, &info);
+        dladdr((void*)adr, &info);
         DWORD startAddr = (DWORD)info.dli_fbase;
         DWORD AssemblyGetImageOffset = FindNext_B_BL_offset(adr, count);
         DWORD GetImageFromIndexOffset = FindNext_B_BL_offset(AssemblyGetImageOffset, count);
         HOOK(GetImageFromIndexOffset, new_GetImageFromIndex, old_GetImageFromIndex);
-        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetImage in lib: 0x%x"), GetImageFromIndexOffset - startAddr);
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::MetadataCache::GetImageFromIndex in lib: 0x%x"), GetImageFromIndexOffset - startAddr);
     }
-    usleep(1000);
+    static void *old_AssemblyLoad;
+    //! il2cpp::vm::Assembly::Load HOOK
+    if (!old_AssemblyLoad){
+        DWORD adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_assembly_open"));
+        Dl_info info;
+        dladdr((void*)adr, &info);
+        DWORD startAddr = (DWORD)info.dli_fbase;
+        DWORD AssemblyLoadOffset = FindNext_B_BL_offset(adr, count);
+        HOOK(AssemblyLoadOffset, new_Assembly_Load, old_AssemblyLoad);
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::Load in lib: 0x%x"), AssemblyLoadOffset - startAddr);
+    }
 #endif
-
     //! il2cpp::vm::Assembly::GetAllAssemblies GET
     if (!Assembly$$GetAllAssemblies_t){
         DO_API(const Il2CppImage*, il2cpp_get_corlib, ());
@@ -338,9 +391,10 @@ void InitIl2cppMethods(){
         DO_API(const MethodInfo*, il2cpp_class_get_method_from_name, (Il2CppClass * klass, const char* name, int argsCount));
         auto corlib = il2cpp_get_corlib();
         Dl_info info;
-        BNMdladdr((void*)il2cpp_get_corlib, &info);
+        dladdr((void*)il2cpp_get_corlib, &info);
         DWORD startAddr = (DWORD)info.dli_fbase;
         auto assemblyClass = il2cpp_class_from_name(corlib, OBFUSCATE_BNM("System"), OBFUSCATE_BNM("AppDomain"));
+        Class$$Init(assemblyClass);
         const MethodInfo *getAssemb = 0;
         for (int i = 0; i < assemblyClass->method_count; i++) {
             const MethodInfo *method = assemblyClass->methods[i];
@@ -349,16 +403,15 @@ void InitIl2cppMethods(){
                 break;
             }
         }
-		if (getAssemb){
+        if (getAssemb){
             DWORD GetTypesAdr = FindNext_B_BL_offset((DWORD) getAssemb->methodPointer, count);
             Assembly$$GetAllAssemblies_t = (AssemblyVector *(*)(void))(FindNext_B_BL_offset(GetTypesAdr, count+1));
             LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies by AppDomain in lib: 0x%x"), (DWORD)Assembly$$GetAllAssemblies_t - startAddr);
         } else {
-            DWORD adr = (DWORD)BNMdlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_get_assemblies"));
+            DWORD adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_get_assemblies"));
             Assembly$$GetAllAssemblies_t = (AssemblyVector *(*)(void))(FindNext_B_BL_offset(adr, count));
             LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies by domain in lib: 0x%x"), (DWORD)Assembly$$GetAllAssemblies_t - startAddr);
         }
     }
-    usleep(1000);
 }
 

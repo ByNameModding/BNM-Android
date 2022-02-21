@@ -19,6 +19,7 @@ Header only library for modding (hacking) il2cpp games by classes, methods, fiel
 ## See [Examples.cpp](https://github.com/geokar2006/ByNameModding/blob/main/Examples.cpp)
 
 # Dependencies
+[UTF8-CPP](https://github.com/nemtrif/utfcpp) used by il2cpp and by BNM too.
 ## Any hookinng software for example:
 [Substrate](https://github.com/jbro129/Unity-Substrate-Hook-Android/tree/master/C%2B%2B/Substrate) with [And64InlineHook](https://github.com/Rprop/And64InlineHook)
 

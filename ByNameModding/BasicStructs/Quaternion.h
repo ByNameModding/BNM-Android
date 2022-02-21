@@ -7,7 +7,6 @@
 #define PI 3.14159265358979323846264338327950288419716939937510f
 #define Deg2Rad (2.f * PI / 360.f)
 #define Rad2Deg (1.f / Deg2Rad)
-struct IQuaternion;
 struct Quaternion
 {
     union
@@ -31,7 +30,6 @@ struct Quaternion
     inline Quaternion(Vector3 vector, float scalar);
     inline Quaternion(float x, float y, float z, float w);
     inline Quaternion(float Pitch, float Yaw, float Roll);
-    inline Quaternion(IQuaternion a);
 
     /**
      * Constants for common quaternions.
@@ -668,39 +666,5 @@ bool operator!=(const Quaternion lhs, const Quaternion rhs)
 }
 
 std::string to_string(Quaternion a) {
-    return to_string(a.x) + OBFUSCATES_BNM(", ") + to_string(a.y) + OBFUSCATES_BNM(", ") + to_string(a.z) + OBFUSCATES_BNM(", ") + to_string(a.w);
-}
-struct IQuaternion {
-    float x;
-    float y;
-    float z;
-    float w;
-    inline IQuaternion(float x, float y, float z, float w);
-    inline IQuaternion(Quaternion a);
-    inline IQuaternion();
-
-};
-bool operator==(const IQuaternion lhs, const Quaternion rhs)
-{
-    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
-}
-bool operator==(const IQuaternion lhs, const IQuaternion rhs)
-{
-    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
-}
-bool operator!=(const IQuaternion lhs, const Quaternion rhs)
-{
-    return !(lhs == rhs);
-}
-bool operator!=(const IQuaternion lhs, const IQuaternion rhs)
-{
-    return !(lhs == rhs);
-}
-IQuaternion::IQuaternion(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
-IQuaternion::IQuaternion(Quaternion a) : x(a.x), y(a.y), z(a.z), w(a.w) {}
-IQuaternion::IQuaternion() {}
-Quaternion::Quaternion(IQuaternion a) : x(a.x), y(a.y), z(a.z), w(a.w) {};
-
-std::string to_string(IQuaternion a) {
     return to_string(a.x) + OBFUSCATES_BNM(", ") + to_string(a.y) + OBFUSCATES_BNM(", ") + to_string(a.z) + OBFUSCATES_BNM(", ") + to_string(a.w);
 }

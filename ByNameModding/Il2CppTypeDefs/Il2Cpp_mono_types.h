@@ -2,34 +2,64 @@
 #include <list>
 #include <map>
 #include <cstdlib>
-#include "monoConvert.h"
+#include "utf8.h"
+namespace std {
+    typedef std::basic_string<Il2CppChar> string16;
+}
+std::string Utf16ToUtf8(Il2CppChar* utf16String, size_t length) {
+    std::string utf8String;
+    utf8String.reserve(length);
+    utf8::unchecked::utf16to8(utf16String, utf16String + length, std::back_inserter(utf8String));
+    return utf8String;
+}
+
+std::string16 Utf8ToUtf16(const char* utf8String, size_t length) {
+    std::string16 utf16String;
+    if (utf8::is_valid(utf8String, utf8String + length)) {
+        utf16String.reserve(length);
+        utf8::unchecked::utf8to16(utf8String, utf8String + length, std::back_inserter(utf16String));
+    }
+    return utf16String;
+}
 
 
 struct monoString {
-    unsigned char data[sizeof(void *) * 2]; /*void *klass; and void *monitor;*/
+    Il2CppClass *klass;
+    MonitorData *monitor;
     int length;
-    monoChar chars[0];
+    Il2CppChar chars[0];
 
     std::string get_string() {
-        return get_const_char();
+        if (!this)
+            return OBFUSCATE_BNM("ERROR: monoString is null");
+        if (!isAllocated(chars))
+            return OBFUSCATE_BNM("ERROR: chars is null");
+        return Utf16ToUtf8(chars, length);
     }
     const char *get_const_char() {
-        if (!this || !isAllocated(chars))
-            return OBFUSCATE_BNM("ERROR");
-        return monoConvert::utf16_to_utf8(chars, length);
+        return str2char(get_string());
     }
+
+    const char *c_str() {
+        return get_const_char();
+    }
+
+    std::string str() {
+        return get_string();
+    }
+
+    std::string stro() {
+        return get_string_old();
+    }
+
     std::string get_string_old() {
-        if (!this || !isAllocated(chars))
-            return OBFUSCATE_BNM("ERROR");
-        try {
-            return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(std::wstring(chars, chars + length));
-        } catch(std::exception& e) {
-            return OBFUSCATE_BNM("ERROR");
-        }
-    }
-    std::string get_string_old_unsafe() {
+        if (!this)
+            return OBFUSCATE_BNM("ERROR: monoString is null");
+        if (!isAllocated(chars))
+            return OBFUSCATE_BNM("ERROR: chars is null");
         return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(std::wstring(chars, chars + length));
     }
+
     operator std::string(){
         return get_string();
     }
@@ -39,12 +69,10 @@ struct monoString {
     unsigned int getHash() {
         if (!this)
             return 0;
-        monoChar* p = chars;
+        Il2CppChar* p = chars;
         unsigned int h = 0;
-        for (int i = 0; i < length; i++)
-        {
-            h = (h << 5) - h + *p;
-            p++;
+        for (int i = 0; i < length; i++) {
+            h = (h << 5) - h + *p; p++;
         }
         return h;
     }
@@ -53,10 +81,12 @@ struct monoString {
     }
     static monoString *Create(const char *str){
         const size_t length = strlen(str);
-        const size_t utf16Size = sizeof(monoChar) * length;
+        const size_t utf16Size = sizeof(Il2CppChar) * length;
         monoString *ret = (monoString*)malloc(sizeof(monoString) + utf16Size);
         ret->length = length;
-        memcpy(ret->chars, monoConvert::utf8_to_utf16(str, ret->length), utf16Size);
+        std::string16 u16 = Utf8ToUtf16(str, ret->length);
+        memcpy(ret->chars, &u16[0], utf16Size);
+        u16.clear();
         return (monoString*)ret;
     }
     static monoString* Empty();
@@ -64,7 +94,8 @@ struct monoString {
 
 template<typename T>
 struct monoArray {
-    Il2CppObject obj;
+    Il2CppClass *klass;
+    MonitorData *monitor;
     Il2CppArrayBounds *bounds;
     int32_t max_length;
     T m_Items[0];
@@ -97,11 +128,24 @@ struct monoArray {
     T operator[] (int index) {
         return m_Items[index];
     }
+    template<typename t>
+    static monoArray<t> *Create(std::vector<t> vec){
+        return Create<t>(vec.data(), vec.size());
+    }
+    template<typename t>
+    static monoArray<t> *Create(T *arr, int size){
+        monoArray<t> *monoArr = (monoArray<t> *)malloc(sizeof(monoArray) + sizeof(t) * size);
+        monoArr->max_length = size;
+        for (int i = 0; i < size; i++)
+            monoArr->m_Items[i] = arr[i];
+        return monoArr;
+    }
 
 };
 template<typename T>
 struct monoList {
-    Il2CppObject obj;
+    Il2CppClass *klass;
+    MonitorData *monitor;
     monoArray<T> *Items;
     int32_t size;
     int32_t version;
@@ -134,14 +178,15 @@ struct monoList {
 
 template<typename TKey, typename TValue>
 struct monoDictionary {
-    Il2CppObject obj;
+    Il2CppClass *klass;
+    MonitorData *monitor;
     monoArray<int *> *buckets;
     monoArray<void *> *entries;
     int32_t count;
     int32_t version;
     int32_t freeList;
     int32_t freeCount;
-    Il2CppObject *comparer;
+    void *comparer;
     monoArray<TKey> *keys;
     monoArray<TValue> *values;
     void *syncRoot;

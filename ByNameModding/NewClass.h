@@ -2,66 +2,74 @@
 
 
 std::vector<NewClass *> *Clases4Add;
-std::vector<Il2CppClass *> *hookedClasses;
-Il2CppTypeEnum BNM_cls_type = (Il2CppTypeEnum)(Il2CppTypeEnum::IL2CPP_TYPE_VALUETYPE | 384); // I forgot what is 384
 
-bool InitBNMAssembly() {
-    DO_API(const Il2CppImage*, il2cpp_assembly_get_image, (const Il2CppAssembly * assembly));
+
+Il2CppImage *makeOrGetImage(std::string name) {
+    DO_API(Il2CppImage*, il2cpp_assembly_get_image, (const Il2CppAssembly * assembly));
     AssemblyVector *LoadedAssemblies = Assembly$$GetAllAssemblies();
-    for (auto assembly : *LoadedAssemblies){
-#if UNITY_VER > 174
-        if (assembly->aname.name == OBFUSCATE("ByNameModding"))
-            return true;
-#else
-        if (assembly->imageIndex == -0x424e4d)
-            return true;
-#endif
+    for (auto assembly : *LoadedAssemblies) {
+        Il2CppImage *img = il2cpp_assembly_get_image(assembly);
+        if (img->nameNoExt == name) {
+            if (!BNM_classes_map[(DWORD)img])
+                BNM_classes_map[(DWORD)img] = new std::vector<Il2CppClass *>();
+            return img;
+        }
     }
 
-    if (!BNM_Assembly){
-        BNM_Image = new Il2CppImage();
-        BNM_Image->name = OBFUSCATE("ByNameModding.dll");
+    Il2CppImage* newImg = (Il2CppImage*)malloc(sizeof(Il2CppImage));
+    std::vector<Il2CppClass *> *newVec = new std::vector<Il2CppClass *>();
+
+    newImg->nameNoExt = (char*)calloc(name.size() + 1, sizeof(char));
+    strcpy((char*)newImg->nameNoExt, name.c_str());
+    std::string nameExt = (name + OBFUSCATES_BNM(".dll"));
+    newImg->name = (char*)calloc(nameExt.size() + 1, sizeof(char));
+    strcpy((char*)newImg->name, nameExt.c_str());
+
 #if UNITY_VER > 182
-        BNM_Image->assembly = 0;
-        BNM_Image->customAttributeCount = 0;
+    newImg->assembly = 0;
+    newImg->customAttributeCount = 0;
 #if UNITY_VER < 201
-        BNM_Image->customAttributeStart = -1;
+    newImg->customAttributeStart = -1;
 #endif
 #endif
-        BNM_Image->nameNoExt = OBFUSCATE("ByNameModding");
 #if UNITY_VER > 201
-        BNM_Image->metadataHandle = (Il2CppMetadataImageHandle)malloc(sizeof(Il2CppImageDefinition));
-        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->typeStart = -1;
-        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->exportedTypeStart = -1;
-        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->typeCount = 0;
-        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->exportedTypeCount = 0;
-        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->nameIndex = -1;
-        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->assemblyIndex = -1;
-        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->customAttributeCount = 0;
-        ((Il2CppImageDefinition*)BNM_Image->metadataHandle)->customAttributeStart = -1;
+    newImg->metadataHandle = (Il2CppMetadataImageHandle)malloc(sizeof(Il2CppImageDefinition));
+    ((Il2CppImageDefinition*)newImg->metadataHandle)->typeStart = -1;
+    ((Il2CppImageDefinition*)newImg->metadataHandle)->exportedTypeStart = -1;
+    ((Il2CppImageDefinition*)newImg->metadataHandle)->typeCount = 0;
+    ((Il2CppImageDefinition*)newImg->metadataHandle)->exportedTypeCount = 0;
+    ((Il2CppImageDefinition*)newImg->metadataHandle)->nameIndex = -1;
+    ((Il2CppImageDefinition*)newImg->metadataHandle)->assemblyIndex = -1;
+    ((Il2CppImageDefinition*)newImg->metadataHandle)->customAttributeCount = 0;
+    ((Il2CppImageDefinition*)newImg->metadataHandle)->customAttributeStart = -1;
 #else
-        BNM_Image->typeStart = -1;
-        BNM_Image->exportedTypeStart = -1;
+    newImg->typeStart = -1;
+    newImg->exportedTypeStart = -1;
 #endif
-        BNM_Image->typeCount = 0;
-        BNM_Image->exportedTypeCount = 0;
-        BNM_Assembly = new Il2CppAssembly();
+    newImg->typeCount = 0;
+    newImg->exportedTypeCount = 0;
+
+    BNM_classes_map.insert(std::make_pair((DWORD)newImg, newVec));
+    Il2CppAssembly* newAsm = (Il2CppAssembly*)malloc(sizeof(Il2CppAssembly));
 #if UNITY_VER > 174
-        BNM_Assembly->image = BNM_Image;
-        BNM_Assembly->image->assembly = BNM_Assembly;
-        BNM_Assembly->aname.name = BNM_Image->nameNoExt;
+    newAsm->image = newImg;
+    newAsm->image->assembly = newAsm;
+    newAsm->aname.name = (char*)calloc(name.size() + 1, sizeof(char));
+    strcpy((char*)newAsm->aname.name, name.c_str());
 #else
-        BNM_Image->assemblyIndex = -0x424e4d;
-        BNM_Assembly->imageIndex = -0x424e4d;
+    newImg->assemblyIndex = newAsm->imageIndex = -BNM_classes_map.size();
 #endif
-        BNM_Assembly->referencedAssemblyStart = -1;
-        BNM_Assembly->referencedAssemblyCount = 0;
-        LoadedAssemblies->push_back(BNM_Assembly);
-    }
-    return true;
+    newImg->nameToClassHashTable = (decltype(newImg->nameToClassHashTable))-0x424e4d;
+    newAsm->referencedAssemblyStart = -1;
+    newAsm->referencedAssemblyCount = 0;
+
+    Assembly$$GetAllAssemblies()->push_back(newAsm);
+    return newImg;
 }
+
 Il2CppClass* new_Class_FromIl2CppType(const Il2CppType* type){
     if (!type) return nullptr;
+    Il2CppClass *cls = 0;
     for (auto clazz : BNM_classes) {
 #if UNITY_VER < 181
         if (clazz->byval_arg == type)
@@ -69,40 +77,44 @@ Il2CppClass* new_Class_FromIl2CppType(const Il2CppType* type){
         if (&clazz->byval_arg == type)
 #endif
         {
-            return clazz;
+            cls = clazz;
         }
     }
-    return old_Class_FromIl2CppType(type);
+    if (!cls)
+        cls = old_Class_FromIl2CppType(type);
+    return cls;
 }
 Il2CppClass* new_Class_FromName(const Il2CppImage* image, const char* namespaze, const char *name){
     if (!image) return nullptr;
-    if (image->name == OBFUSCATES_BNM("ByNameModding.dll")){
-        for (auto BNM_class : BNM_classes) {
+    Il2CppClass *ret = 0;
+    if (((DWORD)image->nameToClassHashTable) != -0x424e4d)
+        ret = old_Class_FromName(image, namespaze, name);
+    auto vec = BNM_classes_map[(DWORD)image];
+    if (!ret && vec)
+        for (auto BNM_class : *vec) {
             if (!strcmp(namespaze, BNM_class->namespaze) && !strcmp(name, BNM_class->name)){
-                return BNM_class;
+                ret = BNM_class;
                 break;
             }
         }
-    } else {
-        return old_Class_FromName(image, namespaze, name);
-    }
+    return ret;
 }
 bool new_Class_Init(Il2CppClass *klass) {
     if (!klass)
         return false;
-    if (klass->image->name != OBFUSCATES_BNM("ByNameModding.dll"))
+    if (((DWORD)klass->image->nameToClassHashTable) != -0x424e4d)
         return old_Class_Init(klass);
     return true;
 }
 
 void new_Image_GetTypes(const Il2CppImage* image, bool exportedOnly_UNUSED_IN_IL2CPP_SRC, TypeVector* target) {
-    if (image->name != OBFUSCATES_BNM("ByNameModding.dll")) {
-        return old_Image_GetTypes(image, exportedOnly_UNUSED_IN_IL2CPP_SRC, target);
-    } else {
-        for (auto BNM_class : BNM_classes) {
+    if (((DWORD)image->nameToClassHashTable) != -0x424e4d)
+        old_Image_GetTypes(image, exportedOnly_UNUSED_IN_IL2CPP_SRC, target);
+    auto vec = BNM_classes_map[(DWORD)image];
+    if (vec)
+        for (auto BNM_class : *vec) {
             target->push_back(BNM_class);
         }
-    }
 }
 #if __cplusplus >= 201703
 void AddNewClass(NewClass *klass){
@@ -116,9 +128,10 @@ private: \
 struct _BNMClass : NewClass { \
     _BNMClass() { \
         Name = OBFUSCATE_BNM(#name); \
-        NameSapce = OBFUSCATE_BNM(#namespaze); \
+        NameSapce = OBFUSCATE_BNM(namespaze); \
         BaseName = OBFUSCATE_BNM(base_name); \
         BaseNameSapce = OBFUSCATE_BNM(base_namespaze); \
+        DllName = OBFUSCATE_BNM("ByNameModding"); \
         this->size = sizeof(Me_Type); \
         AddNewClass(this); \
     } \
@@ -196,19 +209,43 @@ struct _BNMStaticField_##_name : NewField { \
 }; \
 static inline _BNMStaticField_##_name BNMStaticField_##_name = _BNMStaticField_##_name()
 
+
+// Add class to exist or to new dll. Write dll name without '.dll'!
+#define NewClassWithDllInit(dll, namespaze, name, base_namespaze, base_name, base_size, type)\
+private: \
+struct _BNMClass : NewClass { \
+    _BNMClass() { \
+        Name = OBFUSCATE_BNM(#name); \
+        NameSapce = OBFUSCATE_BNM(namespaze); \
+        BaseName = OBFUSCATE_BNM(base_name); \
+        BaseNameSapce = OBFUSCATE_BNM(base_namespaze); \
+        DllName = OBFUSCATE_BNM(dll); \
+        classType = type;\
+        if (type == 0)\
+            classType = Il2CppTypeEnum::IL2CPP_TYPE_VALUETYPE;\
+        this->size = sizeof(Me_Type); \
+        AddNewClass(this); \
+    } \
+}; \
+static inline _BNMClass BNMClass = _BNMClass(); \
+public: \
+uint8_t _baseFields[base_size]; \
+using Me_Type = name
+
+
 void InitNewClasses(){
     for (int i = 0; i < Clases4Add->size(); i++){
         NewClass *klass = (*Clases4Add)[i];
         auto type = new Il2CppType();
-        type->type = BNM_cls_type;
+        type->type = (Il2CppTypeEnum)klass->GetClassType();
         type->pinned = 0;
         type->byref = 0;
         type->num_mods = 0;
-        if (!BNM_Assembly)
-            InitBNMAssembly();
-        BNM_Image->typeCount++;
-        auto parentLC = LoadClass(klass->GetBaseNameSapce(), klass->GetBaseName());
-        Il2CppClass *parent = parentLC.GetIl2CppClass();
+        Il2CppImage *curImg = makeOrGetImage(klass->GetDllName());
+        curImg->typeCount++;
+        Il2CppClass *parent = LoadClass(klass->GetBaseNameSapce(), klass->GetBaseName()).GetIl2CppClass();
+        if (!parent)
+            parent = GetType<Il2CppObject *>().ToIl2CppClass();
         std::vector<VirtualInvokeData> newVTable;
         std::vector<Il2CppRuntimeInterfaceOffsetPair> newInterOffsets;
         if (parent && parent->interfaceOffsets) {
@@ -344,7 +381,7 @@ void InitNewClasses(){
             klass->thizClass->typeHierarchyDepth = 1;
         }
 
-        klass->thizClass->image = BNM_Image;
+        klass->thizClass->image = curImg;
         klass->thizClass->name = klass->GetName();
         klass->thizClass->namespaze = klass->GetNameSapce();
         klass->thizClass->byval_arg = klass->thizClass->this_arg =
@@ -353,11 +390,14 @@ void InitNewClasses(){
 #else
         type;
 #endif
+        type->data.dummy = klass->thizClass;
         klass->thizClass->flags = klass->thizClass->parent->flags & ~0x00000080; // TYPE_ATTRIBUTE_ABSTRACT
         klass->thizClass->element_class = klass->thizClass;
         klass->thizClass->castClass = klass->thizClass;
 #if UNITY_VER > 174
         klass->thizClass->klass = klass->thizClass;
+#else
+        klass->thizClass->declaringType = 0;// = klass->thizClass;
 #endif
         klass->thizClass->native_size -1;
         klass->thizClass->actualSize = klass->size;
@@ -445,8 +485,9 @@ void InitNewClasses(){
             }
             klass->thizClass->fields = fields;
         }
+        BNM_classes_map[(DWORD)curImg]->push_back(klass->thizClass);
         BNM_classes.push_back(klass->thizClass);
-        LOGIBNM(OBFUSCATE_BNM("[InitNewClasses] Added new class: [%s]::[%s] parent is [%s]::[%s]"), klass->GetNameSapce(), klass->GetName(), klass->GetBaseNameSapce(), klass->GetBaseName());
+        LOGIBNM(OBFUSCATE_BNM("[InitNewClasses] Added new class: [%s]::[%s] parent is [%s]::[%s] to [%s]"), klass->GetNameSapce(), klass->GetName(), klass->GetBaseNameSapce(), klass->GetBaseName(), klass->thizClass->image->name);
     }
     Clases4Add->clear();
 }

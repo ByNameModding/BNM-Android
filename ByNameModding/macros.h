@@ -24,12 +24,6 @@
 #define LOGEBNM(...)
 #endif
 
-//! You can hide dlfcn calls
-#define BNMdlopen dlopen
-#define BNMdlclose dlclose
-#define BNMdlsym dlsym
-#define BNMdladdr dladdr
-
 //! include your hooking software
 #if defined(__ARM_ARCH_7A__) || defined(__i386__) // armv7 or x86
 #include <Substrate/SubstrateHook.h>

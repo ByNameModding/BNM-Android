@@ -3,7 +3,6 @@
 using namespace std;
 #include "../macros.h"
 #include <math.h>
-struct IVector2;
 struct Vector2
 {
     union
@@ -24,7 +23,6 @@ struct Vector2
     inline Vector2(float data[]);
     inline Vector2(float value);
     inline Vector2(float x, float y);
-    inline Vector2(IVector2 a);
 
     /**
      * Constants for common vectors.
@@ -535,37 +533,5 @@ bool operator!=(const Vector2 lhs, const Vector2 rhs)
 }
 
 string to_string(Vector2 a) {
-    return to_string(a.x) + OBFUSCATES_BNM(", ") + to_string(a.y);
-}
-
-struct IVector2 {
-    float x;
-    float y;
-
-    inline IVector2(float x, float y);
-    inline IVector2(Vector2 a);
-    inline IVector2();
-};
-IVector2::IVector2() {};
-IVector2::IVector2(float x, float y) : x(x), y(y) {}
-IVector2::IVector2(Vector2 a) : x(a.x), y(a.y) {}
-Vector2::Vector2(IVector2 a) : x(a.x), y(a.y) {}
-bool operator==(const IVector2 lhs, const Vector2 rhs)
-{
-    return lhs.x == rhs.x && lhs.y == rhs.y;
-}
-bool operator==(const IVector2 lhs, const IVector2 rhs)
-{
-    return lhs.x == rhs.x && lhs.y == rhs.y;
-}
-bool operator!=(const IVector2 lhs, const Vector2 rhs)
-{
-    return !(lhs == rhs);
-}
-bool operator!=(const IVector2 lhs, const IVector2 rhs)
-{
-    return !(lhs == rhs);
-}
-string to_string(IVector2 a) {
     return to_string(a.x) + OBFUSCATES_BNM(", ") + to_string(a.y);
 }

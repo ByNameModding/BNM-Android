@@ -2,7 +2,6 @@
 
 #define _USE_MATH_DEFINES
 #include <math.h>
-typedef struct IVector3 IVector3;
 struct Vector3
 {
     union {
@@ -14,7 +13,6 @@ struct Vector3
         float data[3];
     };
     inline Vector3();
-    inline Vector3(IVector3 a);
     inline Vector3(float data[]);
     inline Vector3(float value);
     inline Vector3(float x, float y);
@@ -79,8 +77,6 @@ struct Vector3
     static inline float Distance(Vector3 a, Vector3 b);
 
     static inline float Distance2(Vector3 a, Vector3 b);
-
-    static inline char ToChar(Vector3 a);
 
     /**
      * Returns the dot product of two vectors.
@@ -616,20 +612,6 @@ struct Vector3& Vector3::operator-=(const Vector3 rhs)
     return *this;
 }
 
-char Vector3::ToChar(Vector3 a) {
-    const char* x = (const char*)(int)a.x;
-    const char* y = (const char*)(int)a.y;
-    const char* z = (const char*)(int)a.z;
-    char buffer[25];
-    strncpy(buffer, x, sizeof(buffer));
-    strncpy(buffer, ", ", sizeof(buffer));
-    strncpy(buffer, y, sizeof(buffer));
-    strncpy(buffer, ", ", sizeof(buffer));
-    strncpy(buffer, z, sizeof(buffer));
-    strncpy(buffer, ", ", sizeof(buffer));
-    return buffer[25];
-}
-
 Vector3 operator-(Vector3 rhs) { return rhs * -1; }
 Vector3 operator+(Vector3 lhs, const float rhs) { return lhs += rhs; }
 Vector3 operator-(Vector3 lhs, const float rhs) { return lhs -= rhs; }
@@ -653,38 +635,5 @@ bool operator!=(const Vector3 lhs, const Vector3 rhs)
 }
 
 std::string to_string(Vector3 a) {
-    return to_string(a.x) + OBFUSCATES_BNM(", ") + to_string(a.y) + OBFUSCATES_BNM(", ") + to_string(a.z);
-}
-
-typedef struct IVector3 {
-    float x;
-    float y;
-    float z;
-    inline IVector3(float x, float y, float z);
-    inline IVector3(Vector3 a);
-    inline IVector3();
-
-};
-IVector3::IVector3() {};
-Vector3::Vector3(IVector3 a) : x(a.x), y(a.y), z(a.z) {};
-bool operator==(const IVector3 lhs, const Vector3 rhs)
-{
-    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
-}
-bool operator==(const IVector3 lhs, const IVector3 rhs)
-{
-    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
-}
-bool operator!=(const IVector3 lhs, const Vector3 rhs)
-{
-    return !(lhs == rhs);
-}
-bool operator!=(const IVector3 lhs, const IVector3 rhs)
-{
-    return !(lhs == rhs);
-}
-IVector3::IVector3(float x, float y, float z) : x(x), y(y), z(z) {}
-IVector3::IVector3(Vector3 a) : x(a.x), y(a.y), z(a.z) {}
-std::string to_string(IVector3 a) {
-    return to_string(a.x) + OBFUSCATES_BNM(", ") + to_string(a.y) + OBFUSCATES_BNM(", ") + to_string(a.z);
+    return std::to_string(a.x) + OBFUSCATES_BNM(", ") + std::to_string(a.y) + OBFUSCATES_BNM(", ") + std::to_string(a.z);
 }

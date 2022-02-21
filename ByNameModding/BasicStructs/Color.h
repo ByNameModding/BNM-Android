@@ -47,4 +47,7 @@ struct Color {
         float b = static_cast <float> (rand()) / static_cast <float> (255);
         return Color(r, g, b, a);
     }
+    Color invert(int a = 255){
+        return Color(255 - r, 255 - g, 255 - b, a);
+    }
 };

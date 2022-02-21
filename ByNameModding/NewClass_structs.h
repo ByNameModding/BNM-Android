@@ -1,14 +1,22 @@
 #pragma once
 Il2CppType *TypeFinder::ToIl2CppType(){
+    return (Il2CppType *)ToLC().GetIl2CppType();
+}
+LoadClass TypeFinder::ToLC(){
     if (byNameOnly){
-        return (Il2CppType *)LoadClass(OBFUSCATE_BNM("System"), name).GetIl2CppType();
+        return LoadClass(OBFUSCATE_BNM("System"), name);
     } else if (withMethodName) {
-        return (Il2CppType *)LoadClass::GetLC_ByClassAndMethodName(namespaze, name, methodName).GetIl2CppType();
+        return LoadClass::GetLC_ByClassAndMethodName(namespaze, name, methodName);
     }else {
-        return (Il2CppType *)LoadClass(namespaze, name).GetIl2CppType();
+        return LoadClass(namespaze, name);
     }
 }
-
+Il2CppClass* TypeFinder::ToIl2CppClass(){
+    return ToLC().GetIl2CppClass();
+}
+TypeFinder::operator LoadClass(){
+    return ToLC();
+}
 #if __cplusplus < 201703
 namespace std {
     template< class T, class U >
@@ -54,9 +62,9 @@ constexpr TypeFinder GetType(){
         return {true, OBFUSCATE_BNM("Double")};
     } else if (std::is_same_v<T, Il2CppString *> || std::is_same_v<T, monoString *>){
         return {true, OBFUSCATE_BNM("String")};
-    } else if (std::is_same_v<T, Vector3> || std::is_same_v<T, IVector3>){
+    } else if (std::is_same_v<T, Vector3>){
         return {false, OBFUSCATE_BNM("Vector3"), OBFUSCATE_BNM("UnityEngine")};
-    } else if (std::is_same_v<T, Vector2> || std::is_same_v<T, IVector2>){
+    } else if (std::is_same_v<T, Vector2>){
         return {false, OBFUSCATE_BNM("Vector2"), OBFUSCATE_BNM("UnityEngine")};
     } else if (std::is_same_v<T, Color>){
         return {false, OBFUSCATE_BNM("Color"), OBFUSCATE_BNM("UnityEngine")};
@@ -96,11 +104,14 @@ struct NewClass {
     const char* Name;
     const char* BaseNameSapce;
     const char* BaseName;
+    const char* DllName;
+    int classType = 0;
     const char* GetNameSapce() {return NameSapce;};
     const char* GetName() {return Name;};
     const char* GetBaseNameSapce() {return BaseNameSapce;};
     const char* GetBaseName() {return BaseName;};
-    const char* GetDllName() {return OBFUSCATE_BNM("ByNameModding");};
+    const char* GetDllName() {return DllName;};
+    int GetClassType() {return classType;};
     std::vector<NewMethod *> *Methods4Add;
     std::vector<NewField *> *Fields4Add;
     std::vector<NewField *> *StaticFields4Add;
