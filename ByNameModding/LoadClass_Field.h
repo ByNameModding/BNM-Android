@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include <Unity/ByNameModding/Il2CppTypeDefs/il2cpp_mono_types.h>
+#include "Il2CppTypeDefs/il2cpp_mono_types.h"
 
 template<typename T>
 struct Field {
@@ -453,7 +453,7 @@ public:
 };
 
 monoString *monoString::Empty() {
-    return LoadClass(OBFUSCATES("System"), OBFUSCATES("String")).GetFieldByName<monoString *>(OBFUSCATES("Empty"))();
+    return LoadClass(OBFUSCATES_BNM("System"), OBFUSCATES_BNM("String")).GetFieldByName<monoString *>(OBFUSCATES_BNM("Empty"))();
 }
 monoString *CreateMonoString(const char *str) {
     DO_API(monoString*, il2cpp_string_new, (const char *str));
