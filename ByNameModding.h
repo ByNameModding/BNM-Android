@@ -57,6 +57,7 @@
 #include <algorithm>
 #include <limits>
 #include <vector>
+#include <map>
 #include "ByNameModding/macros.h"
 
 
