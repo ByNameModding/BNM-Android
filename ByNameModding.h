@@ -96,4 +96,11 @@ typedef Il2CppReflectionType MonoType;
 #include "ByNameModding/NewClass_structs.h"
 #include "ByNameModding/NewClass.h"
 
+// For System.Collections.Generic.Dictionary
 
+// If game use .NET 4.x
+using namespace NET4x;
+
+// If game use .NET 3.5
+// .NET 3.5 is deprecated but some old games use it
+// using namespace NET35;

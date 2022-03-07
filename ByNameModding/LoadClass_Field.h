@@ -1,6 +1,8 @@
 #pragma once
 
 
+#include <Unity/ByNameModding/Il2CppTypeDefs/il2cpp_mono_types.h>
+
 template<typename T>
 struct Field {
     static bool CheckIfStatic(FieldInfo *fieldInfo) {
@@ -76,7 +78,7 @@ struct Field {
 
 
     Field<T> setInstance(void *val) {
-        init = val != nullptr && thiz  != nullptr;
+        init = val && thiz != 0;
         instance = val;
         return *this;
     }
@@ -198,14 +200,10 @@ public:
         return (DWORD) methodInfo->methodPointer;
     }
 
-    static DWORD GetOffset(const MethodInfo *methodInfo) {
-        return (DWORD) methodInfo->methodPointer;
-    }
-
-    const MethodInfo *GetMethodInfoByName(string name, int paramcount) {
+    MethodInfo *GetMethodInfoByName(string name, int paramcount) {
         if (!klass) return nullptr;
         Class$$Init(klass);
-        DO_API(const MethodInfo*, il2cpp_class_get_method_from_name,
+        DO_API(MethodInfo*, il2cpp_class_get_method_from_name,
                (Il2CppClass * klass, const char *name, int argsCount));
         auto ret = il2cpp_class_get_method_from_name(klass, name.c_str(), paramcount);
         return ret;
@@ -213,7 +211,7 @@ public:
 
     DWORD GetMethodOffsetByName(string name, int paramcount = -1) {
         if (!klass) return 0;
-        const MethodInfo *res = GetMethodInfoByName(name, paramcount);
+        MethodInfo *res = GetMethodInfoByName(name, paramcount);
         if (!res) {
             LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), klass->namespaze, klass->name, name.c_str(), paramcount);
             return 0;
@@ -256,7 +254,7 @@ public:
         return GetOffset(res);
     }
 
-    const MethodInfo *GetMethodInfoByName(string name, std::vector<string> params_names, std::vector<const Il2CppType *> params_types) {
+    MethodInfo *GetMethodInfoByName(string name, std::vector<string> params_names, std::vector<const Il2CppType *> params_types) {
         if (!klass) return nullptr;
         MethodInfo *ret = 0;
         Class$$Init(klass);
@@ -290,7 +288,7 @@ public:
         if (!klass) return 0;
         int paramcount = params_names.size();
         if (paramcount != params_types.size()) return 0;
-        const MethodInfo *res = GetMethodInfoByName(name, params_names, params_types);
+        MethodInfo *res = GetMethodInfoByName(name, params_names, params_types);
         if (!res) {
             LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), klass->namespaze, klass->name, name.c_str(), paramcount);
             return 0;
@@ -298,7 +296,7 @@ public:
         return GetOffset(res);
     }
 
-    const MethodInfo *GetMethodInfoByName(string name, std::vector<const Il2CppType *> params_types) {
+    MethodInfo *GetMethodInfoByName(string name, std::vector<const Il2CppType *> params_types) {
         if (!klass) return nullptr;
         MethodInfo *ret = 0;
         Class$$Init(klass);
@@ -330,7 +328,7 @@ public:
     DWORD GetMethodOffsetByName(string name, std::vector<const Il2CppType *> params_types) {
         if (!klass) return 0;
         int paramcount = params_types.size();
-        const MethodInfo *res = GetMethodInfoByName(name, params_types);
+        MethodInfo *res = GetMethodInfoByName(name, params_types);
         if (!res) {
             LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not founded"), klass->namespaze, klass->name, name.c_str(), paramcount);
             return 0;
@@ -351,7 +349,7 @@ public:
                 Class$$Init(cls);
                 if (CheckObj(cls->name) == _name && CheckObj(cls->namespaze) == _namespace){
                     for (int i = 0; i < cls->method_count; i++) {
-                        const MethodInfo *method = cls->methods[i];
+                        MethodInfo *method = (MethodInfo *)cls->methods[i];
                         if (method && methodName == method->name) {
                             out = LoadClass((Il2CppClass*)cls);
                             found = true;
@@ -421,7 +419,7 @@ public:
     void *CreateNewObjectCtor(int args_count, std::vector<std::string> arg_names, Args ... args) {
         if (!klass) return nullptr;
         Class$$Init(klass);
-        const MethodInfo *method = arg_names.empty() ? GetMethodInfoByName(OBFUSCATES_BNM(".ctor"), args_count)
+        MethodInfo *method = arg_names.empty() ? GetMethodInfoByName(OBFUSCATES_BNM(".ctor"), args_count)
                                                      : GetMethodInfoByName(OBFUSCATES_BNM(".ctor"), arg_names);
         Il2CppObject *instance = (Il2CppObject *) CreateNewInstance();
         void (*ctor)(...);
@@ -469,3 +467,34 @@ void *getExternMethod(string str) {
     DO_API(void*, il2cpp_resolve_icall, (const char *str));
     return il2cpp_resolve_icall(str.c_str());
 }
+
+template<typename TKey, typename TValue>
+void NET4x::monoDictionary<TKey, TValue>::Add(TKey key, TValue value) {
+    return BetterCall<void>(LoadClass((Il2CppObject *)this).GetMethodInfoByName(OBFUSCATE_BNM("Add"), 2), this, key, value);
+}
+
+template<typename TKey, typename TValue>
+bool NET4x::monoDictionary<TKey, TValue>::Remove(TKey key) {
+    return BetterCall<bool>(LoadClass((Il2CppObject *)this).GetMethodInfoByName(OBFUSCATE_BNM("Remove"), 1), this, key);
+}
+
+template<typename TKey, typename TValue>
+bool NET4x::monoDictionary<TKey, TValue>::TryGet(TKey key, TValue &value) {
+    return BetterCall<bool>(LoadClass((Il2CppObject *)this).GetMethodInfoByName(OBFUSCATE_BNM("TryGetValue"), 2), this, key, value);
+}
+
+template<typename TKey, typename TValue>
+bool NET4x::monoDictionary<TKey, TValue>::ContainsKey(TKey key) {
+    return BetterCall<bool>(LoadClass((Il2CppObject *)this).GetMethodInfoByName(OBFUSCATE_BNM("ContainsKey"), 1), this, key);
+}
+
+template<typename TKey, typename TValue>
+bool NET4x::monoDictionary<TKey, TValue>::ContainsValue(TValue value) {
+    return BetterCall<bool>(LoadClass((Il2CppObject *)this).GetMethodInfoByName(OBFUSCATE_BNM("ContainsValue"), 1), this, value);
+}
+
+template<typename TKey, typename TValue>
+void NET4x::monoDictionary<TKey, TValue>::Insert(TKey key, TValue value) {
+    return BetterCall<void>(LoadClass((Il2CppObject *)this).GetMethodInfoByName(OBFUSCATE_BNM("set_Item"), 2), this, key, value);
+}
+

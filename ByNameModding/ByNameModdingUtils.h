@@ -257,6 +257,20 @@ DWORD abs(DWORD val) {
     return val;
 }
 
+template<typename Ret, typename ... Args>
+Ret BetterCall(MethodInfo *method, void *instance, Args... args) {
+    return ((Ret (*)(void *, Args..., MethodInfo *))method->methodPointer)(instance, args..., method);
+}
+
+template<typename Ret, typename ... Args>
+Ret BetterStaticCall(MethodInfo *method, Args... args) {
+#if UNITY_VER > 174
+    return ((Ret (*)(Args..., MethodInfo *))method->methodPointer)(args..., method);
+#else
+    return ((Ret (*)(void *, Args..., MethodInfo *))method->methodPointer)(nullptr, args..., method);
+#endif
+}
+
 template<typename T>
 static T UnBoxObject(T obj) {
     void *val = (void *) (((char *) obj) + sizeof(Il2CppObject));

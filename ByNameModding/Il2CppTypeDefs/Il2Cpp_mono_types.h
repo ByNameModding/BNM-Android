@@ -2,10 +2,13 @@
 #include <list>
 #include <map>
 #include <cstdlib>
+#include <cmath>
 #include "utf8.h"
+
 namespace std {
     typedef std::basic_string<Il2CppChar> string16;
 }
+
 std::string Utf16ToUtf8(Il2CppChar* utf16String, size_t length) {
     std::string utf8String;
     utf8String.reserve(length);
@@ -36,6 +39,7 @@ struct monoString {
             return OBFUSCATE_BNM("ERROR: chars is null");
         return Utf16ToUtf8(chars, length);
     }
+    
     const char *get_const_char() {
         return str2char(get_string());
     }
@@ -60,12 +64,14 @@ struct monoString {
         return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(std::wstring(chars, chars + length));
     }
 
-    operator std::string(){
+    operator std::string() {
         return get_string();
     }
-    operator const char *(){
+    
+    operator const char *() {
         return get_const_char();
     }
+    
     unsigned int getHash() {
         if (!this)
             return 0;
@@ -76,10 +82,12 @@ struct monoString {
         }
         return h;
     }
-    static monoString *Create(std::string str){
+    
+    static monoString *Create(std::string str) {
         return Create(str2char(str));
     }
-    static monoString *Create(const char *str){
+    
+    static monoString *Create(const char *str) {
         const size_t length = strlen(str);
         const size_t utf16Size = sizeof(Il2CppChar) * length;
         monoString *ret = (monoString*)malloc(sizeof(monoString) + utf16Size);
@@ -89,6 +97,7 @@ struct monoString {
         u16.clear();
         return (monoString*)ret;
     }
+    
     static monoString* Empty();
 };
 
@@ -97,45 +106,67 @@ struct monoArray {
     Il2CppClass *klass;
     MonitorData *monitor;
     Il2CppArrayBounds *bounds;
-    int32_t max_length;
+    int capacity;
     T m_Items[0];
 
-    int32_t getLength() {
-        return max_length;
+    int getCapacity() {
+        return capacity;
     }
 
     T *getPointer() {
         return m_Items;
     }
+    
     template<typename V = T>
-    std::vector<V> toCPPlist(){
+    std::vector<V> toCPPlist() {
         std::vector<V> ret;
-        for (int i = 0; i < max_length; i++){
+        for (int i = 0; i < capacity; i++)
             ret.push_back(m_Items[i]);
-        }
-        return ret;
+        return std::move(ret);
     }
-    bool copyFrom(std::vector<T> vec){
-        return set(vec.data(), vec.size());
+
+    void copyFrom(std::vector<T> vec) {
+        copyFrom(vec.data(), vec.size());
     }
-    bool copyFrom(T *arr, int size){
-        if (size > max_length) return false;
-        memset((void *)m_Items, 0, sizeof(T) * max_length);
-        for (int i = 0; i < size; i++)
-            m_Items[i] = arr[i];
-        return true;
+    
+    void copyFrom(T *arr, int size) {
+        if (size > capacity)
+            Resize(size);
+        memcpy(arr, m_Items, capacity * sizeof(T));
     }
+
+    void copyTo(T *arr) {
+        memcpy(arr, m_Items, sizeof(T) * capacity);
+    }
+    
     T operator[] (int index) {
         return m_Items[index];
     }
-    template<typename t>
-    static monoArray<t> *Create(std::vector<t> vec){
-        return Create<t>(vec.data(), vec.size());
+
+    void Resize(int newSize) {
+        if (newSize <= capacity) return;
+        T* newArr = new T[newSize];
+        memcpy(newArr, m_Items, capacity * sizeof(T));
+        capacity = newSize;
+        delete [] m_Items;
+        m_Items = newArr;
     }
+
     template<typename t>
-    static monoArray<t> *Create(T *arr, int size){
+    static monoArray<t> *Create(int size) {
         monoArray<t> *monoArr = (monoArray<t> *)malloc(sizeof(monoArray) + sizeof(t) * size);
         monoArr->max_length = size;
+        return monoArr;
+    }
+    
+    template<typename t>
+    static monoArray<t> *Create(std::vector<t> vec) {
+        return Create<t>(vec.data(), vec.size());
+    }
+    
+    template<typename t>
+    static monoArray<t> *Create(T *arr, int size) {
+        monoArray<t> *monoArr = Create<t>(size);
         for (int i = 0; i < size; i++)
             monoArr->m_Items[i] = arr[i];
         return monoArr;
@@ -146,73 +177,238 @@ template<typename T>
 struct monoList {
     Il2CppClass *klass;
     MonitorData *monitor;
-    monoArray<T> *Items;
-    int32_t size;
-    int32_t version;
+    monoArray<T> *items;
+    int size;
+    int version;
 
     T* getItems() {
-        return Items->getPointer();
-    }
-
-    int32_t getSize() {
-        return size;
-    }
-
-    int32_t getVersion() {
-        return version;
-    }
-    template<typename V = T>
-    std::vector<V> toCPPlist(){
-        return Items->toCPPlist<V>();
-    }
-
-    void Add(T val) {
-        Items->m_Items[size] = val;
-        size++;
-        version++;
-    }
-    T operator[] (int index) {
-        return Items->m_Items[index];
-    }
-};
-
-template<typename TKey, typename TValue>
-struct monoDictionary {
-    Il2CppClass *klass;
-    MonitorData *monitor;
-    monoArray<int *> *buckets;
-    monoArray<void *> *entries;
-    int32_t count;
-    int32_t version;
-    int32_t freeList;
-    int32_t freeCount;
-    void *comparer;
-    monoArray<TKey> *keys;
-    monoArray<TValue> *values;
-    void *syncRoot;
-
-    TKey* getKeys() {
-        return keys->getPointer();
-    }
-
-    TValue* getValues() {
-        return values->getPointer();
-    }
-
-    void *getNumKeys() {
-        return keys->getLength();
-    }
-
-    void *getNumValues() {
-        return values->getLength();
+        return items->getPointer();
     }
 
     int getSize() {
-        return count;
+        return size;
+    }
+
+    int getVersion() {
+        return version;
+    }
+    
+    template<typename V = T>
+    std::vector<V> toCPPlist() {
+        std::vector<V> ret;
+        for (int i = 0; i < size; i++)
+            ret.push_back(getItems()[i]);
+        return std::move(ret);
+    }
+    
+    void Add(T val) {
+        GrowIfNeeded(1);
+        items->m_Items[size] = val;
+        size++;
+        version++;
+    }
+    
+    int IndexOf(T val) {
+        for (int i = 0; i < size; i++) {
+            if (items->m_Items[i] == val)
+                return i;
+        }
+        return -1;
+    }
+    
+    void RemoveAt(int index) {
+        if (index != -1) {
+            Shift(index, -1);
+            version++;
+        }
+
+    }
+    
+    void Remove(T val) {
+        RemoveAt(IndexOf(val));
+    }
+
+    T operator[] (int index) {
+        return items->m_Items[index];
+    }
+    
+    void Resize(int newSize) {
+        items->Resize(newSize);
+    }
+private:
+    void GrowIfNeeded(int n) {
+        if (size + n > items->max_length) {
+            Resize(size + n);
+        }
+    }
+
+    void Shift(int start, int delta) {
+        if (delta < 0)
+            start -= delta;
+        if (start < size)
+            memcpy(items + start + delta, items + start, size - start);
+        size += delta;
+        if (delta < 0)
+            memset(items + size + delta, 0, -delta * sizeof(T));
     }
 };
 
-enum Mono_Method_attributes{
+namespace NET4x {
+    template<typename TKey, typename TValue>
+    struct monoDictionary {
+        struct Entry {
+            int hashCode, next;
+            TKey key;
+            TValue value;
+        };
+        Il2CppClass *klass;
+        MonitorData *monitor;
+        monoArray<int> *buckets;
+        monoArray<Entry> *entries;
+        int count;
+        int version;
+        int freeList;
+        int freeCount;
+        void *comparer;
+        monoArray<TKey> *keys;
+        monoArray<TValue> *values;
+        void *syncRoot;
+
+        std::map<TKey, TValue> toMap() {
+            std::map<TKey, TValue> ret;
+            auto lst = entries->template toCPPlist();
+            for (auto enter : lst)
+                ret.insert(std::make_pair(enter.key, enter.value));
+            return std::move(ret);
+        }
+
+        std::vector<TKey> getKeys() {
+            std::vector<TKey> ret;
+            auto lst = entries->template toCPPlist();
+            for (auto enter : lst)
+                ret.push_back(enter.key);
+            return std::move(ret);
+        }
+
+        std::vector<TValue> getValues() {
+            std::vector<TValue> ret;
+            auto lst = entries->template toCPPlist();
+            for (auto enter : lst)
+                ret.push_back(enter.value);
+            return std::move(ret);
+        }
+
+        int getSize() {
+            return count;
+        }
+
+        int getVersion() {
+            return version;
+        }
+
+        bool TryGet(TKey key, TValue &value);
+        void Add(TKey key, TValue value);
+        void Insert(TKey key, TValue value);
+        bool Remove(TKey key);
+        bool ContainsKey(TKey key);
+        bool ContainsValue(TValue value);
+
+        TValue Get(TKey key) {
+            TValue ret;
+            if (TryGet(key, ret))
+                return ret;
+            return {};
+        }
+
+        TValue operator [](TKey key) {
+            return Get(key);
+        }
+    };
+}
+
+namespace NET35 {
+    template<typename TKey, typename TValue>
+    struct monoDictionary {
+        struct Link { int HashCode, Next; };
+        Il2CppClass *klass;
+        MonitorData *monitor;
+        monoArray<int> *table;
+        monoArray<Link> *linkSlots;
+        monoArray<TKey> *keys;
+        monoArray<TValue> *values;
+        int touchedSlots;
+        int emptySlot;
+        int count;
+        int threshold;
+        void *hcp;
+        void *serialization_info;
+        int generation;
+
+        std::map<TKey, TValue> toMap() {
+            std::map<TKey, TValue> ret;
+            for (int i = 0; i < touchedSlots; i++)
+                if (((*linkSlots)[i].HashCode & -2147483648) != 0)
+                    ret.insert(std::make_pair((*keys)[i], (*values)[i]));
+            return std::move(ret);
+        }
+
+        std::vector<TKey> getKeys() {
+            std::vector<TKey> ret;
+            for (int i = 0; i < touchedSlots; i++)
+                if (((*linkSlots)[i].HashCode & -2147483648) != 0)
+                    ret.push_back((*keys)[i]);
+            return std::move(ret);
+        }
+
+        std::vector<TValue> getValues() {
+            std::vector<TValue> ret;
+            for (int i = 0; i < touchedSlots; i++)
+                if (((*linkSlots)[i].HashCode & -2147483648) != 0)
+                    ret.push_back((*values)[i]);
+            return std::move(ret);
+        }
+
+        int getSize() {
+            return count;
+        }
+
+        int getVersion() {
+            return generation;
+        }
+
+        TValue Get(TKey key) {
+            return ((NET4x::monoDictionary<TKey, TValue> *)this)->Get(key);
+        }
+
+        bool TryGet(TKey key, TValue &value) {
+            return ((NET4x::monoDictionary<TKey, TValue> *)this)->TryGet(key, value);
+        }
+
+        void Add(TKey key, TValue value) {
+            return ((NET4x::monoDictionary<TKey, TValue> *)this)->Add(key, value);
+        }
+
+        bool Remove(TKey key) {
+            return ((NET4x::monoDictionary<TKey, TValue> *)this)->Remove(key);
+        }
+
+        bool ContainsKey(TKey key) {
+            return ((NET4x::monoDictionary<TKey, TValue> *)this)->ContainsKey(key);
+        }
+
+        bool ContainsValue(TValue value) {
+            return ((NET4x::monoDictionary<TKey, TValue> *)this)->ContainsValue(value);
+        }
+
+        TValue operator [](TKey key) {
+            return Get(key);
+
+        }
+    };
+}
+
+
+enum Mono_Method_attributes {
     IMPL_CODE_TYPE_MASK       = 0x0003,
     IMPL_IL                   = 0x0000,
     IMPL_NATIVE               = 0x0001,
