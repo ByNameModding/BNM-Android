@@ -234,8 +234,8 @@ using Me_Type = name
 
 
 void InitNewClasses(){
-    for (int i = 0; i < Clases4Add->size(); i++){
-        NewClass *klass = (*Clases4Add)[i];
+    if (!Clases4Add) return;
+    for (auto klass : (*Clases4Add)){
         auto type = new Il2CppType();
         type->type = (Il2CppTypeEnum)klass->GetClassType();
         type->pinned = 0;
