@@ -113,13 +113,13 @@ char* str2char(std::string str) {
 }
 
 static bool BNM_LibLoaded = false;
-static char *BNM_LibPath;
+static void *BNM_dlLib;
 
 bool BNMil2cppLoaded(){
     return BNM_LibLoaded;
 }
 void *get_il2cpp() {
-    return dlopen(BNM_LibPath, RTLD_LAZY);
+    return BNM_dlLib;
 }
 
 void (*old_BNM_il2cpp_init)(const char*);
@@ -132,24 +132,22 @@ void BNM_il2cpp_init(const char* domain_name){
 
 DWORD FindNext_B_BL_offset(DWORD start, int index);
 void *(*old_BNM_dlopen)(const char *, int);
-void *BNM_dlopen(const char *filename, int flag){
-    static bool libFound = false;
-    if (!libFound && std::string(filename).find(OBFUSCATE_BNM("il2cpp"))){
-        void *mainLibDl = old_BNM_dlopen(filename, flag);
-        void *simb = dlsym(mainLibDl, OBFUSCATE_BNM("il2cpp_init"));
-        if (simb){
-            libFound = true;
-            BNM_LibPath = (char*)calloc(strlen(filename), sizeof(char));
-            strcpy(BNM_LibPath, filename);
-            HOOK(simb, BNM_il2cpp_init, old_BNM_il2cpp_init);
-        }
-        return mainLibDl;
-    }
-    return old_BNM_dlopen(filename, flag);
-}
 __attribute__((constructor))
 void PrepareBNM() {
-    HOOK(dlopen, BNM_dlopen, old_BNM_dlopen);
+    std::thread([](){
+        do {
+            BNM_dlLib = dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
+            if (BNM_dlLib){
+                void *init = dlsym(BNM_dlLib, OBFUSCATE_BNM("il2cpp_init"));
+                if (init){
+                    HOOK(init, BNM_il2cpp_init, old_BNM_il2cpp_init);
+                    break;
+                }
+                dlclose(BNM_dlLib);
+            }
+
+        } while (true);
+    }).detach();
 }
 
 std::string revhexstr(std::string hex) {
