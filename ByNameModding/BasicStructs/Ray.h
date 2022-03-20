@@ -1,7 +1,6 @@
 #pragma once
 
 using namespace std;
-#include "../macros.h"
 struct Ray {
     Vector3 m_Origin, m_Direction;
 };

@@ -1,7 +1,5 @@
 #pragma once
 
-#define _USE_MATH_DEFINES
-#include <math.h>
 struct Vector3
 {
     union {
@@ -76,7 +74,7 @@ struct Vector3
      */
     static inline float Distance(Vector3 a, Vector3 b);
 
-    static inline float Distance2(Vector3 a, Vector3 b);
+    static inline Vector3 FromString(string);
 
     /**
      * Returns the dot product of two vectors.
@@ -363,11 +361,6 @@ float Vector3::Distance(Vector3 a, Vector3 b)
 {
     return Vector3::Magnitude(a - b);
 }
-float Vector3::Distance2(Vector3 a, Vector3 b)
-{
-    return sqrt(pow((a.x - b.x), 2) + pow((a.y - b.y), 2) + pow((a.z - b.z), 2));
-}
-
 float Vector3::Dot(Vector3 lhs, Vector3 rhs)
 {
     return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
@@ -612,6 +605,22 @@ struct Vector3& Vector3::operator-=(const Vector3 rhs)
     return *this;
 }
 
+Vector3 Vector3::FromString(string str) {
+    vector<string> commands;
+    string buffer = "";
+    for (int i = 0; i < str.size(); i++) {
+        bool no = true;
+        if (str[i] == 'f') no = false;
+        if (str[i] != ',') buffer += str[i];
+        else if (no) {
+            commands.push_back(buffer);
+            buffer.clear();
+        }
+    }
+    if (!buffer.empty()) commands.push_back(buffer);
+    return Vector3(atof(commands[0].c_str()), atof(commands[1].c_str()), atof(commands[2].c_str()));
+}
+
 Vector3 operator-(Vector3 rhs) { return rhs * -1; }
 Vector3 operator+(Vector3 lhs, const float rhs) { return lhs += rhs; }
 Vector3 operator-(Vector3 lhs, const float rhs) { return lhs -= rhs; }
@@ -623,6 +632,7 @@ Vector3 operator*(const float lhs, Vector3 rhs) { return rhs *= lhs; }
 Vector3 operator/(const float lhs, Vector3 rhs) { return rhs /= lhs; }
 Vector3 operator+(Vector3 lhs, const Vector3 rhs) { return lhs += rhs; }
 Vector3 operator-(Vector3 lhs, const Vector3 rhs) { return lhs -= rhs; }
+Vector3 operator*(Vector3 lhs, const Vector3 rhs) { return Vector3(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z); }
 
 bool operator==(const Vector3 lhs, const Vector3 rhs)
 {

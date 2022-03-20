@@ -29,37 +29,20 @@
 #endif
 
 //! Includes
-#include <android/log.h>
-#include <iostream>
-#include <string>
-#include <locale>
-#include <codecvt>
-#include <sstream>
-#include <dlfcn.h>
-#include <dlfcn.h>
-#include <iomanip>
-#include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <fcntl.h>
-#include <assert.h>
-#include <sstream>
-#include <vector>
-#include <any>
-#include <setjmp.h>
-#include <assert.h>
-#include <utility>
-#include <memory>
 #include <algorithm>
-#include <limits>
-#include <vector>
+#include <android/log.h>
+#include <codecvt>
+#include <cstring>
+#include <dlfcn.h>
+#include <fcntl.h>
 #include <map>
+#include <shared_mutex>
+#include <string>
+#include <thread>
+#include <unistd.h>
+#include <vector>
 #include "ByNameModding/macros.h"
-
+#include "ByNameModding/Il2CppTypeDefs/utf8.h"
 
 #if UNITY_VER == 171
 #include "ByNameModding/Il2CppTypeDefs/2017.1.h"
@@ -90,6 +73,7 @@
 #endif
 using namespace std;
 typedef Il2CppReflectionType MonoType;
+typedef unsigned long DWORD;
 #include "ByNameModding/ByNameModdingUtils.h"
 #include "ByNameModding/Il2CppTypeDefs/il2cpp_mono_types.h"
 #include "ByNameModding/LoadClass_Field.h"

@@ -1,9 +1,4 @@
 #pragma once
-#include <list>
-#include <map>
-#include <cstdlib>
-#include <cmath>
-#include "utf8.h"
 
 namespace std {
     typedef std::basic_string<Il2CppChar> string16;
@@ -155,7 +150,7 @@ struct monoArray {
     template<typename t>
     static monoArray<t> *Create(int size) {
         monoArray<t> *monoArr = (monoArray<t> *)malloc(sizeof(monoArray) + sizeof(t) * size);
-        monoArr->max_length = size;
+        monoArr->capacity = size;
         return monoArr;
     }
     

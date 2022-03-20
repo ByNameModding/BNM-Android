@@ -1,7 +1,6 @@
 #pragma once
-#include <android/log.h>
 
-//! Write your sting obfuscator
+//! Include your sting obfuscator
 #define OBFUSCATE_BNM(str) str // const char *
 #define OBFUSCATES_BNM(str) std::string(str) // std::string
 #define BNMTAG OBFUSCATE_BNM("ByNameModding")
@@ -24,7 +23,7 @@
 #define LOGEBNM(...)
 #endif
 
-//! include your hooking software
+//! Include your hooking software
 #if defined(__ARM_ARCH_7A__) || defined(__i386__) // armv7 or x86
 #include <Substrate/SubstrateHook.h>
 #include <Substrate/CydiaSubstrate.h>

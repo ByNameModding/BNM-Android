@@ -1,12 +1,11 @@
 #pragma once
-#include <math.h>
-#include <iostream>
 #include "Vector3.h"
 
 #define SMALL_FLOAT 0.0000000001
 #define PI 3.14159265358979323846264338327950288419716939937510f
 #define Deg2Rad (2.f * PI / 360.f)
 #define Rad2Deg (1.f / Deg2Rad)
+
 struct Quaternion
 {
     union

@@ -1,8 +1,6 @@
 #pragma once
 
 using namespace std;
-#include "../macros.h"
-#include <math.h>
 struct Vector2
 {
     union
