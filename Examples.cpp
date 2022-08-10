@@ -1,12 +1,12 @@
-#include "ByNameModdingCPPClassic/BNM.hpp"
+#include "ByNameModding/BNM.hpp"
 using namespace BNM::UNITY_STRUCTS; // Vector3, Vector2 and etc
 using namespace BNM::MONO_STRUCTS; // monoString, monoArray and etc
 
 /* getExternMethod: edit fov example
 * code from here
 * Il2CppResolver
-* https://github.com/MJx0/IL2CppResolver/blob/master/Android/test/src/demo.cpp
-* MJx0's IL2CppResolver doesn't work
+* https://github.com/kp7742/IL2CppResolver/blob/master/Android/test/src/demo.cpp
+* MJx0's IL2CppResolver doesn't work in all unity versions
 * getExternMethod working ONLY with extern methods
 */
 void *set_fov(float value) {
@@ -31,8 +31,7 @@ void *set_fov(float value) {
             float oldFOV = Camera$$get_fieldofview(mainCamera);
             Camera$$set_fieldofview(mainCamera, value);
             float newFOV = Camera$$get_fieldofview(mainCamera);
-            LOGIBNM(OBFUSCATE_BNM("Camera Ptr: %p  |  oldFOV: %.2f  |  newFOV: %.2f"), (void *) mainCamera, oldFOV,
-                    newFOV);
+            LOGIBNM(OBFUSCATE_BNM("Camera Ptr: %p  |  oldFOV: %.2f  |  newFOV: %.2f"), (void *) mainCamera, oldFOV, newFOV);
         } else
             LOGEBNM(OBFUSCATE_BNM("mainCamera is currently not available!"));
     }
@@ -51,15 +50,15 @@ void *NewExampleClass() {
 }
 
 bool setName;
-bool parseLst;
+bool parseDict = true;
 //! Find example
-void *(*get_Transform)(void *instance);
-void (*set_position)(void *Transform, Vector3 pos);
-void (*set_position_Injected)(void *Transform, Vector3& pos); //! out STH or ref STH is STH&
+BNM::Method<void *> get_Transform;
+BNM::Property<Vector3> transformPosition;
+BNM::Method<void> set_position_Injected;
 void *myPlayer;
 BNM::Field<void *> LocalPlayer; // public static FPSControler LocalPlayer;
 BNM::Field<monoString *> PlayerName; // private String PlayerName;
-BNM::Field<monoList<monoString *> *> PlayersName; // private static List<String> PlayersName;
+BNM::Field<monoDictionary<monoString *, void *> *> Players; // private static Dictionary<String, FPSControler> Players;
 void (*old_Update)(...);
 void Update(void *instance) {
     old_Update(instance);
@@ -76,9 +75,9 @@ void Update(void *instance) {
 
         //! Set player pos to 0, 0, 0
         void *myPlayer_Transform = get_Transform(myPlayer);
-        set_position(myPlayer_Transform, Vector3(0, 0, 0));
+        transformPosition(myPlayer_Transform) = Vector3(0, 0, 0);
         Vector3 pos(0, 0, 0);
-        set_position_Injected(myPlayer_Transform, pos); // You can't use Vector3(0, 0, 0) if parameter with &
+        set_position_Injected(myPlayer_Transform, &pos); // You can't use Vector3 in Injected, you need pointer to Vector3
 
         //! Get and Set player name
         if (!setName) {
@@ -91,13 +90,13 @@ void Update(void *instance) {
             setName = true;
         }
 
-        //! Parse monoList
-        if (!parseLst) {
-            auto Lst = PlayersName()->toCPPlist();
-            for (auto name : Lst)
+        //! Parse monoDictionary
+        if (parseDict) {
+            auto map = Players()->toMap();
+            for (auto [name, player] : map)
                 if (name)
-                    LOGIBNM(OBFUSCATE_BNM("Found Player name %s"), name->c_str());
-            parseLst = false;
+                    LOGIBNM(OBFUSCATE_BNM("Found Player: [%s, %p]"), name->c_str(), player);
+            parseDict = false;
         }
     }
 }
@@ -121,7 +120,7 @@ namespace geokar2006 {
     BNM_NewMethodInit(BNM::GetType<void>(), Update, 0);
     BNM_NewMethodInit(BNM::GetType<void>(), Awake, 0);
     BNM_NewMethodInit(BNM::GetType<void>(), Start, 0);
-    BNM_NewStaticMethodInit(BNM::GetType<void>(), MethodWithGameArgs, 1, BNM::GetGameType(OBFUSCATE_BNM(""), OBFUSCATE_BNM("PhotonPlayer")));
+    BNM_NewStaticMethodInit(BNM::GetType<void>(), MethodWithGameArgs, 1, BNM::GetType(OBFUSCATE_BNM(""), OBFUSCATE_BNM("PhotonPlayer")));
     };
     class BNM_DllExampleClass {
         // BNM_NewClassWithDllInit(dll, namespace, class, parent class namespace (maybe ""), parent class name (maybe ""), parent class size, class type(set to 0)); // for System.Object only sizeof(Il2CppObject)
@@ -173,15 +172,15 @@ void hack_thread() {
     auto Component = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Component"));
     auto FPSController = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("FPSController"));
 
-    PlayerName = FPSController.GetFieldByName<monoString *>(OBFUSCATE_BNM("PlayerName"));
-    LocalPlayer = FPSController.GetFieldByName<void *>(OBFUSCATE_BNM("LocalPlayer"));
-    PlayersName = FPSController.GetFieldByName<monoList<monoString *> *>(OBFUSCATE_BNM("PlayersName"));
+    PlayerName = FPSController.GetFieldByName(OBFUSCATE_BNM("PlayerName")); // Field, Methods, Properties can automatically cast type
+    LocalPlayer = FPSController.GetFieldByName(OBFUSCATE_BNM("LocalPlayer"));
+    Players = FPSController.GetFieldByName(OBFUSCATE_BNM("Players"));
 
-    InitFunc(get_Transform, Component.GetMethodOffsetByName(OBFUSCATE_BNM("get_transform"), 0)); // 0 - parameters count in original c# method
-    InitFunc(set_position,  Transform.GetMethodOffsetByName(OBFUSCATE_BNM("set_position"), 1));
-    InitFunc(set_position_Injected,  Transform.GetMethodOffsetByName(OBFUSCATE_BNM("set_position_Injected"), 1));
+    get_Transform = Component.GetMethodByName(OBFUSCATE_BNM("get_transform"), 0); // 0 - parameters count in original c# method
+    transformPosition = Transform.GetPropertyByName(OBFUSCATE_BNM("position"));
+    set_position_Injected = Transform.GetMethodByName(OBFUSCATE_BNM("set_position_Injected"), 1);
 
-    HOOK(FPSController.GetMethodOffsetByName(OBFUSCATE_BNM("Update"), 0), Update, old_Update); // ByNameModding HOOK lambda
+    HOOK(FPSController.GetMethodByName(OBFUSCATE_BNM("Update"), 0).GetOffset(), Update, old_Update); // ByNameModding HOOK lambda
 
     LoadClass Physics = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Physics"));
     //! Find method by name and parameters names
@@ -195,44 +194,40 @@ void hack_thread() {
     Raycast(Vector3 origin, Vector3 direction)
     Now this is not a problem.
     **/
-    auto RayCastOffset1 = Physics.GetMethodOffsetByName(OBFUSCATE_BNM("Raycast"), {OBFUSCATES_BNM("ray"), OBFUSCATES_BNM("hitInfo")});
-    LOGIBNM("RayCastOffset1 ptr: %p", BNM::offsetInLib(RayCastOffset1));
+    auto RayCastOffset1 = Physics.GetMethodByName(OBFUSCATE_BNM("Raycast"), {OBFUSCATES_BNM("ray"), OBFUSCATES_BNM("hitInfo")});
+    LOGIBNM("RayCastOffset1 ptr: %p", BNM::offsetInLib((void *)RayCastOffset1.GetOffset()));
 
     /**
     Or you can find by parameters type
     **/
-    auto RayCastOffset2 = Physics.GetMethodOffsetByName(OBFUSCATE_BNM("Raycast"), {GetType<Ray>().ToIl2CppType(), GetType<RaycastHit>().ToIl2CppType()});
-    LOGIBNM("RayCastOffset2 ptr: %p", BNM::offsetInLib(RayCastOffset2));
+    auto RayCastOffset2 = Physics.GetMethodByName(OBFUSCATE_BNM("Raycast"), {GetType<Ray>().ToIl2CppType(), GetType<RaycastHit>().ToIl2CppType()});
+    LOGIBNM("RayCastOffset2 ptr: %p", BNM::offsetInLib((void *)RayCastOffset2.GetOffset()));
 
     /**
     Or all together
     **/
-    auto RayCastOffset3 = Physics.GetMethodOffsetByName(OBFUSCATE_BNM("Raycast"), {OBFUSCATES_BNM("ray"), OBFUSCATES_BNM("hitInfo")}, {GetType<Ray>().ToIl2CppType(), GetType<RaycastHit>().ToIl2CppType()});
-    LOGIBNM("RayCastOffset3 ptr: %p", BNM::offsetInLib(RayCastOffset3));
+    auto RayCastOffset3 = Physics.GetMethodByName(OBFUSCATE_BNM("Raycast"), {OBFUSCATES_BNM("ray"), OBFUSCATES_BNM("hitInfo")}, {GetType<Ray>().ToIl2CppType(), GetType<RaycastHit>().ToIl2CppType()});
+    LOGIBNM("RayCastOffset3 ptr: %p", BNM::offsetInLib((void *)RayCastOffset3.GetOffset()));
 
-    //! Find Class by name and method name
-    //! WithMethodName
-    /**
-    Example from among us:
-    We have HatManager class and <>c class in it.
-    To get in il2cpp 
-    In Il2Cpp the class is named not like this:
-    HatManager.<>c
-    Like this:
-    <>c
-    And to Get it you need use:
-    WithMethodName
-    **/
+    //! Get Inner class example
+    auto HatManager = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("HatManager"));
 
-    // Then you can get any method
-    auto HatManager_c = LoadClass::WithMethodName(OBFUSCATE_BNM(""), OBFUSCATE_BNM("<>c"), OBFUSCATE_BNM("<GetUnlockedHats>b__10_0"));
+    // You can't make namespace in class due that, method has only class name
+    auto HatManager_c = HatManager.GetInnerClass(OBFUSCATE_BNM("<>c"));
     LOGIBNM("HatManager_c ptr: %p", HatManager_c.GetIl2CppClass());
 
     DetachIl2Cpp(); // Stabilization
 }
 
+// BNM::HardBypass example
+JNIEXPORT jint JNICALL
+JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
+    JNIEnv *env;
+    vm->GetEnv((void **) &env, JNI_VERSION_1_6);
+    BNM::HardBypass(env);
+    return JNI_VERSION_1_6;
+}
+
 #include <thread>
 [[maybe_unused]] __attribute__((constructor))
-void lib_main() {
-    std::thread(hack_thread).detach();
-}
+void lib_main() { std::thread(hack_thread).detach(); }

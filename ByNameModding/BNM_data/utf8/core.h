@@ -23,11 +23,7 @@ FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 */
-
-
-#ifndef UTF8_FOR_CPP_CORE_H_2675DCD0_9480_4c0c_B92A_CC14C027B731
-#define UTF8_FOR_CPP_CORE_H_2675DCD0_9480_4c0c_B92A_CC14C027B731
-
+#pragma once
 #include <iterator>
 
 // Determine the C++ standard version.
@@ -92,12 +88,6 @@ namespace internal
     inline bool is_lead_surrogate(u16 cp)
     {
         return (cp >= LEAD_SURROGATE_MIN && cp <= LEAD_SURROGATE_MAX);
-    }
-
-    template <typename u16>
-    inline bool is_trail_surrogate(u16 cp)
-    {
-        return (cp >= TRAIL_SURROGATE_MIN && cp <= TRAIL_SURROGATE_MAX);
     }
 
     template <typename u16>
@@ -300,10 +290,6 @@ namespace internal
 } // namespace internal
 
     /// The library API - functions intended to be called by the users
-
-    // Byte order mark
-    const uint8_t bom[] = {0xef, 0xbb, 0xbf};
-
     template <typename octet_iterator>
     octet_iterator find_invalid(octet_iterator start, octet_iterator end)
     {
@@ -321,18 +307,6 @@ namespace internal
     {
         return (utf8::find_invalid(start, end) == end);
     }
-
-    template <typename octet_iterator>
-    inline bool starts_with_bom (octet_iterator it, octet_iterator end)
-    {
-        return (
-            ((it != end) && (utf8::internal::mask8(*it++)) == bom[0]) &&
-            ((it != end) && (utf8::internal::mask8(*it++)) == bom[1]) &&
-            ((it != end) && (utf8::internal::mask8(*it))   == bom[2])
-           );
-    }	
 } // namespace utf8
-
-#endif // header guard
 
 

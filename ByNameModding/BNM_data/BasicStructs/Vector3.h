@@ -7,45 +7,44 @@ struct Vector3 {
     };
     inline Vector3() : x(0), y(0), z(0) {};
     inline Vector3(float x, float y, float z) : x(x), y(y), z(z) {};
-    inline static Vector3 Back() { return Vector3(0, 0, -1); };
-    inline static Vector3 Down() { return Vector3(0, -1, 0); };
-    inline static Vector3 Forward() { return Vector3(0, 0, 1); };
-    inline static Vector3 Left() { return Vector3(-1, 0, 0); };
-    inline static Vector3 Right() { return Vector3(1, 0, 0); };
-    inline static Vector3 Up() { return Vector3(0, 1, 0); }
-    inline static Vector3 Zero() { return Vector3(0, 0, 0); }
-    inline static Vector3 One() { return Vector3(1, 1, 1); }
+    [[maybe_unused]] inline static Vector3 Back() { return Vector3(0, 0, -1); };
+    [[maybe_unused]] inline static Vector3 Down() { return Vector3(0, -1, 0); };
+    [[maybe_unused]] inline static Vector3 Forward() { return Vector3(0, 0, 1); };
+    [[maybe_unused]] inline static Vector3 Left() { return Vector3(-1, 0, 0); };
+    [[maybe_unused]] inline static Vector3 Right() { return Vector3(1, 0, 0); };
+    [[maybe_unused]] inline static Vector3 Up() { return Vector3(0, 1, 0); }
+    [[maybe_unused]] inline static Vector3 Zero() { return Vector3(0, 0, 0); }
+    [[maybe_unused]] inline static Vector3 One() { return Vector3(1, 1, 1); }
     inline static float Angle(Vector3 from, Vector3 to);
     inline static float Dot(Vector3, Vector3);
-    inline static Vector3 ClampMagnitude(Vector3, float);
-    inline static float Component(Vector3, Vector3);
+    [[maybe_unused]] inline static Vector3 ClampMagnitude(Vector3, float);
+    [[maybe_unused]] inline static float Component(Vector3, Vector3);
     inline static Vector3 Cross(Vector3, Vector3);
-    inline static float Distance(Vector3, Vector3);
-    inline static Vector3 FromSpherical(float, float, float);
-    inline static Vector3 Lerp(Vector3, Vector3, float);
+    [[maybe_unused]] inline static float Distance(Vector3, Vector3);
+    [[maybe_unused]] inline static Vector3 FromSpherical(float, float, float);
+    [[maybe_unused]] inline static Vector3 Lerp(Vector3, Vector3, float);
     inline static Vector3 LerpUnclamped(Vector3, Vector3, float);
-    inline static Vector3 Max(Vector3, Vector3);
-    inline static Vector3 Min(Vector3, Vector3);
-    inline static Vector3 MoveTowards(Vector3, Vector3, float);
+    [[maybe_unused]] inline static Vector3 Max(Vector3, Vector3);
+    [[maybe_unused]] inline static Vector3 Min(Vector3, Vector3);
+    [[maybe_unused]] inline static Vector3 MoveTowards(Vector3, Vector3, float);
     inline static Vector3 Orthogonal(Vector3);
-    inline static Vector3 RotateTowards(Vector3, Vector3, float, float);
-    inline static Vector3 Scale(Vector3, Vector3);
-    inline static Vector3 Slerp(Vector3, Vector3, float);
+    [[maybe_unused]] inline static Vector3 RotateTowards(Vector3, Vector3, float, float);
+    [[maybe_unused]] inline static Vector3 Scale(Vector3, Vector3);
+    [[maybe_unused]] inline static Vector3 Slerp(Vector3, Vector3, float);
     inline static Vector3 SlerpUnclamped(Vector3, Vector3, float);
-    inline static void ToSpherical(Vector3 vector, float &, float &, float &);
+    [[maybe_unused]] inline static void ToSpherical(Vector3 vector, float &, float &, float &);
     inline static float Magnitude(Vector3);
     inline static float SqrMagnitude(Vector3);
     inline static Vector3 Normalize(Vector3);
     inline static Vector3 NormalizeEuler(Vector3);
     inline static float NormalizeAngle(float f);
-    inline static Vector3 FromString(std::string);
+    [[maybe_unused]] inline static Vector3 FromString(std::string);
     inline Vector3 orthogonal() { return Orthogonal(*this); }
     inline float magnitude() { return Magnitude(*this); }
     inline float sqrMagnitude() { return SqrMagnitude(*this); }
     inline Vector3 normalized() { return Normalize(*this); }
-    inline Vector3 normalizedEuler() { return NormalizeEuler(*this); }
+    [[maybe_unused]] inline Vector3 normalizedEuler() { return NormalizeEuler(*this); }
     inline std::string str() { return std::to_string(x) + OBFUSCATES_BNM(", ") + std::to_string(y) + OBFUSCATES_BNM(", ") + std::to_string(z); }
-    inline const char *c_str() { return str().c_str(); }
     inline const Vector3& operator+=(float v) { x+=v; y+=v; y+=v; return *this; };
     inline const Vector3& operator-=(float v) { x-=v; y-=v; y-=v; return *this; };
     inline const Vector3& operator*=(float v) { x*=v; y*=v; z*=v; return *this; };
@@ -81,13 +80,13 @@ float Vector3::Angle(Vector3 from, Vector3 to) {
 float Vector3::Dot(Vector3 lhs, Vector3 rhs) {
     return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
 }
-Vector3 Vector3::ClampMagnitude(Vector3 vector, float maxLength) {
+[[maybe_unused]] Vector3 Vector3::ClampMagnitude(Vector3 vector, float maxLength) {
     float length = vector.magnitude();
     if (length > maxLength) vector *= maxLength / length;
     return vector;
 }
 
-float Vector3::Component(Vector3 a, Vector3 b) {
+[[maybe_unused]] float Vector3::Component(Vector3 a, Vector3 b) {
     return Dot(a, b) / b.magnitude();
 }
 
@@ -98,11 +97,11 @@ Vector3 Vector3::Cross(Vector3 lhs, Vector3 rhs) {
     return Vector3(x, y, z);
 }
 
-float Vector3::Distance(Vector3 a, Vector3 b) {
+[[maybe_unused]] float Vector3::Distance(Vector3 a, Vector3 b) {
     return (a - b).magnitude();
 }
 
-Vector3 Vector3::FromSpherical(float rad, float theta, float phi) {
+[[maybe_unused]] Vector3 Vector3::FromSpherical(float rad, float theta, float phi) {
     Vector3 v;
     v.x = rad * sin(theta) * cos(phi);
     v.y = rad * sin(theta) * sin(phi);
@@ -110,7 +109,7 @@ Vector3 Vector3::FromSpherical(float rad, float theta, float phi) {
     return v;
 }
 
-Vector3 Vector3::Lerp(Vector3 a, Vector3 b, float t) {
+[[maybe_unused]] Vector3 Vector3::Lerp(Vector3 a, Vector3 b, float t) {
     if (t < 0) return a;
     else if (t > 1) return b;
     return LerpUnclamped(a, b, t);
@@ -120,21 +119,21 @@ Vector3 Vector3::LerpUnclamped(Vector3 a, Vector3 b, float t) {
     return (b - a) * t + a;
 }
 
-Vector3 Vector3::Max(Vector3 a, Vector3 b) {
+[[maybe_unused]] Vector3 Vector3::Max(Vector3 a, Vector3 b) {
     float x = a.x > b.x ? a.x : b.x;
     float y = a.y > b.y ? a.y : b.y;
     float z = a.z > b.z ? a.z : b.z;
     return Vector3(x, y, z);
 }
 
-Vector3 Vector3::Min(Vector3 a, Vector3 b) {
+[[maybe_unused]] Vector3 Vector3::Min(Vector3 a, Vector3 b) {
     float x = a.x > b.x ? b.x : a.x;
     float y = a.y > b.y ? b.y : a.y;
     float z = a.z > b.z ? b.z : a.z;
     return Vector3(x, y, z);
 }
 
-Vector3 Vector3::MoveTowards(Vector3 current, Vector3 target, float maxDistanceDelta) {
+[[maybe_unused]] Vector3 Vector3::MoveTowards(Vector3 current, Vector3 target, float maxDistanceDelta) {
     Vector3 d = target - current;
     float m = d.magnitude();
     if (m < maxDistanceDelta || m == 0)
@@ -146,7 +145,7 @@ Vector3 Vector3::Orthogonal(Vector3 v) {
     return v.z < v.x ? Vector3(v.y, -v.x, 0) : Vector3(0, -v.z, v.y);
 }
 
-Vector3 Vector3::RotateTowards(Vector3 current, Vector3 target, float maxRadiansDelta, float maxMagnitudeDelta) {
+[[maybe_unused]] Vector3 Vector3::RotateTowards(Vector3 current, Vector3 target, float maxRadiansDelta, float maxMagnitudeDelta) {
     float magCur = current.magnitude();
     float magTar = target.magnitude();
     float newMag = magCur + maxMagnitudeDelta * ((magTar > magCur) - (magCur > magTar));
@@ -164,11 +163,11 @@ Vector3 Vector3::RotateTowards(Vector3 current, Vector3 target, float maxRadians
     return newVector * newMag;
 }
 
-Vector3 Vector3::Scale(Vector3 a, Vector3 b) {
+[[maybe_unused]] Vector3 Vector3::Scale(Vector3 a, Vector3 b) {
     return Vector3(a.x * b.x, a.y * b.y, a.z * b.z);
 }
 
-Vector3 Vector3::Slerp(Vector3 a, Vector3 b, float t) {
+[[maybe_unused]] Vector3 Vector3::Slerp(Vector3 a, Vector3 b, float t) {
     if (t < 0) return a;
     else if (t > 1) return b;
     return SlerpUnclamped(a, b, t);
@@ -188,7 +187,7 @@ Vector3 Vector3::SlerpUnclamped(Vector3 a, Vector3 b, float t) {
     return newVec * (magA + (magB - magA) * t);
 }
 
-void Vector3::ToSpherical(Vector3 vector, float &rad, float &theta, float &phi) {
+[[maybe_unused]] void Vector3::ToSpherical(Vector3 vector, float &rad, float &theta, float &phi) {
     rad = vector.magnitude();
     float v = vector.z / rad;
     v = fmax(v, -1.0);
@@ -224,8 +223,8 @@ Vector3 Vector3::NormalizeEuler(Vector3 vec) {
     return vec;
 }
 
-Vector3 Vector3::FromString(std::string str) {
-    std::vector<string> commands;
+[[maybe_unused]] Vector3 Vector3::FromString(std::string str) {
+    std::vector<std::string> commands;
     std::string buffer = "";
     for (int i = 0; i < str.size(); i++) {
         bool no = true;

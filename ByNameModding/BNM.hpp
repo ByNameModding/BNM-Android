@@ -12,9 +12,14 @@
 #include <thread>
 #include <unistd.h>
 #include <vector>
+#include <typeinfo>
+#include <csetjmp>
+#include <signal.h>
+#ifndef _WIN32
+#include <jni.h>
+#endif
 #include "BNM_settings.hpp"
-using namespace std;
-typedef unsigned long DWORD;
+typedef uint64_t DWORD;
 namespace BNM {
     namespace IL2CPP {
 #if UNITY_VER == 171
@@ -55,26 +60,46 @@ typedef std::vector<IL2CPP::Il2CppClass*> TypeVector;
 namespace UNITY_STRUCTS {
 #include "BNM_data/BasicStructs.h"
     }
-
+    namespace HexUtils {
+        std::string ReverseHexString(const std::string &hex);
+        std::string FixHexString(std::string str);
+        DWORD HexStr2DWORD(const std::string &hex);
+#if defined(__ARM_ARCH_7A__)
+        bool Is_B_BL_Hex(const std::string& hex);
+#elif defined(__aarch64__)
+        bool Is_B_BL_Hex(const std::string& hex);
+#elif defined(__i386__)
+        bool Is_x86_call_hex(const std::string &hex);
+#else
+#warning "Call or B BL hex checker support only arm64, arm and x86"
+#endif
+        std::string ReadMemory(DWORD address, size_t len);
+        bool Decode_Branch_or_Call_Hex(const std::string &hex, DWORD offset, DWORD &outOffset);
+        DWORD FindNext_B_BL_offset(DWORD start, int index);
+    }
     /********** BNM MACROS **************/
+    char* str2char(const std::string& str);
     auto isAllocated = [](auto x) -> bool {
-        int fd = open(OBFUSCATE_BNM("/dev/random"), O_WRONLY);
-        bool valid = true;
-        if (write(fd, (void *) x, sizeof(x)) < 0)
-            valid = false;
-        close(fd);
-        return valid;
+        static jmp_buf jump;
+        static sighandler_t handler = [](int) { longjmp(jump, 1); };
+        [[maybe_unused]] volatile char c;
+        volatile bool ok = true;
+        volatile sighandler_t old_handler = signal(SIGSEGV, handler);
+        if (!setjmp (jump)) c = *(char*)(x); else ok = false;
+        signal(SIGSEGV, old_handler);
+        return ok;
     };
     template<typename T>
     T CheckObj(T obj) {
-        static_assert(std::is_pointer<T>::value, OBFUSCATE_BNM("Expected a pointer in CheckObj"));
+        static_assert(std::is_pointer<T>::value, "Expected a pointer in CheckObj");
         if (obj && isAllocated(obj))
             return obj;
         return nullptr;
     }
+    DWORD getCachedPtr();
     // Only if obj child of UnityEngine.Object or object is UnityEngine.Object
     [[maybe_unused]] auto IsUnityObjectAlive = [](auto o) {
-        return o != 0 && *(intptr_t *)((uint64_t)o + 0x8) != 0;
+        return CheckObj((void*)o) && *(intptr_t *)((uint64_t)o + getCachedPtr());
     };
     // Only if objects children of UnityEngine.Object or objects are UnityEngine.Object
     [[maybe_unused]] auto IsSameUnityObject = [](auto o1, auto o2) {
@@ -96,7 +121,7 @@ namespace UNITY_STRUCTS {
             std::string get_string_old();
             [[maybe_unused]] unsigned int getHash();
             static monoString *Create(const char *str);
-            static monoString *Create(const std::string& str);
+            [[maybe_unused]] static monoString *Create(const std::string& str);
             [[maybe_unused]] static monoString* Empty();
         };
         template<typename T>
@@ -104,9 +129,9 @@ namespace UNITY_STRUCTS {
             IL2CPP::Il2CppClass *klass;
             IL2CPP::MonitorData *monitor;
             IL2CPP::Il2CppArrayBounds *bounds;
-            int32_t capacity;
+            IL2CPP::il2cpp_array_size_t capacity;
             T m_Items[0];
-            [[maybe_unused]] int getCapacity() { if (!this) return 0; return capacity; }
+            [[maybe_unused]] IL2CPP::il2cpp_array_size_t getCapacity() { if (!this) return 0; return capacity; }
             T *getPointer() { if (!this) return nullptr; return m_Items; }
             std::vector<T> toCPPlist() {
                 if (!this) return {};
@@ -125,14 +150,14 @@ namespace UNITY_STRUCTS {
             }
             [[maybe_unused]] void copyTo(T *arr) { if (!this || !CheckObj(m_Items)) return; memcpy(arr, m_Items, sizeof(T) * capacity); }
             T operator[] (int index) { if (getCapacity() < index) return {}; return m_Items[index]; }
-            T at(int index) { if (!this || getCapacity() <= index || empty()) return {}; return m_Items[index]; }
+            [[maybe_unused]] T at(int index) { if (!this || getCapacity() <= index || empty()) return {}; return m_Items[index]; }
             bool empty() { if (!this) return false; return getCapacity() <= 0;}
             static monoArray<T> *Create(int capacity) {
                 auto monoArr = (monoArray<T> *)malloc(sizeof(monoArray) + sizeof(T) * capacity);
                 monoArr->capacity = capacity;
                 return monoArr;
             }
-            static monoArray<T> *Create(const std::vector<T> &vec) { return Create(vec.data(), vec.size()); }
+            [[maybe_unused]] static monoArray<T> *Create(const std::vector<T> &vec) { return Create(vec.data(), vec.size()); }
             static monoArray<T> *Create(T *arr, int size) {
                 monoArray<T> *monoArr = Create(size);
                 monoArr->copyFrom(arr, size);
@@ -147,7 +172,7 @@ namespace UNITY_STRUCTS {
             int size;
             int version;
             T* getItems() { return items->getPointer(); }
-            int getSize() { return size; }
+            [[maybe_unused]] int getSize() { return size; }
             [[maybe_unused]] int getVersion() { return version; }
             [[maybe_unused]] std::vector<T> toCPPlist() {
                 std::vector<T> ret;
@@ -205,105 +230,48 @@ namespace UNITY_STRUCTS {
             }
         };
     }
-
-
+    template<typename T = int>
+    struct Field;
     template<typename T>
-    struct Field {
-        static bool CheckIfStatic(IL2CPP::FieldInfo *fieldInfo) {
-            if (!fieldInfo || !fieldInfo->type)
-                return false;
-            if (fieldInfo->type->attrs & 0x0010u)
-                return true;
-            if (fieldInfo->offset == -1)
-                LOGIBNM(OBFUSCATE_BNM("Thread static fields is not supported!"));
-            return false;
-        }
-        IL2CPP::FieldInfo *myInfo;
-        bool init;
-        bool thread_static;
-        void *instance;
-        bool isStatic;
-        Field() = default;
-        Field(IL2CPP::FieldInfo *info, void *_instance = nullptr) {
-            if (init = (info != nullptr)) {
-                isStatic = CheckIfStatic(info);
-                if (!isStatic) {
-                    init = _instance != nullptr;
-                    instance = _instance;
-                }
-                myInfo = info;
-                thread_static = myInfo->offset == -1;
-            }
-        }
-        DWORD GetOffset() {
-            return myInfo->offset;
-        }
-        T* getPointer() {
-            if (!init || thread_static || (isStatic && (!myInfo->parent || !myInfo->parent->static_fields)))
-                return 0;
-            if (isStatic)
-                return (T *) ((uint64_t) myInfo->parent->static_fields + myInfo->offset);
-            return (T *) ((uint64_t) instance + myInfo->offset);
-        }
-        T get() {
-            if (!init || thread_static || (isStatic && (!myInfo->parent || !myInfo->parent->static_fields)))
-                return {};
-            return *getPointer();
-        }
-        void set(T val) {
-            if (!init || thread_static || (isStatic && (!myInfo->parent || !myInfo->parent->static_fields)))
-                return;
-            *getPointer() = val;
-        }
-        operator T() {
-            return get();
-        }
-        Field<T>& operator=(T val) {
-            set(val);
-            return *this;
-        }
-        Field<T>& setInstance(void *val) {
-            init = val && myInfo != nullptr;
-            instance = val;
-            return *this;
-        }
-        Field<T>& setInstanceDanger(void *val) {
-            init = true;
-            instance = val;
-            return *this;
-        }
-        T operator()() {
-            return get();
-        }
-        Field<T>& operator()(void *val) {
-            return setInstance(val);
-        }
-    };
+    struct Property;
     auto InitFunc = [](auto&& method, auto ptr) {
         if (ptr != 0)
             *(void **)(&method) = (void *)(ptr);
     };
-    template<typename Ret, typename ... Args>
-    Ret BetterCall(IL2CPP::MethodInfo *method, void *instance, Args... args);
+    template<typename Ret>
+    struct Method;
     struct LoadClass {
         IL2CPP::Il2CppClass *klass = nullptr;
         LoadClass();
-        LoadClass(IL2CPP::Il2CppClass *clazz);
-        LoadClass(IL2CPP::Il2CppObject *obj);
-        [[maybe_unused]] LoadClass(IL2CPP::Il2CppType *type);
-        [[maybe_unused]] LoadClass(MonoType *type);
-        LoadClass(const std::string& _namespace, const std::string& clazz);
+        LoadClass(const IL2CPP::Il2CppClass *clazz);
+        LoadClass(const IL2CPP::Il2CppObject *obj);
+        [[maybe_unused]] LoadClass(const IL2CPP::Il2CppType *type);
+        [[maybe_unused]] LoadClass(const MonoType *type);
+        LoadClass(const std::string& _namespace, const std::string& _name);
         LoadClass(const std::string& _namespace, const std::string& _name, const std::string& dllName);
-        IL2CPP::FieldInfo *GetFieldInfoByName(const std::string& name) const;
-        DWORD GetFieldOffset(const std::string& name) const;
-        IL2CPP::MethodInfo *GetMethodInfoByName(const std::string& name, int parameters) const;
+        [[maybe_unused]] std::vector<LoadClass> GetInnerClasses(bool includeParent = true) const;
+        [[maybe_unused]] std::vector<IL2CPP::FieldInfo*> GetFieldsInfo(bool includeParent = true) const;
+        [[maybe_unused]] std::vector<IL2CPP::MethodInfo*> GetMethodsInfo(bool includeParent = true) const;
+        Method<void> GetMethodByName(const std::string& name, int parameters = -1) const;
+        Method<void> GetMethodByName(const std::string& name, const std::vector<std::string>& params_names) const;
+        Method<void> GetMethodByName(const std::string& name, const std::vector<std::string>& params_names, const std::vector<IL2CPP::Il2CppType *>& params_types) const;
+        Method<void> GetMethodByName(const std::string& name, const std::vector<IL2CPP::Il2CppType *>& params_types) const;
+        [[maybe_unused]] Property<bool> GetPropertyByName(const std::string& name, bool warning = false); // warning if property without get or set
+        [[maybe_unused]] LoadClass GetInnerClass(const std::string& _name) const;
+#ifdef BNM_DEPRECATED
+        [[maybe_unused]] IL2CPP::FieldInfo *GetFieldInfoByName(const std::string& name) const;
+        [[maybe_unused]] DWORD GetFieldOffset(const std::string& name) const;
+        [[maybe_unused]] IL2CPP::MethodInfo *GetMethodInfoByName(const std::string& name, int parameters = -1) const;
+        [[maybe_unused]] IL2CPP::MethodInfo *GetMethodInfoByName(const std::string& name, const std::vector<std::string>& params_names) const;
+        [[maybe_unused]] IL2CPP::MethodInfo *GetMethodInfoByName(const std::string& name, const std::vector<std::string>& params_names, const std::vector<IL2CPP::Il2CppType *>& params_types) const;
+        [[maybe_unused]] IL2CPP::MethodInfo *GetMethodInfoByName(const std::string& name, const std::vector<IL2CPP::Il2CppType *>& params_types) const;
         [[maybe_unused]] DWORD GetMethodOffsetByName(const std::string& name, int parameters = -1) const;
-        IL2CPP::MethodInfo *GetMethodInfoByName(const std::string& name, const std::vector<std::string>& params_names) const;
         [[maybe_unused]] DWORD GetMethodOffsetByName(const std::string& name, const std::vector<std::string>& params_names) const;
-        IL2CPP::MethodInfo *GetMethodInfoByName(const std::string& name, const std::vector<std::string>& params_names, const std::vector<IL2CPP::Il2CppType *>& params_types) const;
         [[maybe_unused]] DWORD GetMethodOffsetByName(const std::string& name, const std::vector<std::string>& params_names, const std::vector<IL2CPP::Il2CppType *>& params_types) const;
-        IL2CPP::MethodInfo *GetMethodInfoByName(const std::string& name, const std::vector<IL2CPP::Il2CppType *>& params_types) const;
         [[maybe_unused]] DWORD GetMethodOffsetByName(const std::string& name, const std::vector<IL2CPP::Il2CppType *>& params_types) const;
+        static LoadClass WithMethodName(const std::string& _namespace, const std::string& _name, const std::string& methodName);
+#endif
+        [[maybe_unused]] LoadClass GetArrayClass() const;
         IL2CPP::Il2CppType *GetIl2CppType() const;
         [[maybe_unused]] MonoType *GetMonoType() const;
         operator IL2CPP::Il2CppType *() const { return GetIl2CppType(); };
@@ -323,8 +291,8 @@ namespace UNITY_STRUCTS {
             TryInit();
             BNM::MONO_STRUCTS::monoArray<T> *array = NewArray<T>();
             IL2CPP::Il2CppClass *ArrClass = array->klass;
-            BNM::MONO_STRUCTS::monoList<T> *lst = ObjNew(ArrClass);
-            lst->Items = array;
+            BNM::MONO_STRUCTS::monoList<T> *lst = (decltype(lst)) ObjNew(ArrClass);
+            lst->items = array;
             return lst;
         }
         template<typename T>
@@ -333,32 +301,312 @@ namespace UNITY_STRUCTS {
             TryInit();
             return ObjBox(klass, (void *) obj);
         }
-        template<typename T>
-        Field<T> GetFieldByName(const std::string& name, void *instance = nullptr) {
-            auto fieldInfo = GetFieldInfoByName(name);
-            if (!fieldInfo) return Field<T>();
-            return Field<T>(fieldInfo, instance);
-        }
+        Field<int> GetFieldByName(const std::string& name) const;
         template<typename ...Args>
         [[maybe_unused]] void *CreateNewObject(Args ... args) { return CreateNewObjectCtor(sizeof...(Args), {}, args...); }
         template<typename ...Args>
-        void *CreateNewObjectCtor(int args_count, const std::vector<std::string>& arg_names, Args ... args) {
-            if (!klass) return nullptr;
-            TryInit();
-            IL2CPP::MethodInfo *method = arg_names.empty() ? GetMethodInfoByName(OBFUSCATES_BNM(".ctor"), args_count) : GetMethodInfoByName(OBFUSCATES_BNM(".ctor"), arg_names);
-            IL2CPP::Il2CppObject *instance = (IL2CPP::Il2CppObject *) CreateNewInstance();
-            void (*ctor)(...);
-            InitFunc(ctor, method->methodPointer);
-            ctor(instance, args...);
-            return (void *) instance;
-        }
-        static LoadClass WithMethodName(const std::string& _namespace, const std::string& _name, const std::string& methodName);
+        void *CreateNewObjectCtor(int args_count, const std::vector<std::string>& arg_names, Args ... args);
+        static bool ClassExists(const std::string& _namespace, const std::string& _name, const std::string& dllName);
     private:
         void TryInit() const;
         static IL2CPP::Il2CppObject* ObjBox(IL2CPP::Il2CppClass*, void *);
         static IL2CPP::Il2CppObject* ObjNew(IL2CPP::Il2CppClass*);
         static IL2CPP::Il2CppArray* ArrayNew(IL2CPP::Il2CppClass*, IL2CPP::il2cpp_array_size_t);
     };
+    // For thread static fields
+    namespace PRIVATE_FILED_UTILS {
+        void GetStaticValue(IL2CPP::FieldInfo* info, void *value);
+        void SetStaticValue(IL2CPP::FieldInfo* info, void *value);
+    }
+    template<typename T>
+    struct Field {
+        static bool CheckIsStatic(IL2CPP::FieldInfo *field) {
+            if (!field || !field->type)
+                return false;
+            if ((field->type->attrs & 0x0010) == 0)
+                return false;
+            if (field->offset == -1)
+                return false;
+            if ((field->type->attrs & 0x0040) != 0)
+                return false;
+            return true;
+        }
+        IL2CPP::FieldInfo *myInfo{};
+        bool init = false;
+        bool thread_static = false;
+        void *instance{};
+        bool isStatic = false;
+        Field() = default;
+        template<typename otherT>
+        [[maybe_unused]] Field(Field<otherT> f) : Field(f.myInfo) {
+            if (f.Initialized() && !f.isStatic && !f.thread_static && BNM::CheckObj(f.instance))
+                setInstance(f.instance);
+        }
+        Field(IL2CPP::FieldInfo *info) {
+            init = BNM::CheckObj(info);
+            if (init) {
+                isStatic = CheckIsStatic(info);
+                myInfo = info;
+                thread_static = myInfo->offset == -1;
+            }
+        }
+        DWORD GetOffset() {
+            return myInfo->offset;
+        }
+        T* getPointer() {
+            if (!init) return makeSafeRet();
+            if (!isStatic && !CheckObj(instance)) {
+                LOGEBNM(OBFUSCATE_BNM("Can't get non static %s pointer without instance! Please call setInstance before getting or setting field."), BNM::str2char(str()));
+                return makeSafeRet();
+            } else if (isStatic && !CheckObj(myInfo->parent)) {
+                LOGEBNM(OBFUSCATE_BNM("Something went wrong, %s field has null parent class."), BNM::str2char(str()));
+                return makeSafeRet();
+            } else if (thread_static) {
+                LOGEBNM(OBFUSCATE_BNM("Thread static pointer don't supported, %s."), BNM::str2char(str()));
+                return makeSafeRet();
+            }
+            if (isStatic)
+                return (T *) ((uint64_t) myInfo->parent->static_fields + myInfo->offset);
+            return (T *) ((uint64_t) instance + myInfo->offset);
+        }
+        T get() {
+            if (!init) return {};
+            if (thread_static) {
+                T val{};
+                PRIVATE_FILED_UTILS::GetStaticValue(myInfo, (void *)&val);
+                return val;
+            }
+            return *getPointer();
+        }
+        void set(T val) {
+            if (!init) return;
+            if (thread_static) {
+                PRIVATE_FILED_UTILS::SetStaticValue(myInfo, (void *)&val);
+                return;
+            }
+            *getPointer() = val;
+        }
+        Field<T>& setInstance(void *val) {
+            if (init && isStatic) {
+                LOGWBNM(OBFUSCATE_BNM("Trying set instance of static field %s. Please remove setInstance in code."), BNM::str2char(str()));
+                return *this;
+            }
+            init = val && myInfo != nullptr;
+            instance = val;
+            return *this;
+        }
+        Field<T>& operator=(T val) {
+            set(val);
+            return *this;
+        }
+        template<typename otherT>
+        Field<T>& operator=(Field<otherT> f) {
+            init = BNM::CheckObj(f.myInfo);
+            if (init) {
+                isStatic = CheckIsStatic(f.myInfo);
+                myInfo = f.myInfo;
+                thread_static = myInfo->offset == -1;
+            }
+            if (f.Initialized() && !f.isStatic && !f.thread_static && BNM::CheckObj(f.instance))
+                setInstance(f.instance);
+            return *this;
+        }
+        operator T() {
+            return get();
+        }
+        T operator()() {
+            return get();
+        }
+        Field<T>& operator()(void *val) {
+            return setInstance(val);
+        }
+        template<typename NewT>
+        Field<NewT> setType() {
+            return Field<NewT>(myInfo);
+        }
+        std::string str() {
+            if (init)
+                return LoadClass(myInfo->parent).GetClassName() + OBFUSCATE_BNM(".(") + myInfo->name + OBFUSCATE_BNM(")");
+            return OBFUSCATE_BNM("Uninitialized field");
+        }
+        bool Initialized() { return init; }
+    private:
+        [[maybe_unused]] T* makeSafeRet() { T ret{}; return &ret; }
+    };
+    // Converts offset in memory to offset in lib (work for any lib)
+    void *offsetInLib(void *offsetInMemory);
+    template<typename Ret = void>
+    struct Method {
+        IL2CPP::MethodInfo* myInfo{};
+        void *instance{};
+        bool init = false;
+        bool isStatic = false;
+        Method() = default;
+        template<typename T = void>
+        Method(Method<T> m) : Method(m.myInfo) {
+            if (m.Initialized() && !m.isStatic && BNM::CheckObj(m.instance))
+                setInstance(m.instance);
+        }
+        Method(const IL2CPP::MethodInfo* info) {
+            init = BNM::CheckObj(info);
+            if (init) {
+                isStatic = info->flags & 0x0010;
+                myInfo = (decltype(myInfo)) info;
+            }
+        }
+        Method<Ret>& setInstance(void *val) {
+            if (!init) return *this;
+            if (init && isStatic) {
+                LOGWBNM(OBFUSCATE_BNM("Trying set instance of static method %s. Please remove setInstance in code."), BNM::str2char(str()));
+                return *this;
+            }
+            instance = val;
+            return *this;
+        }
+        inline Method<Ret>& operator [](void *val) {
+            return setInstance(val);
+        }
+        inline Method<Ret>& operator [](IL2CPP::Il2CppObject *val) {
+            return setInstance((void *)val);
+        }
+        template<typename ...Args>
+        Ret call(Args...args) {
+            if (!init) return SafeReturn<Ret>();
+            bool canInfo = true;
+            if (sizeof...(Args) != myInfo->parameters_count){
+                canInfo = false;
+                LOGWBNM(OBFUSCATE_BNM("Trying to call %s with wrong parameters count... I hope you know what you're doing. Just I can't add MethodInfo to args(. Please try fix this."), BNM::str2char(str()));
+            }
+            if (!isStatic && !CheckObj(instance)) {
+                LOGEBNM(OBFUSCATE_BNM("Can't call non static %s without instance! Please call setInstance before calling method."), BNM::str2char(str()));
+                return SafeReturn<Ret>();
+            }
+            if (isStatic) {
+                if (canInfo) {
+#if UNITY_VER > 174
+                    return ((Ret(*)(Args...,IL2CPP::MethodInfo*))myInfo->methodPointer)(args..., myInfo);
+#else
+                    return ((Ret(*)(void*,Args...,IL2CPP::MethodInfo*))myInfo->methodPointer)(nullptr, args..., myInfo);
+#endif
+                }
+#if UNITY_VER > 174
+                return (((Ret(*)(Args...))myInfo->methodPointer)(args...));
+#else
+                return (((Ret(*)(void*,Args...))myInfo->methodPointer)(nullptr, args...));
+#endif
+            }
+            if (canInfo)
+                return (((Ret(*)(void*,Args...,IL2CPP::MethodInfo*))myInfo->methodPointer)(instance, args..., myInfo));
+            return (((Ret(*)(void*,Args...))myInfo->methodPointer)(instance, args...));
+        }
+
+        template<typename ...Args>
+        inline Ret operator ()(Args...args) {
+            return call(args...);
+        }
+        std::string str() {
+            if (init) {
+                return LoadClass(myInfo->return_type).GetClassName() + OBFUSCATE_BNM(" ") +
+                        LoadClass(myInfo
+#if UNITY_VER > 174
+                                          ->klass
+#else
+                                          ->declaring_type
+#endif
+                        ).GetClassName() + OBFUSCATE_BNM(".[") + myInfo->name + OBFUSCATE_BNM("]{Args count:") + std::to_string(myInfo->parameters_count) + OBFUSCATE_BNM("}") + (isStatic ? OBFUSCATE_BNM("(static)") : OBFUSCATE_BNM(""));
+            }
+            return OBFUSCATE_BNM("Uninitialized method");
+        }
+        IL2CPP::MethodInfo* GetInfo() {
+            if (init) return myInfo;
+            return {};
+        }
+        DWORD GetOffset() {
+            if (init) return (DWORD) myInfo->methodPointer;
+            return {};
+        }
+        bool Initialized() {
+            return init;
+        }
+        operator bool () {
+            return Initialized();
+        }
+        template<typename NewRet>
+        [[maybe_unused]] Method<NewRet> setRet() {
+            return Method<NewRet>(myInfo);
+        }
+        template<typename other>
+        Method<Ret>& operator=(Method<other> m) {
+            init = BNM::CheckObj(m.myInfo);
+            if (init) {
+                isStatic = m.myInfo->flags & 0x0010;
+                myInfo = (decltype(myInfo)) m.myInfo;
+            }
+            if (m.Initialized() && !m.isStatic && BNM::CheckObj(m.instance))
+                setInstance(m.instance);
+            return *this;
+        }
+    private: // Crutch)
+        template<typename T>T SafeReturn(){return{};}
+        template<>void SafeReturn(){}
+    };
+    template<typename T = bool>
+    struct Property {
+        Property() = default;
+        template<typename V>
+        Property(Method<V> getter, Method<void> setter) {
+            this->getter = getter;
+            this->setter = setter;
+        }
+        Method<T> getter;
+        Method<void> setter;
+        Property<T>& setInstance(void *val) {
+            getter.setInstance(val);
+            setter.setInstance(val);
+            return *this;
+        }
+        inline Property<T>& operator()(void *val) {
+            return setInstance(val);
+        }
+        T get() {
+            return getter();
+        }
+        void set(T v) {
+            return setter(v);
+        }
+        operator T() {
+            return get();
+        }
+        T operator()() {
+            return get();
+        }
+        template<typename V>
+        Property<T>& operator=(Property<V> val) { // We don't need to set Instance here because it saved in methods
+            getter = val.getter;
+            setter = val.setter;
+            return *this;
+        }
+        Property<T>& operator=(T val) {
+            set(val);
+            return *this;
+        }
+        [[maybe_unused]] bool Initialized() {
+            return getter.init || setter.init;
+        }
+        template<typename NewRet>
+        [[maybe_unused]] Property<NewRet> setRet() {
+            return Property<NewRet>(Method<NewRet>(getter), setter);
+        }
+    };
+    template<typename ...Args>
+    void *LoadClass::CreateNewObjectCtor(int args_count, const std::vector<std::string>& arg_names, Args... args) {
+        if (!klass) return nullptr;
+        TryInit();
+        auto method = arg_names.empty() ? GetMethodByName(OBFUSCATES_BNM(".ctor"), args_count) : GetMethodByName(OBFUSCATES_BNM(".ctor"), arg_names);
+        auto instance = CreateNewInstance();
+        method[instance](args...);
+        return instance;
+    }
     namespace MONO_STRUCTS {
         template<typename TKey, typename TValue>
         struct [[maybe_unused]] monoDictionary {
@@ -412,40 +660,40 @@ namespace UNITY_STRUCTS {
             int version;
             [[maybe_unused]] int freeList;
             [[maybe_unused]] int freeCount;
-            void *compare;
+            [[maybe_unused]] void *compare;
             monoArray<TKey> *keys;
             monoArray<TValue> *values;
             [[maybe_unused]] void *syncRoot;
             std::map<TKey, TValue> toMap() {
                 std::map<TKey, TValue> ret;
-                auto lst = entries->template toCPPlist();
-                for (auto enter : lst)
+                auto lst = entries->toCPPlist();
+                for ([[maybe_unused]] auto enter : lst)
                     ret.insert(std::make_pair(enter.key, enter.value));
                 return std::move(ret);
             }
             std::vector<TKey> getKeys() {
                 std::vector<TKey> ret;
-                auto lst = entries->template toCPPlist();
-                for (auto enter : lst)
+                auto lst = entries->toCPPlist();
+                for ([[maybe_unused]] auto enter : lst)
                     ret.push_back(enter.key);
                 return std::move(ret);
             }
             std::vector<TValue> getValues() {
                 std::vector<TValue> ret;
                 auto lst = entries->template toCPPlist();
-                for (auto enter : lst)
+                for ([[maybe_unused]] auto enter : lst)
                     ret.push_back(enter.value);
                 return std::move(ret);
             }
 #endif
-            int getSize() { return count; }
+            [[maybe_unused]] int getSize() { return count; }
             [[maybe_unused]] int getVersion() { return version; }
-            bool TryGet(TKey key, TValue &value) { return BetterCall<bool>(LoadClass((IL2CPP::Il2CppObject*)this).GetMethodInfoByName(OBFUSCATE_BNM("TryGetValue"), 2), this, key, value); }
-            [[maybe_unused]] void Add(TKey key, TValue value) { return BetterCall<void>(LoadClass((IL2CPP::Il2CppObject*)this).GetMethodInfoByName(OBFUSCATE_BNM("Add"), 2), this, key, value); }
-            [[maybe_unused]] void Insert(TKey key, TValue value) { return BetterCall<void>(LoadClass((IL2CPP::Il2CppObject*)this).GetMethodInfoByName(OBFUSCATE_BNM("set_Item"), 2), this, key, value); }
-            [[maybe_unused]] bool Remove(TKey key) { return BetterCall<bool>(LoadClass((IL2CPP::Il2CppObject*)this).GetMethodInfoByName(OBFUSCATE_BNM("Remove"), 1), this, key); }
-            [[maybe_unused]] bool ContainsKey(TKey key) { return BetterCall<bool>(LoadClass((IL2CPP::Il2CppObject*)this).GetMethodInfoByName(OBFUSCATE_BNM("ContainsKey"), 1), this, key); }
-            [[maybe_unused]] bool ContainsValue(TValue value) { return BetterCall<bool>(LoadClass((IL2CPP::Il2CppObject*)this).GetMethodInfoByName(OBFUSCATE_BNM("ContainsValue"), 1), this, value); }
+            bool TryGet(TKey key, TValue &value) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("TryGetValue"), 2).setInstance(this)(key, value); }
+            [[maybe_unused]] void Add(TKey key, TValue value) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("Add"), 2).setInstance(this)(key, value); }
+            [[maybe_unused]] void Insert(TKey key, TValue value) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("set_Item"), 2).setInstance(this)(key, value); }
+            [[maybe_unused]] bool Remove(TKey key) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("Remove"), 1).setInstance(this)( key); }
+            [[maybe_unused]] bool ContainsKey(TKey key) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("ContainsKey"), 1).setInstance(this)(key); }
+            [[maybe_unused]] bool ContainsValue(TValue value) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("ContainsValue"), 1).setInstance(this)(value); }
             TValue Get(TKey key) {
                 TValue ret;
                 if (TryGet(key, ret))
@@ -456,11 +704,13 @@ namespace UNITY_STRUCTS {
         };
     }
     struct TypeFinder {
-        bool byNameOnly;
-        const char *name;
-        const char *_namespace;
-        bool withMethodName;
-        const char *methodName;
+        const char *_namespace{};
+        const char *name{};
+        bool isArray = false;
+#ifdef BNM_DEPRECATED
+        bool withMethodName = false;
+        const char *methodName{};
+#endif
         LoadClass ToLC() const;
         IL2CPP::Il2CppType* ToIl2CppType() const;
         IL2CPP::Il2CppClass* ToIl2CppClass() const;
@@ -474,7 +724,7 @@ namespace UNITY_STRUCTS {
             NewMethod();
             IL2CPP::MethodInfo *thisMethod{};
             const char* Name{};
-            const IL2CPP::MethodInfo *virtualMethod{};
+            [[maybe_unused]] const IL2CPP::MethodInfo *virtualMethod{};
             TypeFinder ret_type{};
             std::vector<TypeFinder> *args_types{};
             bool isStatic = false;
@@ -532,7 +782,6 @@ namespace UNITY_STRUCTS {
             static void* invoke(IL2CPP::Il2CppMethodPointer ptr, [[maybe_unused]] IL2CPP::MethodInfo* m, void* obj, void** args) {
                 auto func = (RetT(*)(T*, ArgsT...))(ptr);
                 auto instance = (T*)(obj);
-                std::index_sequence<sizeof...(ArgsT)> a;
                 auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
                 return InvokeMethod(func, instance, args, seq);
             }
@@ -550,14 +799,13 @@ namespace UNITY_STRUCTS {
             }
             static void* invoke(IL2CPP::Il2CppMethodPointer ptr, [[maybe_unused]] IL2CPP::MethodInfo* m, [[maybe_unused]] void* obj, void** args) {
                 auto func = (RetT(*)(ArgsT...))(ptr);
-                std::index_sequence<sizeof...(ArgsT)> a;
                 auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
                 return InvokeMethod(func, args, seq);
             }
         };
 #else
         template<typename RetT, typename ...ArgsT>
-        struct GetNewStaticMethodCalls<RetT(*)(void *, ArgsT...)> {
+        struct GetNewStaticMethodCalls<RetT(*)(ArgsT...)> {
             template<std::size_t ...As>
             static void* InvokeMethod(RetT(*func)(void *, ArgsT...), void** args, std::index_sequence<As...>) {
                 if constexpr (std::is_same_v<RetT, void>) {
@@ -566,9 +814,8 @@ namespace UNITY_STRUCTS {
                 } else
                     return func(nullptr, UnpackArg<ArgsT>(args[As])...);
             }
-            static void* invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo* m, void* obj, void** args) {
+            static void* invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo* m, [[maybe_unused]] void* obj, void** args) {
                 auto func = (RetT(*)(void *, ArgsT...))(ptr);
-                std::index_sequence<sizeof...(ArgsT)> a;
                 auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
                 return InvokeMethod(func, args, seq);
             }
@@ -578,82 +825,73 @@ namespace UNITY_STRUCTS {
 #endif
     /********** BNM METHODS **************/
     // Get game mono type name at compile time
-    [[maybe_unused]] constexpr TypeFinder GetGameType(const char *_namespace, const char *name, bool withMethodName = false, const char *methodName = OBFUSCATE_BNM("")) { return TypeFinder{false, name, _namespace, withMethodName, methodName}; }
-    DWORD GetOffset(IL2CPP::FieldInfo *field);
-    DWORD GetOffset(IL2CPP::MethodInfo *methodInfo);
+#ifdef BNM_DEPRECATED
+    [[maybe_unused]] constexpr TypeFinder GetType(const char *_namespace, const char *name, bool isArray = false, bool withMethodName = false, const char *methodName = OBFUSCATE_BNM("")) { return TypeFinder{._namespace = _namespace, .name = name, .withMethodName = withMethodName, .methodName = methodName, .isArray = isArray}; }
+#else
+    [[maybe_unused]] constexpr TypeFinder GetType(const char *_namespace, const char *name, bool isArray = false) { return TypeFinder{._namespace = _namespace, .name = name, .isArray = isArray}; }
+#endif
     char* str2char(const std::string& str);
     MONO_STRUCTS::monoString *CreateMonoString(const char *str);
     [[maybe_unused]] MONO_STRUCTS::monoString *CreateMonoString(const std::string& str);
     void *getExternMethod(const std::string& str);
     bool Il2cppLoaded();
-    [[maybe_unused]] void AttachIl2Cpp();
+    [[maybe_unused]] bool AttachIl2Cpp(); // Return true if need Detach
+    [[maybe_unused]] IL2CPP::Il2CppThread* CurrentIl2CppThread();
     [[maybe_unused]] void DetachIl2Cpp();
+    [[maybe_unused]] std::string GetLibIl2CppPath();
     // Get Il2Cpp mono type name at compile time
     template<typename T>
-    constexpr TypeFinder GetType() {
+    constexpr TypeFinder GetType(bool isArray = false) {
         if (std::is_same_v<T, void>)
-            return {true, OBFUSCATE_BNM("Void")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("Void"), .isArray = isArray};
         else if (std::is_same_v<T, bool>)
-            return {true, OBFUSCATE_BNM("Boolean")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("Boolean"), .isArray = isArray};
         else if (std::is_same_v<T, uint8_t> || std::is_same_v<T, unsigned char>)
-            return {true, OBFUSCATE_BNM("Byte")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("Byte"), .isArray = isArray};
         else if (std::is_same_v<T, int8_t>)
-            return {true, OBFUSCATE_BNM("SByte")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("SByte"), .isArray = isArray};
         else if (std::is_same_v<T, int16_t>)
-            return {true, OBFUSCATE_BNM("Int16")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("Int16"), .isArray = isArray};
         else if (std::is_same_v<T, uint16_t>)
-            return {true, OBFUSCATE_BNM("UInt16")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("UInt16"), .isArray = isArray};
         else if (std::is_same_v<T, int32_t>)
-            return {true, OBFUSCATE_BNM("Int32")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("Int32"), .isArray = isArray};
         else if (std::is_same_v<T, uint32_t>)
-            return {true, OBFUSCATE_BNM("UInt32")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("UInt32"), .isArray = isArray};
         else if (std::is_same_v<T, intptr_t>)
-            return {true, OBFUSCATE_BNM("IntPtr")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("IntPtr"), .isArray = isArray};
         else if (std::is_same_v<T, int64_t>)
-            return {true, OBFUSCATE_BNM("Int64")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("Int64"), .isArray = isArray};
         else if (std::is_same_v<T, uint64_t>)
-            return {true, OBFUSCATE_BNM("UInt64")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("UInt64"), .isArray = isArray};
         else if (std::is_same_v<T, float>)
-            return {true, OBFUSCATE_BNM("Single")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("Single"), .isArray = isArray};
         else if (std::is_same_v<T, double>)
-            return {true, OBFUSCATE_BNM("Double")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("Double"), .isArray = isArray};
         else if (std::is_same_v<T, BNM::IL2CPP::Il2CppString *> || std::is_same_v<T, BNM::MONO_STRUCTS::monoString *>)
-            return {true, OBFUSCATE_BNM("String")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("String"), .isArray = isArray};
         else if (std::is_same_v<T, BNM::UNITY_STRUCTS::Vector3>)
-            return {false, OBFUSCATE_BNM("Vector3"), OBFUSCATE_BNM("UnityEngine")};
+            return {._namespace = OBFUSCATE_BNM("UnityEngine"), .name = OBFUSCATE_BNM("Vector3"), .isArray = isArray};
         else if (std::is_same_v<T, BNM::UNITY_STRUCTS::Vector2>)
-            return {false, OBFUSCATE_BNM("Vector2"), OBFUSCATE_BNM("UnityEngine")};
+            return {._namespace = OBFUSCATE_BNM("UnityEngine"), .name = OBFUSCATE_BNM("Vector2"), .isArray = isArray};
         else if (std::is_same_v<T, BNM::UNITY_STRUCTS::Color>)
-            return {false, OBFUSCATE_BNM("Color"), OBFUSCATE_BNM("UnityEngine")};
+            return {._namespace = OBFUSCATE_BNM("UnityEngine"), .name = OBFUSCATE_BNM("Color"), .isArray = isArray};
         else if (std::is_same_v<T, BNM::UNITY_STRUCTS::Ray>)
-            return {false, OBFUSCATE_BNM("Ray"), OBFUSCATE_BNM("UnityEngine")};
+            return {._namespace = OBFUSCATE_BNM("UnityEngine"), .name = OBFUSCATE_BNM("Ray"), .isArray = isArray};
         else if (std::is_same_v<T, BNM::UNITY_STRUCTS::RaycastHit>)
-            return {false, OBFUSCATE_BNM("RaycastHit"), OBFUSCATE_BNM("UnityEngine")};
+            return {._namespace = OBFUSCATE_BNM("UnityEngine"), .name = OBFUSCATE_BNM("RaycastHit"), .isArray = isArray};
+        else if (std::is_same_v<T, BNM::UNITY_STRUCTS::Quaternion>)
+            return {._namespace = OBFUSCATE_BNM("UnityEngine"), .name = OBFUSCATE_BNM("Quaternion"), .isArray = isArray};
         else
-            return {true, OBFUSCATE_BNM("Object")};
+            return {._namespace = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("Object"), .isArray = isArray};
     }
     template<typename T>
     [[maybe_unused]] static T UnboxObject(T obj) {
         return (T) (void *) (((char *) obj) + sizeof(BNM::IL2CPP::Il2CppObject));
     }
-    template<typename Ret, typename ... Args>
-    Ret BetterCall(IL2CPP::MethodInfo *method, void *instance, Args... args) {
-        return ((Ret (*)(void *, Args..., BNM::IL2CPP::MethodInfo *))method->methodPointer)(instance, args..., method);
-    }
-    template<typename Ret, typename ... Args>
-    [[maybe_unused]] Ret BetterStaticCall(IL2CPP::MethodInfo *method, Args... args) {
-#if UNITY_VER > 174
-        return ((Ret (*)(Args..., BNM::IL2CPP::MethodInfo *))method->methodPointer)(args..., method);
-#else
-        return ((Ret (*)(void *, Args..., BNM::IL2CPP::MethodInfo *))method->methodPointer)(nullptr, args..., method);
+#ifndef _WIN32
+    [[maybe_unused]] void HardBypass(JNIEnv *env);
 #endif
-    }
-    // Converts offset in memory to offset in libil2cpp.so
-    [[maybe_unused]] auto offsetInLib = [](auto offsetInMemory) {
-        Dl_info info;
-        dladdr((void *)offsetInMemory, &info);
-        return offsetInMemory - (DWORD)info.dli_fbase;
-    };
 }
 #define InitResolveFunc(x, y) BNM::InitFunc(x, BNM::getExternMethod(y))
 
@@ -711,20 +949,20 @@ namespace UNITY_STRUCTS {
     public: \
     static inline _BNMStaticMethod_##_name BNMStaticMethod_##_name = _BNMStaticMethod_##_name()
 
-#define BNM_NewFieldInit(_name, type) \
+#define BNM_NewFieldInit(_name, _type) \
     private: \
     struct _BNMField_##_name : BNM::NEW_CLASSES::NewField { \
         _BNMField_##_name() { \
             Name = OBFUSCATE_BNM(#_name); \
             offset = offsetof(Me_Type, _name); \
             attributes |= 0x0006;      \
-            MYtype = type; \
+            type = _type; \
             BNMClass.AddNewField(this, false); \
         } \
     }; \
     static inline _BNMField_##_name BNMField_##_name = _BNMField_##_name()
 
-#define BNM_NewStaticFieldInit(_name, type, cppType) \
+#define BNM_NewStaticFieldInit(_name, _type, cppType) \
     private: \
     struct _BNMStaticField_##_name : BNM::NEW_CLASSES::NewField { \
         _BNMStaticField_##_name() { \
@@ -732,7 +970,7 @@ namespace UNITY_STRUCTS {
             size = sizeof(cppType); \
             cppOffset = (size_t)&(_name); \
             attributes |= 0x0006 | 0x0010; \
-            MYtype = type; \
+            type = _type; \
             BNMClass.AddNewField(this, true); \
         } \
     }; \

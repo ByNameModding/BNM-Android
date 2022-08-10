@@ -5,15 +5,9 @@
 #define Rad2Deg (1.f / Deg2Rad)
 #include <string>
 #include "Vector3.h"
-struct Quaternion
-{
+struct Quaternion {
     union {
-        struct {
-            float x;
-            float y;
-            float z;
-            float w;
-        };
+        struct { float x, y, z, w; };
         float data[4];
     };
     inline Quaternion() : x(0), y(0), z(0), w(1) {};
@@ -28,35 +22,34 @@ struct Quaternion
         w = tmp.w;
     };
     inline static Quaternion Identity() { return Quaternion(0, 0, 0, 1); };
-    inline static Vector3 Up(Quaternion q);
-    inline static Vector3 Down(Quaternion q);
-    inline static Vector3 Left(Quaternion q);
-    inline static Vector3 Right(Quaternion q);
-    inline static Vector3 Forward(Quaternion q);
-    inline static Vector3 Back(Quaternion q);
+    [[maybe_unused]] inline static Vector3 Up(Quaternion q);
+    [[maybe_unused]] inline static Vector3 Down(Quaternion q);
+    [[maybe_unused]] inline static Vector3 Left(Quaternion q);
+    [[maybe_unused]] inline static Vector3 Right(Quaternion q);
+    [[maybe_unused]] inline static Vector3 Forward(Quaternion q);
+    [[maybe_unused]] inline static Vector3 Back(Quaternion q);
     inline static float Angle(Quaternion a, Quaternion b);
     inline static Quaternion Conjugate(Quaternion rotation);
     inline static float Dot(Quaternion lhs, Quaternion rhs);
-    inline static Quaternion FromAngleAxis(float angle, Vector3 axis);
-    inline static Quaternion FromEuler(Vector3 rotation);
+    [[maybe_unused]] inline static Quaternion FromAngleAxis(float angle, Vector3 axis);
+    [[maybe_unused]] inline static Quaternion FromEuler(Vector3 rotation);
     inline static Quaternion FromEuler(float x, float y, float z);
     inline static Quaternion FromToRotation(Vector3 fromVector, Vector3 toVector);
-    inline static Quaternion Inverse(Quaternion rotation);
-    inline static Quaternion Lerp(Quaternion a, Quaternion b, float t);
+    [[maybe_unused]] inline static Quaternion Inverse(Quaternion rotation);
+    [[maybe_unused]] inline static Quaternion Lerp(Quaternion a, Quaternion b, float t);
     inline static Quaternion LerpUnclamped(Quaternion a, Quaternion b, float t);
-    inline static Quaternion LookRotation(Vector3 forward);
+    [[maybe_unused]] inline static Quaternion LookRotation(Vector3 forward);
     inline static Quaternion LookRotation(Vector3 forward, Vector3 upwards);
     inline static float Norm(Quaternion rotation);
     inline static Quaternion Normalize(Quaternion rotation);
-    inline static Quaternion RotateTowards(Quaternion from, Quaternion to, float maxRadiansDelta);
-    inline static Quaternion Slerp(Quaternion a, Quaternion b, float t);
+    [[maybe_unused]] inline static Quaternion RotateTowards(Quaternion from, Quaternion to, float maxRadiansDelta);
+    [[maybe_unused]] inline static Quaternion Slerp(Quaternion a, Quaternion b, float t);
     inline static Quaternion SlerpUnclamped(Quaternion a, Quaternion b, float t);
-    inline static void ToAngleAxis(Quaternion rotation, float &angle, Vector3 &axis);
+    [[maybe_unused]] inline static void ToAngleAxis(Quaternion rotation, float &angle, Vector3 &axis);
     inline static Vector3 ToEuler(Quaternion rotation);
-    inline Vector3 euler() { return ToEuler(*this); }
+    [[maybe_unused]] inline Vector3 euler() { return ToEuler(*this); }
     inline Quaternion normalized() { return Normalize(*this); }
     inline std::string str() {return std::to_string(x) + OBFUSCATES_BNM(", ") + std::to_string(y) + OBFUSCATES_BNM(", ") + std::to_string(z) + OBFUSCATES_BNM(", ") + std::to_string(w); }
-    inline const char *c_str() { return str().c_str(); }
     inline Quaternion& operator+=(float v) { x += v; y += v; z += v; w += v; return *this; }
     inline Quaternion& operator-=(float v) { x -= v; y -= v; z -= v; w -= v; return *this; }
     inline Quaternion& operator*=(float v) { x *= v; y *= v; z *= v; w *= v; return *this; }
@@ -87,12 +80,12 @@ inline Vector3 operator*(Quaternion lhs, const Vector3 rhs) {
     float s = lhs.w;
     return u * (Vector3::Dot(u, rhs) * 2.0f) + rhs * (s * s - Vector3::Dot(u, u)) + Vector3::Cross(u, rhs) * (2.0f * s);
 }
-Vector3 Quaternion::Up(Quaternion q) { return q * Vector3::Up(); }
-Vector3 Quaternion::Down(Quaternion q) { return q * Vector3::Down(); }
-Vector3 Quaternion::Left(Quaternion q) { return q * Vector3::Left(); }
-Vector3 Quaternion::Right(Quaternion q) { return q * Vector3::Right(); }
-Vector3 Quaternion::Forward(Quaternion q) { return q * Vector3::Forward(); }
-Vector3 Quaternion::Back(Quaternion q) { return q * Vector3::Back(); }
+[[maybe_unused]] Vector3 Quaternion::Up(Quaternion q) { return q * Vector3::Up(); }
+[[maybe_unused]] Vector3 Quaternion::Down(Quaternion q) { return q * Vector3::Down(); }
+[[maybe_unused]] Vector3 Quaternion::Left(Quaternion q) { return q * Vector3::Left(); }
+[[maybe_unused]] Vector3 Quaternion::Right(Quaternion q) { return q * Vector3::Right(); }
+[[maybe_unused]] Vector3 Quaternion::Forward(Quaternion q) { return q * Vector3::Forward(); }
+[[maybe_unused]] Vector3 Quaternion::Back(Quaternion q) { return q * Vector3::Back(); }
 
 float Quaternion::Angle(Quaternion a, Quaternion b) {
     float dot = Dot(a, b);
@@ -107,7 +100,7 @@ float Quaternion::Dot(Quaternion lhs, Quaternion rhs) {
     return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z + lhs.w * rhs.w;
 }
 
-Quaternion Quaternion::FromAngleAxis(float angle, Vector3 axis) {
+[[maybe_unused]] Quaternion Quaternion::FromAngleAxis(float angle, Vector3 axis) {
     Quaternion q;
     float m = sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
     float s = sinf(angle / 2) / m;
@@ -118,7 +111,7 @@ Quaternion Quaternion::FromAngleAxis(float angle, Vector3 axis) {
     return q;
 }
 
-Quaternion Quaternion::FromEuler(Vector3 rotation) {
+[[maybe_unused]] Quaternion Quaternion::FromEuler(Vector3 rotation) {
     return FromEuler(rotation.x, rotation.y, rotation.z);
 }
 
@@ -151,12 +144,12 @@ Quaternion Quaternion::FromToRotation(Vector3 fromVector, Vector3 toVector) {
     return Normalize(Quaternion(cross, dot + k));
 }
 
-Quaternion Quaternion::Inverse(Quaternion rotation) {
+[[maybe_unused]] Quaternion Quaternion::Inverse(Quaternion rotation) {
     float n = Norm(rotation);
     return Conjugate(rotation) / (n * n);
 }
 
-Quaternion Quaternion::Lerp(Quaternion a, Quaternion b, float t) {
+[[maybe_unused]] Quaternion Quaternion::Lerp(Quaternion a, Quaternion b, float t) {
     if (t < 0) return a.normalized();
     else if (t > 1) return b.normalized();
     return LerpUnclamped(a, b, t);
@@ -169,7 +162,7 @@ Quaternion Quaternion::LerpUnclamped(Quaternion a, Quaternion b, float t) {
     return quaternion.normalized();
 }
 
-Quaternion Quaternion::LookRotation(Vector3 forward) {
+[[maybe_unused]] Quaternion Quaternion::LookRotation(Vector3 forward) {
     return LookRotation(forward, Vector3(0, 1, 0));
 }
 
@@ -226,7 +219,7 @@ Quaternion Quaternion::Normalize(Quaternion rotation) {
     return rotation / Norm(rotation);
 }
 
-Quaternion Quaternion::RotateTowards(Quaternion from, Quaternion to, float maxRadiansDelta) {
+[[maybe_unused]] Quaternion Quaternion::RotateTowards(Quaternion from, Quaternion to, float maxRadiansDelta) {
     float angle = Quaternion::Angle(from, to);
     if (angle == 0) return to;
     maxRadiansDelta = fmaxf(maxRadiansDelta, angle - (float)M_PI);
@@ -234,7 +227,7 @@ Quaternion Quaternion::RotateTowards(Quaternion from, Quaternion to, float maxRa
     return Quaternion::SlerpUnclamped(from, to, t);
 }
 
-Quaternion Quaternion::Slerp(Quaternion a, Quaternion b, float t) {
+[[maybe_unused]] Quaternion Quaternion::Slerp(Quaternion a, Quaternion b, float t) {
     if (t < 0) return a.normalized();
     else if (t > 1) return b.normalized();
     return SlerpUnclamped(a, b, t);
@@ -267,8 +260,7 @@ Quaternion Quaternion::SlerpUnclamped(Quaternion a, Quaternion b, float t) {
     return quaternion.normalized();
 }
 
-void Quaternion::ToAngleAxis(Quaternion rotation, float &angle, Vector3 &axis)
-{
+[[maybe_unused]] void Quaternion::ToAngleAxis(Quaternion rotation, float &angle, Vector3 &axis) {
     if (rotation.w > 1) rotation = rotation.normalized();
     angle = 2 * acosf(rotation.w);
     float s = sqrt(1 - rotation.w * rotation.w);

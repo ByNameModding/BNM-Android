@@ -11,8 +11,11 @@
 //#define UNITY_VER 201 // 2020.1.x // il2cpp version: 24.3 and 24.4
 #define UNITY_VER 202 // From 2020.2.x to 2020.3.x (They are same) // il2cpp version: 27.1
 //#define UNITY_VER 211 // 2021.1.x // il2cpp version: 27.2
-//#define UNITY_VER 212 // 2021.2.x // il2cpp version: 27 and 27.2
-//#define UNITY_VER 213 // 2021.3.x - 2022.1.x // il2cpp version: 28
+//#define UNITY_VER 212 // 2021.2.x // il2cpp version: 27 and 27.2 and 28
+//#define UNITY_VER 213 // 2021.3.x - 2022.1.x // il2cpp version: 29 and 28
+
+// Allow to use deprecated methods
+// #define BNM_DEPRECATED
 
 #ifndef NDEBUG
 
@@ -24,6 +27,10 @@
 
 //! ERROR LOGS
 #define BNM_ERROR
+
+//! WARNING LOGS
+#define BNM_WARNING
+
 #endif
 
 //! Include your string obfuscator
@@ -55,9 +62,8 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 //!!!!!!!! Recommended !!!!!!!!
 #include <dobby.h>
 auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
-    if (ptr != 0){
+    if (((void *)ptr) != nullptr)
         DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
-    }
 };
 
 // For System.Collections.Generic.Dictionary
@@ -66,6 +72,13 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 // .NET 3.5 is deprecated but some old games use it
 
 // #define BNM_DOTNET35
+
+
+// If you need hide dl calls or use custom dl
+#define BNM_dlopen dlopen
+#define BNM_dlsym dlsym
+#define BNM_dlclose dlclose
+#define BNM_dladdr dladdr
 
 /********** USER AREA **************/
 
@@ -93,4 +106,8 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 #define LOGEBNM(...)
 #endif
 
-
+#ifdef BNM_WARNING
+#define LOGWBNM(...) ((void)__android_log_print(5,  BNMTAG, __VA_ARGS__))
+#else
+#define LOGWBNM(...)
+#endif

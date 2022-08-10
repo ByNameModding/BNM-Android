@@ -6,40 +6,39 @@ struct Vector2 {
     };
     inline Vector2() : x(0), y(0) {};
     inline Vector2(float x, float y) : x(x), y(y) {};
-    inline static Vector2 Down() { return Vector2(0, -1); }
-    inline static Vector2 Left() { return Vector2(-1, 0); }
-    inline static Vector2 One() { return Vector2(1, 1); }
-    inline static Vector2 Right() { return Vector2(1, 0); }
-    inline static Vector2 Up() { return Vector2(0, 1); }
+    [[maybe_unused]] inline static Vector2 Down() { return Vector2(0, -1); }
+    [[maybe_unused]] inline static Vector2 Left() { return Vector2(-1, 0); }
+    [[maybe_unused]] inline static Vector2 One() { return Vector2(1, 1); }
+    [[maybe_unused]] inline static Vector2 Right() { return Vector2(1, 0); }
+    [[maybe_unused]] inline static Vector2 Up() { return Vector2(0, 1); }
     inline static Vector2 Zero() { return Vector2(0, 0); }
     inline static float Angle(Vector2, Vector2);
-    inline static Vector2 ClampMagnitude(Vector2, float);
-    inline static float Component(Vector2, Vector2);
-    inline static float Distance(Vector2, Vector2);
+    [[maybe_unused]] inline static Vector2 ClampMagnitude(Vector2, float);
+    [[maybe_unused]] inline static float Component(Vector2, Vector2);
+    [[maybe_unused]] inline static float Distance(Vector2, Vector2);
     inline static float Dot(Vector2, Vector2);
-    inline static Vector2 FromPolar(float, float);
-    inline static Vector2 Lerp(Vector2, Vector2, float) ;
+    [[maybe_unused]] inline static Vector2 FromPolar(float, float);
+    [[maybe_unused]] inline static Vector2 Lerp(Vector2, Vector2, float) ;
     inline static Vector2 LerpUnclamped(Vector2, Vector2, float);
     inline static float Magnitude(Vector2);
-    inline static Vector2 Max(Vector2, Vector2);
-    inline static Vector2 Min(Vector2, Vector2);
-    inline static Vector2 MoveTowards(Vector2, Vector2, float);
+    [[maybe_unused]] inline static Vector2 Max(Vector2, Vector2);
+    [[maybe_unused]] inline static Vector2 Min(Vector2, Vector2);
+    [[maybe_unused]] inline static Vector2 MoveTowards(Vector2, Vector2, float);
     inline static Vector2 Normalize(Vector2);
-    inline static void OrthoNormalize(Vector2 &, Vector2 &);
+    [[maybe_unused]] inline static void OrthoNormalize(Vector2 &, Vector2 &);
     inline static Vector2 Project(Vector2, Vector2);
-    inline static Vector2 Reflect(Vector2, Vector2);
+    [[maybe_unused]] inline static Vector2 Reflect(Vector2, Vector2);
     inline static Vector2 Reject(Vector2, Vector2);
-    inline static Vector2 RotateTowards(Vector2, Vector2, float, float);
-    inline static Vector2 Scale(Vector2, Vector2);
-    inline static Vector2 Slerp(Vector2, Vector2, float);
+    [[maybe_unused]] inline static Vector2 RotateTowards(Vector2, Vector2, float, float);
+    [[maybe_unused]] inline static Vector2 Scale(Vector2, Vector2);
+    [[maybe_unused]] inline static Vector2 Slerp(Vector2, Vector2, float);
     inline static Vector2 SlerpUnclamped(Vector2, Vector2, float);
     inline static float SqrMagnitude(Vector2);
-    inline static void ToPolar(Vector2, float &, float &);
+    [[maybe_unused]] inline static void ToPolar(Vector2, float &, float &);
     inline float magnitude() { return Magnitude(*this); }
     inline float sqrMagnitude() { return SqrMagnitude(*this); }
     inline Vector2 normalized() { return Normalize(*this); }
     inline std::string str() { return std::to_string(x) + OBFUSCATES_BNM(", ") + std::to_string(y); }
-    inline const char *c_str() { return str().c_str(); }
     inline Vector2& operator+=(float rhs) { x += rhs; y += rhs; return *this; }
     inline Vector2& operator-=(float rhs) { x -= rhs; y -= rhs; return *this; }
     inline Vector2& operator*=(float rhs) { x *= rhs; y *= rhs; return *this; }
@@ -71,17 +70,17 @@ float Vector2::Angle(Vector2 a, Vector2 b) {
     return acos(v);
 }
 
-Vector2 Vector2::ClampMagnitude(Vector2 vector, float maxLength) {
+[[maybe_unused]] Vector2 Vector2::ClampMagnitude(Vector2 vector, float maxLength) {
     float length = vector.magnitude();
     if (length > maxLength) vector *= maxLength / length;
     return vector;
 }
 
-float Vector2::Component(Vector2 a, Vector2 b) {
+[[maybe_unused]] float Vector2::Component(Vector2 a, Vector2 b) {
     return Dot(a, b) / b.magnitude();
 }
 
-float Vector2::Distance(Vector2 a, Vector2 b) {
+[[maybe_unused]] float Vector2::Distance(Vector2 a, Vector2 b) {
     return (a - b).magnitude();
 }
 
@@ -89,14 +88,14 @@ float Vector2::Dot(Vector2 lhs, Vector2 rhs) {
     return lhs.x * rhs.x + lhs.y * rhs.y;
 }
 
-Vector2 Vector2::FromPolar(float rad, float theta) {
+[[maybe_unused]] Vector2 Vector2::FromPolar(float rad, float theta) {
     Vector2 v;
     v.x = rad * cos(theta);
     v.y = rad * sin(theta);
     return v;
 }
 
-Vector2 Vector2::Lerp(Vector2 a, Vector2 b, float t) {
+[[maybe_unused]] Vector2 Vector2::Lerp(Vector2 a, Vector2 b, float t) {
     if (t < 0) return a;
     else if (t > 1) return b;
     return LerpUnclamped(a, b, t);
@@ -110,19 +109,19 @@ float Vector2::Magnitude(Vector2 v) {
     return sqrt(v.sqrMagnitude());
 }
 
-Vector2 Vector2::Max(Vector2 a, Vector2 b) {
+[[maybe_unused]] Vector2 Vector2::Max(Vector2 a, Vector2 b) {
     float x = a.x > b.x ? a.x : b.x;
     float y = a.y > b.y ? a.y : b.y;
     return Vector2(x, y);
 }
 
-Vector2 Vector2::Min(Vector2 a, Vector2 b) {
+[[maybe_unused]] Vector2 Vector2::Min(Vector2 a, Vector2 b) {
     float x = a.x > b.x ? b.x : a.x;
     float y = a.y > b.y ? b.y : a.y;
     return Vector2(x, y);
 }
 
-Vector2 Vector2::MoveTowards(Vector2 current, Vector2 target, float maxDistanceDelta) {
+[[maybe_unused]] Vector2 Vector2::MoveTowards(Vector2 current, Vector2 target, float maxDistanceDelta) {
     Vector2 d = target - current;
     float m = d.magnitude();
     if (m < maxDistanceDelta || m == 0) return target;
@@ -135,7 +134,7 @@ Vector2 Vector2::Normalize(Vector2 v) {
     return v / mag;
 }
 
-void Vector2::OrthoNormalize(Vector2 &normal, Vector2 &tangent) {
+[[maybe_unused]] void Vector2::OrthoNormalize(Vector2 &normal, Vector2 &tangent) {
     normal = normal.normalized();
     tangent = Reject(tangent, normal);
     tangent = tangent.normalized();
@@ -146,7 +145,7 @@ Vector2 Vector2::Project(Vector2 a, Vector2 b) {
     return Dot(a, b) / (m * m) * b;
 }
 
-Vector2 Vector2::Reflect(Vector2 vector, Vector2 planeNormal) {
+[[maybe_unused]] Vector2 Vector2::Reflect(Vector2 vector, Vector2 planeNormal) {
     return vector - 2 * Project(vector, planeNormal);
 }
 
@@ -154,8 +153,7 @@ Vector2 Vector2::Reject(Vector2 a, Vector2 b) {
     return a - Project(a, b);
 }
 
-Vector2 Vector2::RotateTowards(Vector2 current, Vector2 target, float maxRadiansDelta, float maxMagnitudeDelta)
-{
+[[maybe_unused]] Vector2 Vector2::RotateTowards(Vector2 current, Vector2 target, float maxRadiansDelta, float maxMagnitudeDelta) {
     float magCur = current.magnitude();
     float magTar = target.magnitude();
     float newMag = magCur + maxMagnitudeDelta * ((magTar > magCur) - (magCur > magTar));
@@ -172,11 +170,11 @@ Vector2 Vector2::RotateTowards(Vector2 current, Vector2 target, float maxRadians
     return newVector * newMag;
 }
 
-Vector2 Vector2::Scale(Vector2 a, Vector2 b) {
+[[maybe_unused]] Vector2 Vector2::Scale(Vector2 a, Vector2 b) {
     return Vector2(a.x * b.x, a.y * b.y);
 }
 
-Vector2 Vector2::Slerp(Vector2 a, Vector2 b, float t) {
+[[maybe_unused]] Vector2 Vector2::Slerp(Vector2 a, Vector2 b, float t) {
     if (t < 0) return a;
     else if (t > 1) return b;
     return SlerpUnclamped(a, b, t);
@@ -200,7 +198,7 @@ float Vector2::SqrMagnitude(Vector2 v) {
     return v.x * v.x + v.y * v.y;
 }
 
-void Vector2::ToPolar(Vector2 vector, float &rad, float &theta) {
+[[maybe_unused]] void Vector2::ToPolar(Vector2 vector, float &rad, float &theta) {
     rad = vector.magnitude();
     theta = atan2(vector.y, vector.x);
 }

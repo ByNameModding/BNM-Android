@@ -4,23 +4,25 @@
 /********** BNM DATA **************/
 
 static bool BNM_LibLoaded = false;
-static void *BNM_dlLib;
-static BNM::IL2CPP::Il2CppThread *BNM_CurThread;
-BNM::AssemblyVector *(*Assembly$$GetAllAssemblies)();
+static void *BNM_dlLib{};
+static bool BNM_hardBypass = false;
+static bool BNM_hardBypassed = false;
+static const char *BNM_LibAbsolutePath{};
+BNM::AssemblyVector *(*Assembly$$GetAllAssemblies)(){};
 #if __cplusplus >= 201703 // Speed up IDE if c++ lower then c++17
 void Image$$GetTypes(BNM::IL2CPP::Il2CppImage* image, bool exportedOnly, BNM::TypeVector* target);
-void (*old_Image$$GetTypes)(BNM::IL2CPP::Il2CppImage* image, bool exportedOnly, BNM::TypeVector* target);
-BNM::IL2CPP::Il2CppClass* (*old_Class$$FromIl2CppType)(BNM::IL2CPP::Il2CppType* type);
+void (*old_Image$$GetTypes)(BNM::IL2CPP::Il2CppImage* image, bool exportedOnly, BNM::TypeVector* target){};
+BNM::IL2CPP::Il2CppClass* (*old_Class$$FromIl2CppType)(BNM::IL2CPP::Il2CppType* type){};
 BNM::IL2CPP::Il2CppClass* Class$$FromIl2CppType(BNM::IL2CPP::Il2CppType* type);
-BNM::IL2CPP::Il2CppClass* (*old_Class$$FromName)(BNM::IL2CPP::Il2CppImage* image, const char* _namespace, const char *name);
+BNM::IL2CPP::Il2CppClass* (*old_Class$$FromName)(BNM::IL2CPP::Il2CppImage* image, const char* ns, const char *name){};
 BNM::IL2CPP::Il2CppClass* Class$$FromName(BNM::IL2CPP::Il2CppImage* image, const char* _namespace, const char *name);
 
-bool (*old_Class$$Init)(BNM::IL2CPP::Il2CppClass *klass);
+bool (*old_Class$$Init)(BNM::IL2CPP::Il2CppClass *klass){};
 bool Class$$Init(BNM::IL2CPP::Il2CppClass *klass);
-static std::vector<BNM::NEW_CLASSES::NewClass *> *Classes4Add;
+static std::vector<BNM::NEW_CLASSES::NewClass *> *Classes4Add{};
 #else
-void (*Image$$GetTypes)(IL2CPP::Il2CppImage* image, bool exportedOnly, TypeVector* target);
-void (*Class$$Init)(IL2CPP::Il2CppClass *klass);
+void (*Image$$GetTypes)(IL2CPP::Il2CppImage* image, bool exportedOnly, TypeVector* target){};
+void (*Class$$Init)(IL2CPP::Il2CppClass *klass){};
 
 #endif
 
@@ -28,20 +30,20 @@ void (*Class$$Init)(IL2CPP::Il2CppClass *klass);
 
 void *get_il2cpp() { return BNM_dlLib; }
 bool BNM::Il2cppLoaded() { return BNM_LibLoaded; }
-DWORD BNM::GetOffset(IL2CPP::FieldInfo *field) { return field->offset; }
-DWORD BNM::GetOffset(IL2CPP::MethodInfo *methodInfo) { return (DWORD) methodInfo->methodPointer; }
 
 /********** BNM MAIN CODE **************/
 
-#define DO_API(r, n, p) auto (n) = (r (*) p)dlsym(get_il2cpp(), OBFUSCATE_BNM(#n))
+#define DO_API(r, n, p) auto (n) = (r (*) p)BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM(#n))
 
 BNM::IL2CPP::Il2CppClass *GetClassFromName(const std::string& _namespace, const std::string& _name) {
     DO_API(BNM::IL2CPP::Il2CppImage*, il2cpp_assembly_get_image, (BNM::IL2CPP::Il2CppAssembly*));
     for (auto assembly : *Assembly$$GetAllAssemblies()) {
+        if (!BNM::CheckObj(assembly)) continue;
         BNM::TypeVector classes;
-        Image$$GetTypes(il2cpp_assembly_get_image(assembly), false, &classes);
+        auto img = il2cpp_assembly_get_image(assembly);
+        Image$$GetTypes(img, false, &classes);
         for (auto cls : classes) {
-            if (!cls) continue;
+            if (!BNM::CheckObj(cls)) continue;
             Class$$Init(cls);
             if (cls->name == _name && cls->namespaze == _namespace)
                 return (BNM::IL2CPP::Il2CppClass *)cls;
@@ -51,14 +53,14 @@ BNM::IL2CPP::Il2CppClass *GetClassFromName(const std::string& _namespace, const 
 }
 
 BNM::LoadClass::LoadClass() = default;
-BNM::LoadClass::LoadClass(IL2CPP::Il2CppClass *clazz) { klass = clazz; }
-BNM::LoadClass::LoadClass(IL2CPP::Il2CppObject* obj) { klass = obj->klass; }
-[[maybe_unused]] BNM::LoadClass::LoadClass(IL2CPP::Il2CppType* type) {
+BNM::LoadClass::LoadClass(const IL2CPP::Il2CppClass *clazz) { klass = (IL2CPP::Il2CppClass *)clazz; }
+BNM::LoadClass::LoadClass(const IL2CPP::Il2CppObject* obj) { klass = obj->klass; }
+[[maybe_unused]] BNM::LoadClass::LoadClass(const IL2CPP::Il2CppType* type) {
     DO_API(IL2CPP::Il2CppClass*, il2cpp_class_from_il2cpp_type, (const IL2CPP::Il2CppType*));
     klass = il2cpp_class_from_il2cpp_type(type);
 }
 
-[[maybe_unused]] BNM::LoadClass::LoadClass(MonoType *type) {
+[[maybe_unused]] BNM::LoadClass::LoadClass(const MonoType *type) {
     DO_API(IL2CPP::Il2CppClass*, il2cpp_class_from_il2cpp_type, (const IL2CPP::Il2CppType*));
     klass = il2cpp_class_from_il2cpp_type(type->type);
 }
@@ -91,138 +93,195 @@ BNM::LoadClass::LoadClass(const std::string& _namespace, const std::string& _nam
     if (!klass)
         LOGIBNM(OBFUSCATE_BNM("Class: [%s].[%s] - not found (with dll)"), _namespace.c_str(), _name.c_str());
 }
-BNM::IL2CPP::FieldInfo *BNM::LoadClass::GetFieldInfoByName(const std::string& name) const {
+#ifdef BNM_DEPRECATED
+[[maybe_unused]] BNM::IL2CPP::FieldInfo *BNM::LoadClass::GetFieldInfoByName(const std::string& name) const {
     if (!klass) return nullptr;
-    TryInit();
-    DO_API(IL2CPP::FieldInfo *, il2cpp_class_get_field_from_name, (IL2CPP::Il2CppClass*, const char*));
-    return il2cpp_class_get_field_from_name(klass, name.c_str());
+    return GetFieldByName(name).myInfo;
 }
-DWORD BNM::LoadClass::GetFieldOffset(const std::string& name) const {
+[[maybe_unused]] DWORD BNM::LoadClass::GetFieldOffset(const std::string& name) const {
     if (!klass) return 0;
-    return GetOffset(GetFieldInfoByName(name));
+    return GetFieldByName(name).GetOffset();
 }
-BNM::IL2CPP::MethodInfo *BNM::LoadClass::GetMethodInfoByName(const std::string& name, int paramCount) const {
-    if (!klass) return nullptr;
-    TryInit();
-    DO_API(IL2CPP::MethodInfo*, il2cpp_class_get_method_from_name, (IL2CPP::Il2CppClass*, const char*, int));
-    return il2cpp_class_get_method_from_name(klass, name.c_str(), paramCount);
+[[maybe_unused]] BNM::IL2CPP::MethodInfo *BNM::LoadClass::GetMethodInfoByName(const std::string& name, int parameters) const {
+    return GetMethodByName(name, parameters).GetInfo();
 }
-[[maybe_unused]] DWORD BNM::LoadClass::GetMethodOffsetByName(const std::string& name, int paramCount) const {
-    if (!klass) return 0;
-    IL2CPP::MethodInfo *res = GetMethodInfoByName(name, paramCount);
-    if (!res) {
-        LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not found"), klass->namespaze, klass->name, name.c_str(), paramCount);
-        return 0;
-    }
-    return GetOffset(res);
+[[maybe_unused]] DWORD BNM::LoadClass::GetMethodOffsetByName(const std::string& name, int parameters) const {
+    return GetMethodByName(name, parameters).GetOffset();
 }
-BNM::IL2CPP::MethodInfo *BNM::LoadClass::GetMethodInfoByName(const std::string& name, const std::vector<std::string>& params_names) const {
-    if (!klass) return nullptr;
-    TryInit();
-    size_t paramCount = params_names.size();
-    for (int i = 0; i < klass->method_count; i++) {
-        auto method = (IL2CPP::MethodInfo *) klass->methods[i];
-        if (name == method->name && method->parameters_count == paramCount) {
-            bool ok = true;
-            for (int i = 0; i < paramCount; i++) {
-                auto param = method->parameters + i;
-                if (param->name != params_names[i]) {
-                    ok = false;
-                    break;
-                }
-            }
-            if (ok)
-                return method;
-        }
-    }
-    return nullptr;
+[[maybe_unused]] BNM::IL2CPP::MethodInfo *BNM::LoadClass::GetMethodInfoByName(const std::string& name, const std::vector<std::string>& params_names) const {
+    return GetMethodByName(name, params_names).GetInfo();
 }
 [[maybe_unused]] DWORD BNM::LoadClass::GetMethodOffsetByName(const std::string& name, const std::vector<std::string>& params_names) const {
-    if (!klass) return 0;
-    size_t paramCount = params_names.size();
-    IL2CPP::MethodInfo *res = GetMethodInfoByName(name, params_names);
-    if (!res) {
-        LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not found"), klass->namespaze, klass->name, name.c_str(), paramCount);
-        return 0;
-    }
-    return GetOffset(res);
+    return GetMethodByName(name, params_names).GetOffset();
 }
-BNM::IL2CPP::MethodInfo *BNM::LoadClass::GetMethodInfoByName(const std::string &name, const std::vector<std::string> &params_names, const std::vector<IL2CPP::Il2CppType *> &params_types) const {
-    if (!klass) return nullptr;
-    TryInit();
-    DO_API(IL2CPP::Il2CppClass*, il2cpp_class_from_il2cpp_type, (const IL2CPP::Il2CppType*));
-    size_t paramCount = params_names.size();
-    if (paramCount != params_types.size()) return nullptr;
-    for (int i = 0; i < klass->method_count; i++) {
-        auto method = (IL2CPP::MethodInfo *)klass->methods[i];
-        if (name == method->name && method->parameters_count == paramCount) {
-            bool ok = true;
-            for (int i = 0; i < paramCount; i++) {
-                auto param = method->parameters + i;
-                auto cls = il2cpp_class_from_il2cpp_type(param->parameter_type);
-                auto param_cls = il2cpp_class_from_il2cpp_type(params_types[i]);
-                if (param->name != params_names[i] || !(!strcmp(cls->name, param_cls->name) && !strcmp(cls->namespaze, param_cls->namespaze))) {
-                    ok = false;
-                    break;
-                }
-            }
-            if (ok)
-                return method;
-        }
-    }
-    return nullptr;
+[[maybe_unused]] BNM::IL2CPP::MethodInfo *BNM::LoadClass::GetMethodInfoByName(const std::string &name, const std::vector<std::string> &params_names, const std::vector<IL2CPP::Il2CppType *> &params_types) const {
+    return GetMethodByName(name, params_names, params_types).GetInfo();
 }
-
 [[maybe_unused]] DWORD BNM::LoadClass::GetMethodOffsetByName(const std::string &name, const std::vector<std::string> &params_names, const std::vector<IL2CPP::Il2CppType *> &params_types) const {
-    if (!klass) return 0;
-    size_t paramCount = params_names.size();
-    if (paramCount != params_types.size()) return 0;
-    IL2CPP::MethodInfo *res = GetMethodInfoByName(name, params_names, params_types);
-    if (!res) {
-        LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not found"), klass->namespaze, klass->name, name.c_str(), paramCount);
-        return 0;
-    }
-    return GetOffset(res);
+    return GetMethodByName(name, params_names, params_types).GetOffset();
 }
-BNM::IL2CPP::MethodInfo *BNM::LoadClass::GetMethodInfoByName(const std::string &name, const std::vector<IL2CPP::Il2CppType *> &params_types) const {
-    if (!klass) return nullptr;
-    TryInit();
-    DO_API(IL2CPP::Il2CppClass*, il2cpp_class_from_il2cpp_type, (const IL2CPP::Il2CppType*));
-    size_t paramCount = params_types.size();
-    for (int i = 0; i < klass->method_count; i++) {
-        auto method = (IL2CPP::MethodInfo *)klass->methods[i];
-        if (name == method->name && method->parameters_count == paramCount) {
-            bool ok = true;
-            for (int i = 0; i < paramCount; i++) {
-                auto param = method->parameters + i;
-                auto cls = il2cpp_class_from_il2cpp_type(param->parameter_type);
-                auto param_cls = il2cpp_class_from_il2cpp_type(params_types[i]);
-                if (!(cls->name == param_cls->name && cls->namespaze == param_cls->namespaze)) {
-                    ok = false;
-                    break;
-                }
-            }
-            if (ok)
-                return method;
-        }
-    }
-    return nullptr;
+[[maybe_unused]] BNM::IL2CPP::MethodInfo *BNM::LoadClass::GetMethodInfoByName(const std::string &name, const std::vector<IL2CPP::Il2CppType *> &params_types) const {
+    return GetMethodByName(name, params_types).GetInfo();
 }
 [[maybe_unused]] DWORD BNM::LoadClass::GetMethodOffsetByName(const std::string &name, const std::vector<IL2CPP::Il2CppType *> &params_types) const {
-    if (!klass) return 0;
-    size_t paramCount = params_types.size();
-    IL2CPP::MethodInfo *res = GetMethodInfoByName(name, params_types);
-    if (!res) {
-        LOGIBNM(OBFUSCATE_BNM("Method: [%s].[%s]::[%s], %d - not found"), klass->namespaze, klass->name, name.c_str(), paramCount);
-        return 0;
-    }
-    return GetOffset(res);
+    return GetMethodByName(name, params_types).GetOffset();
 }
+#endif
+BNM::Method<void> BNM::LoadClass::GetMethodByName(const std::string &name, int parameters) const {
+    if (!klass) return {};
+    TryInit();
+    auto curClass = klass;
+    do {
+        for (int i = 0; i < curClass->method_count; ++i) {
+            auto method = (IL2CPP::MethodInfo *) curClass->methods[i];
+            if (name == method->name && (method->parameters_count == parameters || parameters == -1))
+                return {method};
+        }
+        curClass = curClass->parent;
+    } while (curClass);
+    LOGWBNM(OBFUSCATE_BNM("Method: [%s]::[%s].[%s], %d - not found"), klass->namespaze, klass->name, name.c_str(), parameters);
+    return {};
+}
+BNM::Method<void> BNM::LoadClass::GetMethodByName(const std::string &name, const std::vector<std::string> &params_names) const {
+    if (!klass) return {};
+    TryInit();
+    DO_API(const char*, il2cpp_method_get_param_name, (IL2CPP::MethodInfo* method, uint32_t index));
+    auto curClass = klass;
+    size_t paramCount = params_names.size();
+    do {
+        for (int i = 0; i < curClass->method_count; ++i) {
+            auto method = (IL2CPP::MethodInfo *) curClass->methods[i];
+            if (name == method->name && method->parameters_count == paramCount) {
+                bool ok = true;
+                for (int g = 0; g < paramCount; ++g)
+                    if (il2cpp_method_get_param_name(method, g) != params_names[g]) {
+                        ok = false;
+                        break;
+                    }
+                if (ok) return {method};
+            }
+        }
+        curClass = curClass->parent;
+    } while (curClass);
+    LOGWBNM(OBFUSCATE_BNM("Method: [%s]::[%s].[%s], %d - not found (using params_names)"), klass->namespaze, klass->name, name.c_str(), paramCount);
+    return {};
+}
+BNM::Method<void> BNM::LoadClass::GetMethodByName(const std::string &name, const std::vector<std::string> &params_names, const std::vector<BNM::IL2CPP::Il2CppType *> &params_types) const {
+    if (!klass) return {};
+    TryInit();
+    DO_API(IL2CPP::Il2CppClass*, il2cpp_class_from_il2cpp_type, (const IL2CPP::Il2CppType*));
+    DO_API(const char*, il2cpp_method_get_param_name, (IL2CPP::MethodInfo* method, uint32_t index));
+    auto curClass = klass;
+    size_t paramCount = params_names.size();
+    if (paramCount != params_types.size()) return {};
+    do {
+        for (int i = 0; i < curClass->method_count; ++i) {
+            auto method = (IL2CPP::MethodInfo *)curClass->methods[i];
+            if (name == method->name && method->parameters_count == paramCount) {
+                bool ok = true;
+                for (int g = 0; g < paramCount; ++g) {
+#if UNITY_VER < 212
+                    auto param = method->parameters + g;
+                    auto cls = il2cpp_class_from_il2cpp_type(param->parameter_type);
+#else
+                    auto param = method->parameters[g];
+                    auto cls = il2cpp_class_from_il2cpp_type(param);
+#endif
+                    auto param_cls = il2cpp_class_from_il2cpp_type(params_types[g]);
+                    if (il2cpp_method_get_param_name(method, g) != params_names[g] || !(!strcmp(cls->name, param_cls->name) && !strcmp(cls->namespaze, param_cls->namespaze))) {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (ok) return {method};
+            }
+        }
+        curClass = curClass->parent;
+    } while (curClass);
+    LOGWBNM(OBFUSCATE_BNM("Method: [%s]::[%s].[%s], %d - not found (using params_names and params_types)"), klass->namespaze, klass->name, name.c_str(), paramCount);
+    return {};
+}
+BNM::Method<void> BNM::LoadClass::GetMethodByName(const std::string& name, const std::vector<IL2CPP::Il2CppType *>& params_types) const {
+    if (!klass) return {};
+    TryInit();
+    DO_API(IL2CPP::Il2CppClass*, il2cpp_class_from_il2cpp_type, (const IL2CPP::Il2CppType*));
+    auto curClass = klass;
+    size_t paramCount = params_types.size();
+    do {
+        for (int i = 0; i < curClass->method_count; ++i) {
+            auto method = (IL2CPP::MethodInfo *)curClass->methods[i];
+            if (name == method->name && method->parameters_count == paramCount) {
+                bool ok = true;
+                for (int g = 0; g < paramCount; ++g) {
+#if UNITY_VER < 212
+                    auto param = method->parameters + g;
+                    auto cls = il2cpp_class_from_il2cpp_type(param->parameter_type);
+#else
+                    auto param = method->parameters[g];
+                    auto cls = il2cpp_class_from_il2cpp_type(param);
+#endif
+                    auto param_cls = il2cpp_class_from_il2cpp_type(params_types[g]);
+                    if (!(cls->name == param_cls->name && cls->namespaze == param_cls->namespaze)) {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (ok) return {method};
+            }
+        }
+        curClass = curClass->parent;
+    } while (curClass);
+    LOGWBNM(OBFUSCATE_BNM("Method: [%s]::[%s].[%s], %d - not found (using params_types)"), klass->namespaze, klass->name, name.c_str(), paramCount);
+    return {};
+}
+[[maybe_unused]] std::vector<BNM::IL2CPP::MethodInfo*> BNM::LoadClass::GetMethodsInfo(bool includeParent) const {
+    if (!klass) return {};
+    TryInit();
+    std::vector<IL2CPP::MethodInfo*> ret;
+    auto curClass = klass;
+    do {
+        for (int i = 0; i < curClass->method_count; ++i) ret.emplace_back(BNM::Method(curClass->methods[i]).GetInfo());
+        if (includeParent) curClass = curClass->parent;
+        else curClass = nullptr;
+    } while (curClass);
+    return ret;
+}
+
+[[maybe_unused]] std::vector<BNM::LoadClass> BNM::LoadClass::GetInnerClasses(bool includeParent) const {
+    if (!klass) return {};
+    TryInit();
+    std::vector<BNM::LoadClass> ret;
+    auto curClass = klass;
+    do {
+        for (int i = 0; i < curClass->nested_type_count; ++i) ret.emplace_back(curClass->nestedTypes[i]);
+        if (includeParent) curClass = curClass->parent;
+        else curClass = nullptr;
+    } while (curClass);
+    return ret;
+}
+[[maybe_unused]] std::vector<BNM::IL2CPP::FieldInfo*> BNM::LoadClass::GetFieldsInfo(bool includeParent) const {
+    if (!klass) return {};
+    TryInit();
+    std::vector<BNM::IL2CPP::FieldInfo*> ret;
+    auto curClass = klass;
+    do {
+        for (int i = 0; i < curClass->field_count; ++i) ret.emplace_back(curClass->fields + i);
+        if (includeParent) curClass = curClass->parent;
+        else curClass = nullptr;
+    } while (curClass);
+    return ret;
+}
+
+[[maybe_unused]] BNM::LoadClass BNM::LoadClass::GetInnerClass(const std::string& _name) const {
+    for (auto cls : GetInnerClasses()) if (_name == cls.klass->name) return cls;
+    return {};
+}
+
 BNM::IL2CPP::Il2CppType *BNM::LoadClass::GetIl2CppType() const {
     if (!klass) return nullptr;
     TryInit();
 #if UNITY_VER > 174
-    return (IL2CPP::Il2CppType *)&klass->byval_arg;
+    return (BNM::IL2CPP::Il2CppType *)&klass->byval_arg;
 #else
     return (IL2CPP::Il2CppType *)klass->byval_arg;
 #endif
@@ -230,13 +289,13 @@ BNM::IL2CPP::Il2CppType *BNM::LoadClass::GetIl2CppType() const {
 [[maybe_unused]] BNM::MonoType *BNM::LoadClass::GetMonoType() const {
     if (!klass) return nullptr;
     TryInit();
-    DO_API(IL2CPP::Il2CppObject*, il2cpp_type_get_object, (IL2CPP::Il2CppType*));
-    return (MonoType *) il2cpp_type_get_object(GetIl2CppType());
+    DO_API(BNM::IL2CPP::Il2CppObject*, il2cpp_type_get_object, (BNM::IL2CPP::Il2CppType*));
+    return (BNM::MonoType *) il2cpp_type_get_object(GetIl2CppType());
 }
 void *BNM::LoadClass::CreateNewInstance() const {
     if (!klass) return nullptr;
     TryInit();
-    DO_API(IL2CPP::Il2CppObject*, il2cpp_object_new, (IL2CPP::Il2CppClass*));
+    DO_API(BNM::IL2CPP::Il2CppObject*, il2cpp_object_new, (BNM::IL2CPP::Il2CppClass*));
     return (void *) il2cpp_object_new(klass);
 }
 BNM::IL2CPP::Il2CppClass *BNM::LoadClass::GetIl2CppClass() const {
@@ -248,8 +307,9 @@ BNM::IL2CPP::Il2CppClass *BNM::LoadClass::GetIl2CppClass() const {
         TryInit();
         return OBFUSCATES_BNM("[") + klass->namespaze + OBFUSCATES_BNM("]::[") + klass->name + OBFUSCATES_BNM("]");
     }
-    return OBFUSCATES_BNM("Class not loaded!");
+    return OBFUSCATES_BNM("Uninitialized class");
 }
+#ifdef BNM_DEPRECATED
 BNM::LoadClass BNM::LoadClass::WithMethodName(const std::string& _namespace, const std::string& _name, const std::string& methodName) {
     DO_API(BNM::IL2CPP::Il2CppImage*, il2cpp_assembly_get_image, (const BNM::IL2CPP::Il2CppAssembly*));
     for (auto assembly : *Assembly$$GetAllAssemblies()) {
@@ -260,21 +320,20 @@ BNM::LoadClass BNM::LoadClass::WithMethodName(const std::string& _namespace, con
             if (!BNM::CheckObj(cls)) continue;
             Class$$Init(cls);
             if (BNM::CheckObj(cls->name) == _name && BNM::CheckObj(cls->namespaze) == _namespace) {
-                for (int i = 0; i < cls->method_count; i++) {
+                for (int i = 0; i < cls->method_count; ++i) {
                     auto method = (IL2CPP::MethodInfo *)cls->methods[i];
                     if (method && methodName == method->name)
-                        return LoadClass(cls);
+                        return {cls};
                 }
             }
         }
     }
     return {};
 }
-
+#endif
 void BNM::LoadClass::TryInit() const {
     Class$$Init(klass);
 }
-
 BNM::IL2CPP::Il2CppArray *BNM::LoadClass::ArrayNew(IL2CPP::Il2CppClass* cls, IL2CPP::il2cpp_array_size_t length) {
     DO_API(IL2CPP::Il2CppArray*, il2cpp_array_new, (IL2CPP::Il2CppClass*, IL2CPP::il2cpp_array_size_t));
     return il2cpp_array_new(cls, length);
@@ -284,18 +343,77 @@ BNM::IL2CPP::Il2CppObject *BNM::LoadClass::ObjNew(IL2CPP::Il2CppClass* cls) {
     return il2cpp_object_new(cls);
 }
 BNM::IL2CPP::Il2CppObject *BNM::LoadClass::ObjBox(IL2CPP::Il2CppClass* klass, void *data) {
-    DO_API(IL2CPP::Il2CppObject*, il2cpp_value_box, (IL2CPP::Il2CppClass* , void*));
+    DO_API(IL2CPP::Il2CppObject*, il2cpp_value_box, (IL2CPP::Il2CppClass*, void*));
     return il2cpp_value_box(klass, data);
 }
 
-BNM::LoadClass BNM::TypeFinder::ToLC() const {
-    if (byNameOnly) {
-        return LoadClass(OBFUSCATE_BNM("System"), name);
-    } else if (withMethodName) {
-        return LoadClass::WithMethodName(_namespace, name, methodName);
-    } else {
-        return LoadClass(_namespace, name);
+BNM::Field<int> BNM::LoadClass::GetFieldByName(const std::string &name) const {
+    if (!klass) return nullptr;
+    TryInit();
+    auto curClass = klass;
+    do {
+        for (int i = 0; i < curClass->field_count; ++i) {
+            auto field = curClass->fields + i;
+            if (name == field->name)
+                return field;
+        }
+        curClass = curClass->parent;
+    } while (curClass);
+    LOGWBNM(OBFUSCATE_BNM("Field: [%s]::[%s].(%s) - not found"), klass->namespaze, klass->name, name.c_str());
+    return {};
+}
+
+bool BNM::LoadClass::ClassExists(const std::string& _namespace, const std::string& _name, const std::string& dllName) {
+    DO_API(IL2CPP::Il2CppImage*, il2cpp_assembly_get_image, (const IL2CPP::Il2CppAssembly*));
+    IL2CPP::Il2CppImage *dll = nullptr;
+    for (auto assembly : *Assembly$$GetAllAssemblies())
+        if (dllName == il2cpp_assembly_get_image(assembly)->name)
+            dll = il2cpp_assembly_get_image(assembly);
+    if (!dll)
+        return false;
+    TypeVector classes;
+    Image$$GetTypes(dll, false, &classes);
+    return std::any_of(classes.begin(), classes.end(), [&_namespace, &_name](IL2CPP::Il2CppClass* cls){ return cls->namespaze == _namespace && cls->name == _name; });
+}
+
+[[maybe_unused]] BNM::LoadClass BNM::LoadClass::GetArrayClass() const {
+    if (!klass) return {};
+    TryInit();
+    DO_API(BNM::IL2CPP::Il2CppClass*, il2cpp_array_class_get, (BNM::IL2CPP::Il2CppClass*, uint32_t));
+    return il2cpp_array_class_get(klass, 1);
+}
+
+[[maybe_unused]] BNM::Property<bool> BNM::LoadClass::GetPropertyByName(const std::string &name, bool warning) {
+    if (!klass) return {};
+    TryInit();
+    auto get = GetMethodByName(OBFUSCATES_BNM("get_") + name);
+    auto set = GetMethodByName(OBFUSCATES_BNM("set_") + name);
+    if (!get && !set){
+        LOGWBNM(OBFUSCATE_BNM("Property %s.[%s] not found"), GetClassName().c_str(), name.c_str());
+        return {};
     }
+    if (!get && warning)
+        LOGWBNM(OBFUSCATE_BNM("Property %s.[%s] without get"), GetClassName().c_str(), name.c_str());
+    if (!set && warning)
+        LOGWBNM(OBFUSCATE_BNM("Property %s.[%s] without set"), GetClassName().c_str(), name.c_str());
+    return {get, set};
+}
+
+void BNM::PRIVATE_FILED_UTILS::GetStaticValue(IL2CPP::FieldInfo* info, void *value) {
+    DO_API(void, il2cpp_field_static_get_value, (IL2CPP::FieldInfo*, void*));
+    return il2cpp_field_static_get_value(info, value);
+}
+void BNM::PRIVATE_FILED_UTILS::SetStaticValue(IL2CPP::FieldInfo* info, void *value) {
+    DO_API(void, il2cpp_field_static_set_value, (IL2CPP::FieldInfo*, void*));
+    return il2cpp_field_static_set_value(info, value);
+}
+BNM::LoadClass BNM::TypeFinder::ToLC() const {
+#ifdef BNM_DEPRECATED
+    auto ret = withMethodName ? LoadClass::WithMethodName(_namespace, name, methodName) : LoadClass(_namespace, name);
+#else
+    auto ret = LoadClass(_namespace, name);
+#endif
+    return isArray ? ret.GetArrayClass() : ret;
 }
 BNM::IL2CPP::Il2CppType *BNM::TypeFinder::ToIl2CppType() const {
     return (IL2CPP::Il2CppType *)ToLC().GetIl2CppType();
@@ -448,7 +566,7 @@ BNM::IL2CPP::Il2CppClass* Class$$FromIl2CppType(BNM::IL2CPP::Il2CppType* type) {
 BNM::IL2CPP::Il2CppClass* Class$$FromName(BNM::IL2CPP::Il2CppImage* image, const char* _namespace, const char *name) {
     if (!image || !name[0]) return nullptr;
     BNM::IL2CPP::Il2CppClass *ret = nullptr;
-    if (((DWORD)image->nameToClassHashTable) != -0x424e4d)
+    if (image->nameToClassHashTable != (decltype(image->nameToClassHashTable))-0x424e4d)
         ret = old_Class$$FromName(image, _namespace, name);
     if (!ret)
         BNMClassesMap.forEachByImage(image, [_namespace, name, &ret](BNM::IL2CPP::Il2CppClass *BNM_class) -> bool {
@@ -462,14 +580,14 @@ BNM::IL2CPP::Il2CppClass* Class$$FromName(BNM::IL2CPP::Il2CppImage* image, const
 }
 bool Class$$Init(BNM::IL2CPP::Il2CppClass *klass) {
     if (!klass) return false;
-    if (((DWORD)klass->image->nameToClassHashTable) != -0x424e4d)
+    if (klass->image->nameToClassHashTable != (decltype(klass->image->nameToClassHashTable))-0x424e4d)
         return old_Class$$Init(klass);
     return true;
 }
 
 void Image$$GetTypes(BNM::IL2CPP::Il2CppImage* image, bool, BNM::TypeVector* target) {
     if (!image || !target) return;
-    if (((DWORD)image->nameToClassHashTable) != -0x424e4d)
+    if (image->nameToClassHashTable != (decltype(image->nameToClassHashTable))-0x424e4d)
         old_Image$$GetTypes(image, false, target);
     BNMClassesMap.forEachByImage(image, [&target](BNM::IL2CPP::Il2CppClass *BNM_class) -> bool {
         target->push_back(BNM_class);
@@ -504,7 +622,6 @@ BNM::IL2CPP::Il2CppAssembly* new_Assembly_Load(const char *name) {
     return nullptr;
 }
 #endif
-
 void BNM::NEW_CLASSES::AddNewClass(NEW_CLASSES::NewClass *klass) {
     if (!Classes4Add)
         Classes4Add = new std::vector<BNM::NEW_CLASSES::NewClass *>();
@@ -513,6 +630,10 @@ void BNM::NEW_CLASSES::AddNewClass(NEW_CLASSES::NewClass *klass) {
 void InitNewClasses(std::vector<BNM::NEW_CLASSES::NewClass *> *classes) {
     if (!classes) return;
     for (auto klass : *classes) {
+        if (BNM::LoadClass::ClassExists(klass->myNamespace, klass->Name, klass->DllName)) {
+            LOGWBNM(OBFUSCATE_BNM("[%s] [%s]::[%s] already exist, it can't be added it to il2cpp! Please check code."), klass->DllName, klass->myNamespace, klass->Name);
+            continue;
+        }
         auto type = new BNM::IL2CPP::Il2CppType();
         type->type = (BNM::IL2CPP::Il2CppTypeEnum)klass->classType;
         type->pinned = 0;
@@ -529,37 +650,41 @@ void InitNewClasses(std::vector<BNM::NEW_CLASSES::NewClass *> *classes) {
         std::vector<BNM::IL2CPP::VirtualInvokeData> newVTable;
         std::vector<BNM::IL2CPP::Il2CppRuntimeInterfaceOffsetPair> newInterOffsets;
         if (parent->interfaceOffsets)
-            for (uint16_t nI = 0; nI < parent->interface_offsets_count; ++nI)
-                newInterOffsets.push_back(parent->interfaceOffsets[nI]);
-        for (uint16_t v = 0; v < parent->vtable_count; ++v)
-            newVTable.push_back(parent->vtable[v]);
+            for (uint16_t i = 0; i < parent->interface_offsets_count; ++i)
+                newInterOffsets.push_back(parent->interfaceOffsets[i]);
+        for (uint16_t i = 0; i < parent->vtable_count; ++i) newVTable.push_back(parent->vtable[i]);
         const BNM::IL2CPP::MethodInfo **methods = nullptr;
         if (!klass->Methods4Add.empty()) {
             methods = (const BNM::IL2CPP::MethodInfo **) calloc(klass->Methods4Add.size(), sizeof(BNM::IL2CPP::MethodInfo *));
-            for (int m = 0; m < klass->Methods4Add.size(); m++) {
-                auto method = klass->Methods4Add[m];
+            for (int i = 0; i < klass->Methods4Add.size(); ++i) {
+                auto method = klass->Methods4Add[i];
                 method->thisMethod->name = method->Name;
-                method->thisMethod->flags = 0x0006 | 0x0080 | (method->isStatic ? 0x0010 : 0); // PUBLIC | HIDE_BY_SIG | (isStatic ? STATIC : NONE)
+                method->thisMethod->flags = 0x0006 | 0x0080;
+                if (method->isStatic) method->thisMethod->flags |= 0x0010; // PUBLIC | HIDE_BY_SIG | (isStatic ? STATIC : NONE)
                 method->thisMethod->is_generic = false;
                 method->thisMethod->return_type = method->ret_type.ToIl2CppType();
-                for (int ip = 0; ip < method->thisMethod->parameters_count; ip++) {
+#if UNITY_VER < 212
+                for (int p = 0; p < method->thisMethod->parameters_count; ++p) {
                     auto newParam = new BNM::IL2CPP::ParameterInfo();
-                    newParam->name = (OBFUSCATES_BNM("arg") + to_string(ip)).c_str();
-                    newParam->position = ip;
-                    if (method->args_types && !method->args_types->empty() && ip < method->args_types->size())
-                        newParam->parameter_type = (*method->args_types)[ip].ToIl2CppType();
+                    newParam->name = (OBFUSCATES_BNM("arg") + std::to_string(p)).c_str();
+                    newParam->position = p;
+                    if (method->args_types && !method->args_types->empty() && p < method->args_types->size())
+                        newParam->parameter_type = (*method->args_types)[p].ToIl2CppType();
                 }
-                methods[m] = method->thisMethod;
+#else
+                method->thisMethod->parameters = nullptr;
+#endif
+                methods[i] = method->thisMethod;
             }
         }
         klass->thisClass = (BNM::IL2CPP::Il2CppClass*)malloc(sizeof(BNM::IL2CPP::Il2CppClass) + newVTable.size() * sizeof(BNM::IL2CPP::VirtualInvokeData));
         if (!klass->Methods4Add.empty()) {
-            for (int im = 0; im < klass->Methods4Add.size(); im++)
-                ((BNM::IL2CPP::MethodInfo *)methods[im])
+            for (int i = 0; i < klass->Methods4Add.size(); ++i)
+                ((BNM::IL2CPP::MethodInfo *)methods[i])
 #if UNITY_VER > 174
                         ->klass = klass->thisClass;
 #else
-            ->declaring_type = klass->thisClass;
+                        ->declaring_type = klass->thisClass;
 #endif
             klass->thisClass->method_count = klass->Methods4Add.size();
             klass->thisClass->methods = methods;
@@ -580,40 +705,44 @@ void InitNewClasses(std::vector<BNM::NEW_CLASSES::NewClass *> *classes) {
 #if UNITY_VER > 174
                 *type;
 #else
-        type;
+                type;
 #endif
-        klass->thisClass->flags = klass->thisClass->parent->flags & ~0x00000080; // TYPE_ATTRIBUTE_ABSTRACT
+        klass->thisClass->declaringType = nullptr;
+        klass->thisClass->flags = klass->thisClass->parent->flags &~0x00000080; // TYPE_ATTRIBUTE_ABSTRACT
         klass->thisClass->element_class = klass->thisClass;
         klass->thisClass->castClass = klass->thisClass;
 #if UNITY_VER > 174
         klass->thisClass->klass = klass->thisClass;
 #endif
-        klass->thisClass->native_size -1;
+        klass->thisClass->native_size = -1;
         klass->thisClass->actualSize = klass->size;
         klass->thisClass->instance_size = klass->size;
         klass->thisClass->vtable_count = newVTable.size();
-        for (int vi = 0; vi < newVTable.size(); vi++)
-            klass->thisClass->vtable[vi] = newVTable[vi];
+        for (int i = 0; i < newVTable.size(); ++i) klass->thisClass->vtable[i] = newVTable[i];
         newVTable.clear();
         klass->thisClass->interface_offsets_count = newInterOffsets.size();
         klass->thisClass->interfaceOffsets = (BNM::IL2CPP::Il2CppRuntimeInterfaceOffsetPair*)(calloc(newInterOffsets.size(), sizeof(BNM::IL2CPP::Il2CppRuntimeInterfaceOffsetPair)));
-        for (int ii = 0; ii < newInterOffsets.size(); ii++)
-            klass->thisClass->interfaceOffsets[ii] = newInterOffsets[ii];
+        for (int i = 0; i < newInterOffsets.size(); ++i)
+            klass->thisClass->interfaceOffsets[i] = newInterOffsets[i];
         newInterOffsets.clear();
         if (!klass->Interfaces.empty()) {
             auto interfaces = klass->Interfaces;
             klass->thisClass->interfaces_count = interfaces.size();
-            klass->thisClass->implementedInterfaces = (BNM::IL2CPP::Il2CppClass**)calloc(interfaces.size(), sizeof(BNM::IL2CPP::Il2CppClass*));
-            for (int ii = 0; ii < interfaces.size(); ii++)
-                klass->thisClass->implementedInterfaces[ii] = interfaces[ii];
+            klass->thisClass->implementedInterfaces = (BNM::IL2CPP::Il2CppClass**)calloc(interfaces.size(), sizeof(BNM::IL2CPP::Il2CppClass *));
+            for (int i = 0; i < interfaces.size(); ++i) klass->thisClass->implementedInterfaces[i] = interfaces[i];
             interfaces.clear();
+        } else {
+            klass->thisClass->interfaces_count = 0;
+            klass->thisClass->implementedInterfaces = nullptr;
         }
         klass->thisClass->generic_class = nullptr;
         klass->thisClass->genericRecursionDepth = 1;
         klass->thisClass->initialized = 1;
 #if UNITY_VER > 182
         klass->thisClass->initialized_and_no_error = 1;
+#if UNITY_VER < 212
         klass->thisClass->has_initialization_error = 0;
+#endif
         klass->thisClass->naturalAligment = 8;
 #endif
         klass->thisClass->init_pending = 0;
@@ -639,8 +768,7 @@ void InitNewClasses(std::vector<BNM::NEW_CLASSES::NewClass *> *classes) {
             auto fields = (BNM::IL2CPP::FieldInfo *)calloc(klass->thisClass->field_count, sizeof(BNM::IL2CPP::FieldInfo));
             BNM::IL2CPP::FieldInfo* newField = fields;
             if (!klass->Fields4Add.empty()) {
-                for (int f = 0; f < klass->Fields4Add.size(); f++) {
-                    auto field = klass->Fields4Add[f];
+                for (auto field : klass->Fields4Add) {
                     newField->name = field->Name;
                     newField->type = field->type.ToIl2CppType();
                     newField->parent = klass->thisClass;
@@ -651,8 +779,7 @@ void InitNewClasses(std::vector<BNM::NEW_CLASSES::NewClass *> *classes) {
                 klass->Fields4Add.clear();
             }
             if (!klass->StaticFields4Add.empty()) {
-                for (int sf = 0; sf < klass->StaticFields4Add.size(); sf++) {
-                    auto field = klass->StaticFields4Add[sf];
+                for (auto field : klass->StaticFields4Add) {
                     newField->name = field->Name;
                     newField->type = field->type.ToIl2CppType();
                     newField->parent = klass->thisClass;
@@ -674,7 +801,7 @@ void InitNewClasses(std::vector<BNM::NEW_CLASSES::NewClass *> *classes) {
 }
 #endif
 
-namespace HexUtils {
+namespace BNM::HexUtils {
     std::string ReverseHexString(const std::string &hex) {
         std::string out;
         for (unsigned int i = 0; i < hex.length(); i += 2) out.insert(0, hex.substr(i, 2));
@@ -687,19 +814,25 @@ namespace HexUtils {
             str.replace(tmp, 2, OBFUSCATE_BNM(""));
         }
         for (int i = (int)str.length() - 1; i >= 0; --i)
-            if (str[i] == ' ')
-                str.erase(i, 1);
+            if (str[i] == ' ') str.erase(i, 1);
         return str;
     }
     DWORD HexStr2DWORD(const std::string &hex) { return strtoull(hex.c_str(), nullptr, 16); }
-    bool Is_B_BL_Hex_arm64(const std::string &hex) {
+#if defined(__ARM_ARCH_7A__)
+    bool Is_B_BL_Hex(const std::string& hex) {
+        DWORD hexW = HexStr2DWORD(ReverseHexString(FixHexString(hex)));
+        return (hexW & 0x0A000000) == 0x0A000000;
+    }
+#elif defined(__aarch64__)
+    bool Is_B_BL_Hex(const std::string& hex) {
         DWORD hexW = HexStr2DWORD(ReverseHexString(FixHexString(hex)));
         return (hexW & 0xFC000000) == 0x14000000 || (hexW & 0xFC000000) == 0x94000000;
     }
-    bool Is_B_BL_Hex(const std::string &hex) {
-        DWORD hexW = HexStr2DWORD(ReverseHexString(FixHexString(hex)));
-        return ((hexW & 0xFC000000) == 0x14000000 || (hexW & 0xFC000000) == 0x94000000) || (hexW & 0x0A000000) == 0x0A000000;
-    }
+#elif defined(__i386__)
+    bool Is_x86_call_hex(const std::string &hex) { return hex.substr(0, 2) == OBFUSCATE_BNM("E8"); }
+#else
+#warning "Call or B BL hex checker support only arm64, arm and x86"
+#endif
     std::string ReadMemory(DWORD address, size_t len) {
         char temp[len];
         memset(temp, 0, len);
@@ -707,25 +840,33 @@ namespace HexUtils {
         char buffer[bufferLen];
         memset(buffer, 0, bufferLen);
         std::string ret;
-        if (memcpy(temp, (void *)address, len) == nullptr)
-            return ret;
-        for (int i = 0; i < len; i++)
+        if (memcpy(temp, (void *)address, len) == nullptr) return ret;
+        for (int i = 0; i < len; ++i)
             sprintf(&buffer[i * 2], OBFUSCATE_BNM("%02X"), (unsigned char) temp[i]);
         ret += buffer;
         return ret;
     }
-    bool Is_x86_call_hex(const std::string &hex) { return hex.substr(0, 2) == OBFUSCATE_BNM("E8"); }
-/*
- * Branch decoding based on
- * https://github.com/aquynh/capstone/
-*/
-    bool Decode_Branch_or_Call_Hex(const std::string &hex, DWORD offset, DWORD *outOffset) {
-        bool arm;
-        if (!(arm = Is_B_BL_Hex(hex)) && !Is_x86_call_hex(hex)) return false;
-        if (arm)
-            *outOffset = ((int32_t)(((((HexStr2DWORD(ReverseHexString(FixHexString(hex)))) & (((uint32_t)1 << 24) - 1) << 0) >> 0) << 2) << (32 - 26)) >> (32 - 26)) + offset + (Is_B_BL_Hex_arm64(hex) ? 0 : 8);
-        else
-            *outOffset = offset + HexStr2DWORD(ReverseHexString(FixHexString(hex)).substr(0, 8)) + 5;
+
+    /*
+     * Branch decoding based on
+     * https://github.com/aquynh/capstone/
+    */
+    bool Decode_Branch_or_Call_Hex(const std::string &hex, DWORD offset, DWORD &outOffset) {
+#if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
+        if (!Is_B_BL_Hex(hex)) return false;
+#if defined(__aarch64__)
+        int add = 0;
+#else
+        int add = 8;
+#endif
+        outOffset = ((int32_t)(((((HexStr2DWORD(ReverseHexString(FixHexString(hex)))) & (((uint32_t)1 << 24) - 1) << 0) >> 0) << 2) << (32 - 26)) >> (32 - 26)) + offset + add;
+#elif defined(__i386__)
+        if (!Is_x86_call_hex(hex)) return false;
+        outOffset = offset + HexStr2DWORD(ReverseHexString(FixHexString(hex)).substr(0, 8)) + 5;
+#else
+#warning "Decode_Branch_or_Call_Hex support only arm64, arm and x86"
+        return false;
+#endif
         return true;
     }
     DWORD FindNext_B_BL_offset(DWORD start, int index = 1) {
@@ -734,11 +875,10 @@ namespace HexUtils {
         std::string curHex = ReadMemory(start, 4);
         DWORD outOffset = 0;
         bool out;
-        while (!(out = Decode_Branch_or_Call_Hex(curHex, start + offset, &outOffset)) || index != 1) {
+        while (!(out = Decode_Branch_or_Call_Hex(curHex, start + offset, outOffset)) || index != 1) {
             offset += 4;
             curHex = ReadMemory(start + offset, 4);
-            if (out)
-                index--;
+            if (out) index--;
         }
         return outOffset;
 #elif defined(__i386__)
@@ -749,10 +889,9 @@ namespace HexUtils {
         while (!(out = Is_x86_call_hex(curHex)) || index != 1) {
             offset += 1;
             curHex = ReadMemory(start + offset, 1);
-            if (out)
-                index--;
+            if (out) index--;
         }
-        Decode_Branch_or_Call_Hex(ReadMemory(start + offset, 5), start + offset, &outOffset);
+        Decode_Branch_or_Call_Hex(ReadMemory(start + offset, 5), start + offset, outOffset);
         return outOffset;
 #endif
     }
@@ -770,13 +909,13 @@ void InitIl2cppMethods() {
 #else
         if (!Class$$Init) {
 #endif
-        auto Class$$Init_t = HexUtils::FindNext_B_BL_offset(HexUtils::FindNext_B_BL_offset((DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_array_new_specific")), count), count);
+        auto Class$$Init_t = BNM::HexUtils::FindNext_B_BL_offset(BNM::HexUtils::FindNext_B_BL_offset((DWORD) BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_array_new_specific")), count), count);
 #if __cplusplus >= 201703
         HOOK(Class$$Init_t, Class$$Init, old_Class$$Init);
 #else
         Class$$Init = (decltype(Class$$Init)) Class$$Init_t;
 #endif
-        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::Init in lib: 0x%x"), BNM::offsetInLib(Class$$Init_t));
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::Init in lib: %p"), BNM::offsetInLib((void *)Class$$Init_t));
     }
     //! il2cpp::vm::Image::GetTypes HOOK AND GET (OR ONLY GET)
 #if __cplusplus >= 201703
@@ -786,58 +925,52 @@ void InitIl2cppMethods() {
 #endif
         DO_API(const BNM::IL2CPP::Il2CppImage*, il2cpp_get_corlib, ());
         DO_API(BNM::IL2CPP::Il2CppClass*, il2cpp_class_from_name, (const BNM::IL2CPP::Il2CppImage*, const char*, const char *));
-        DO_API(const BNM::IL2CPP::MethodInfo*, il2cpp_class_get_method_from_name, (BNM::IL2CPP::Il2CppClass*, const char*, int));
         DWORD GetTypesAdr = 0;
         auto assemblyClass = il2cpp_class_from_name(il2cpp_get_corlib(), OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("Assembly"));
-        Class$$Init(assemblyClass);
-        for (int i = 0; i < assemblyClass->method_count; i++) {
-            const BNM::IL2CPP::MethodInfo *method = assemblyClass->methods[i];
-            if (!BNM::CheckObj(method)) continue;
-            if (!strcmp(OBFUSCATE_BNM("GetTypes"), method->name) && method->parameters_count == 1) {
-                GetTypesAdr = (DWORD) method->methodPointer;
-                break;
-            }
-        }
+        GetTypesAdr = BNM::LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetTypes"), 1).GetOffset(); // We can use LoadClass here by Il2CppClass, because for methods we need only it.
         const int sCount
-#if UNITY_VER > 174
-                = count + 1;
+#if UNITY_VER >= 211
+        = count;
+#elif UNITY_VER > 174
+        = count + 1;
 #else
         = count + 2;
+
 #endif
-        auto Image$$GetTypes_t = HexUtils::FindNext_B_BL_offset(HexUtils::FindNext_B_BL_offset(HexUtils::FindNext_B_BL_offset(GetTypesAdr, count), sCount), count);
+        auto Image$$GetTypes_t = BNM::HexUtils::FindNext_B_BL_offset(BNM::HexUtils::FindNext_B_BL_offset(BNM::HexUtils::FindNext_B_BL_offset(GetTypesAdr, count), sCount), count);
 #if __cplusplus >= 201703
         HOOK(Image$$GetTypes_t, Image$$GetTypes, old_Image$$GetTypes);
 #else
         Image$$GetTypes = (decltype(Image$$GetTypes)) Image$$GetTypes_t;
 #endif
-        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Image::GetTypes in lib: 0x%x"), BNM::offsetInLib(Image$$GetTypes_t));
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Image::GetTypes in lib: %p"), BNM::offsetInLib((void *)Image$$GetTypes_t));
     }
 #if __cplusplus >= 201703
     //! il2cpp::vm::Class::FromIl2CppType HOOK
     if (!old_Class$$FromIl2CppType) {
-        auto from_type_adr = HexUtils::FindNext_B_BL_offset((DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_class_from_type")), count);
+        auto from_type_adr = BNM::HexUtils::FindNext_B_BL_offset((DWORD) BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_class_from_type")), count);
         HOOK(from_type_adr, Class$$FromIl2CppType, old_Class$$FromIl2CppType);
-        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromIl2CppType in lib: 0x%x"), BNM::offsetInLib(from_type_adr));
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromIl2CppType in lib: %p"), BNM::offsetInLib((void *)from_type_adr));
     }
     //! il2cpp::vm::Class::FromName HOOK
     if (!old_Class$$FromName) {
-        auto from_name_adr = HexUtils::FindNext_B_BL_offset(HexUtils::FindNext_B_BL_offset((DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_class_from_name")), count), count);
+        auto from_name_adr = BNM::HexUtils::FindNext_B_BL_offset(BNM::HexUtils::FindNext_B_BL_offset((DWORD) BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_class_from_name")), count), count);
         HOOK(from_name_adr, Class$$FromName, old_Class$$FromName);
-        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromName in lib: 0x%x"), BNM::offsetInLib(from_name_adr));
+        LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromName in lib: %p"), BNM::offsetInLib((void *)from_name_adr));
     }
 #if UNITY_VER <= 174
     //! il2cpp::vm::MetadataCache::GetImageFromIndex HOOK
         if (!old_GetImageFromIndex) {
-            auto GetImageFromIndexOffset = HexUtils::FindNext_B_BL_offset(HexUtils::FindNext_B_BL_offset((DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_assembly_get_image")), count), count);
+            auto GetImageFromIndexOffset = HexUtils::FindNext_B_BL_offset(HexUtils::FindNext_B_BL_offset((DWORD)BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_assembly_get_image")), count), count);
             HOOK(GetImageFromIndexOffset, new_GetImageFromIndex, old_GetImageFromIndex);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::MetadataCache::GetImageFromIndex in lib: 0x%x"), BNM::offsetInLib(GetImageFromIndexOffset));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::MetadataCache::GetImageFromIndex in lib: %p"), BNM::offsetInLib((void *)GetImageFromIndexOffset));
         }
         static void *old_AssemblyLoad;
         //! il2cpp::vm::Assembly::Load HOOK
         if (!old_AssemblyLoad) {
-            DWORD AssemblyLoadOffset = HexUtils::FindNext_B_BL_offset((DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
+            DWORD AssemblyLoadOffset = HexUtils::FindNext_B_BL_offset((DWORD)BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
             HOOK(AssemblyLoadOffset, new_Assembly_Load, old_AssemblyLoad);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::Load in lib: 0x%x"), BNM::offsetInLib(AssemblyLoadOffset));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::Load in lib: %p"), BNM::offsetInLib((void *)AssemblyLoadOffset));
         }
 #endif
 #endif
@@ -845,28 +978,28 @@ void InitIl2cppMethods() {
     if (!Assembly$$GetAllAssemblies) {
         DO_API(BNM::IL2CPP::Il2CppImage*, il2cpp_get_corlib, ());
         DO_API(BNM::IL2CPP::Il2CppClass*, il2cpp_class_from_name, (BNM::IL2CPP::Il2CppImage*, const char*, const char*));
-        DO_API(BNM::IL2CPP::MethodInfo*, il2cpp_class_get_method_from_name, (BNM::IL2CPP::Il2CppClass*, const char*, int));
         auto assemblyClass = il2cpp_class_from_name(il2cpp_get_corlib(), OBFUSCATE_BNM("System"), OBFUSCATE_BNM("AppDomain"));
-        Class$$Init(assemblyClass);
-        const BNM::IL2CPP::MethodInfo *getAssembly = nullptr;
-        for (int i = 0; i < assemblyClass->method_count; i++) {
-            const BNM::IL2CPP::MethodInfo *method = assemblyClass->methods[i];
-            if (!BNM::CheckObj(method)) continue;
-            if (!strcmp(OBFUSCATE_BNM("GetAssemblies"), method->name) && method->parameters_count == 1) {
-                getAssembly = method;
-                break;
-            }
-        }
+        auto getAssembly = BNM::LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetTypes"), 1);
         if (getAssembly) {
-            DWORD GetTypesAdr = HexUtils::FindNext_B_BL_offset((DWORD) getAssembly->methodPointer, count);
-            Assembly$$GetAllAssemblies = (BNM::AssemblyVector *(*)())(HexUtils::FindNext_B_BL_offset(GetTypesAdr, count+1));
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies by AppDomain in lib: 0x%x"), BNM::offsetInLib((DWORD)Assembly$$GetAllAssemblies));
+            const int sCount
+#if UNITY_VER >= 211
+                = count;
+#else
+                = count + 1;
+#endif
+            DWORD GetTypesAdr = BNM::HexUtils::FindNext_B_BL_offset(getAssembly.GetOffset(), count);
+            Assembly$$GetAllAssemblies = (BNM::AssemblyVector *(*)())(BNM::HexUtils::FindNext_B_BL_offset(GetTypesAdr, sCount));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies by AppDomain in lib: %p"), BNM::offsetInLib((void *)Assembly$$GetAllAssemblies));
         } else {
-            auto adr = (DWORD)dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_get_assemblies"));
-            Assembly$$GetAllAssemblies = (BNM::AssemblyVector *(*)())(HexUtils::FindNext_B_BL_offset(adr, count));
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies by domain in lib: 0x%x"), BNM::offsetInLib((DWORD)Assembly$$GetAllAssemblies));
+            auto adr = (DWORD) BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_get_assemblies"));
+            Assembly$$GetAllAssemblies = (BNM::AssemblyVector *(*)())(BNM::HexUtils::FindNext_B_BL_offset(adr, count));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies by domain in lib: %p"), BNM::offsetInLib((void *)Assembly$$GetAllAssemblies));
         }
     }
+}
+BNM::Field<intptr_t> m_CachedPtr;
+DWORD BNM::getCachedPtr() {
+    return m_CachedPtr.GetOffset();
 }
 void (*old_BNM_il2cpp_init)(const char*);
 void BNM_il2cpp_init(const char* domain_name) {
@@ -875,24 +1008,51 @@ void BNM_il2cpp_init(const char* domain_name) {
 #if __cplusplus >= 201703
     InitNewClasses(Classes4Add);
 #endif
+    m_CachedPtr = BNM::LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object")).GetFieldByName(OBFUSCATE_BNM("m_CachedPtr"));
     BNM_LibLoaded = true;
 }
 [[maybe_unused]] __attribute__((constructor))
 void PrepareBNM() {
     std::thread([]() {
         do {
-            BNM_dlLib = dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
+            if (BNM_hardBypass) { BNM_hardBypassed = true; break; }
+            BNM_dlLib = BNM_dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
             if (BNM_dlLib) {
-                void *init = dlsym(BNM_dlLib, OBFUSCATE_BNM("il2cpp_init"));
+                void *init = BNM_dlsym(BNM_dlLib, OBFUSCATE_BNM("il2cpp_init"));
                 if (init) {
+                    Dl_info info;
+                    BNM_dladdr(init, &info);
+                    auto l = strlen(info.dli_fname);
+                    char *s = (char *)malloc(l);
+                    strcpy(s, info.dli_fname);
+                    s[l] = 0;
+                    BNM_LibAbsolutePath = s;
                     HOOK(init, BNM_il2cpp_init, old_BNM_il2cpp_init);
                     break;
                 }
-                dlclose(BNM_dlLib);
+                BNM_dlclose(BNM_dlLib);
             }
         } while (true);
     }).detach();
 }
+#ifndef _WIN32
+
+[[maybe_unused]] void BNM::HardBypass(JNIEnv *env) {
+    if (!env || BNM_hardBypass) return;
+    BNM_hardBypass = true;
+    while (!BNM_hardBypassed && !BNM_dlLib) usleep(1); // Just in case
+    jclass activityThread = env->FindClass(OBFUSCATE_BNM("android/app/ActivityThread"));
+    auto context = env->CallObjectMethod(env->CallStaticObjectMethod(activityThread, env->GetStaticMethodID(activityThread, OBFUSCATE_BNM("currentActivityThread"), OBFUSCATE_BNM("()Landroid/app/ActivityThread;"))), env->GetMethodID(activityThread, OBFUSCATE_BNM("getApplication"), OBFUSCATE_BNM("()Landroid/app/Application;")));
+    auto info = env->CallObjectMethod(context, env->GetMethodID(env->GetObjectClass(context), OBFUSCATE_BNM("getApplicationInfo"), OBFUSCATE_BNM("()Landroid/content/pm/ApplicationInfo;")));
+    std::string path = env->GetStringUTFChars((jstring)env->GetObjectField(info, env->GetFieldID(env->GetObjectClass(info), OBFUSCATE_BNM("nativeLibraryDir"), OBFUSCATE_BNM("Ljava/lang/String;"))), nullptr);
+    BNM_LibAbsolutePath = BNM::str2char(path + OBFUSCATE_BNM("/libil2cpp.so"));
+    BNM_dlLib = BNM_dlopen(BNM_LibAbsolutePath, RTLD_LAZY);
+    if (BNM_dlLib)
+        HOOK(BNM_dlsym(BNM_dlLib, OBFUSCATE_BNM("il2cpp_init")), BNM_il2cpp_init, old_BNM_il2cpp_init);
+    else
+        LOGEBNM(OBFUSCATE_BNM("Can't hard bypass!"));
+}
+#endif
 typedef std::basic_string<BNM::IL2CPP::Il2CppChar> string16;
 std::string Utf16ToUtf8(BNM::IL2CPP::Il2CppChar* utf16String, size_t length) {
     std::string utf8String;
@@ -909,7 +1069,6 @@ string16 Utf8ToUtf16(const char* utf8String, size_t length) {
     return utf16String;
 }
 std::string BNM::MONO_STRUCTS::monoString::get_string() {
-    if (!this) return OBFUSCATE_BNM("ERROR: monoString is null");
     if (!isAllocated(chars)) return OBFUSCATE_BNM("ERROR: chars is null");
     return Utf16ToUtf8(chars, length);
 }
@@ -920,18 +1079,14 @@ std::string BNM::MONO_STRUCTS::monoString::str() { return get_string(); }
 BNM::MONO_STRUCTS::monoString::operator std::string() { return get_string(); }
 BNM::MONO_STRUCTS::monoString::operator const char *() { return get_const_char(); }
 std::string BNM::MONO_STRUCTS::monoString::get_string_old() {
-    if (!this)
-        return OBFUSCATE_BNM("ERROR: monoString is null");
-    if (!isAllocated(chars))
-        return OBFUSCATE_BNM("ERROR: chars is null");
+    if (!isAllocated(chars)) return OBFUSCATE_BNM("ERROR: chars is null");
     return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(std::wstring(chars, chars + length));
 }
 [[maybe_unused]] unsigned int BNM::MONO_STRUCTS::monoString::getHash() {
-    if (!this || !isAllocated(chars))
-        return 0;
+    if (!isAllocated(chars)) return 0;
     IL2CPP::Il2CppChar* p = chars;
     unsigned int h = 0;
-    for (int i = 0; i < length; i++)
+    for (int i = 0; i < length; ++i)
         h = (h << 5) - h + *p; p++;
     return h;
 }
@@ -943,24 +1098,28 @@ BNM::MONO_STRUCTS::monoString *BNM::MONO_STRUCTS::monoString::Create(const char 
     string16 u16 = Utf8ToUtf16(str, ret->length);
     memcpy(ret->chars, &u16[0], utf16Size);
     u16.clear();
-    if (monoString *empty = Empty())
-        ret->klass = empty->klass;
+    auto empty = Empty();
+    if (empty) ret->klass = empty->klass;
     return (monoString*)ret;
 }
-BNM::MONO_STRUCTS::monoString *BNM::MONO_STRUCTS::monoString::Create(const std::string& str) { return Create(str2char(str)); }
-[[maybe_unused]] BNM::MONO_STRUCTS::monoString *BNM::MONO_STRUCTS::monoString::Empty() { return LoadClass(OBFUSCATES_BNM("System"), OBFUSCATES_BNM("String")).GetFieldByName<monoString *>(OBFUSCATES_BNM("Empty"))(); }
-[[maybe_unused]] void BNM::AttachIl2Cpp() {
-    if (BNM_CurThread) return;
+[[maybe_unused]] BNM::MONO_STRUCTS::monoString *BNM::MONO_STRUCTS::monoString::Create(const std::string& str) { return Create(str2char(str)); }
+[[maybe_unused]] BNM::MONO_STRUCTS::monoString *BNM::MONO_STRUCTS::monoString::Empty() { return LoadClass(OBFUSCATES_BNM("System"), OBFUSCATES_BNM("String")).GetFieldByName(OBFUSCATES_BNM("Empty")).setType<monoString*>()(); }
+[[maybe_unused]] bool BNM::AttachIl2Cpp() {
+    if (CurrentIl2CppThread()) return false;
     DO_API(BNM::IL2CPP::Il2CppDomain*, il2cpp_domain_get, ());
     DO_API(BNM::IL2CPP::Il2CppThread*, il2cpp_thread_attach, (BNM::IL2CPP::Il2CppDomain*));
-    BNM_CurThread = il2cpp_thread_attach(il2cpp_domain_get());
+    il2cpp_thread_attach(il2cpp_domain_get());
+    return true;
 }
 [[maybe_unused]] void BNM::DetachIl2Cpp() {
-    if (!BNM_CurThread) return;
-    DO_API(BNM::IL2CPP::Il2CppDomain*, il2cpp_domain_get, ());
+    auto thread = CurrentIl2CppThread();
+    if (!thread) return;
     DO_API(void, il2cpp_thread_detach, (BNM::IL2CPP::Il2CppThread*));
-    il2cpp_thread_detach(BNM_CurThread);
-    BNM_CurThread = nullptr;
+    il2cpp_thread_detach(thread);
+}
+[[maybe_unused]] BNM::IL2CPP::Il2CppThread* BNM::CurrentIl2CppThread() {
+    DO_API(BNM::IL2CPP::Il2CppThread*, il2cpp_thread_current, ());
+    return il2cpp_thread_current();
 }
 BNM::MONO_STRUCTS::monoString *BNM::CreateMonoString(const char *str) {
     DO_API(BNM::MONO_STRUCTS::monoString*, il2cpp_string_new, (const char *str));
@@ -969,14 +1128,23 @@ BNM::MONO_STRUCTS::monoString *BNM::CreateMonoString(const char *str) {
 [[maybe_unused]] BNM::MONO_STRUCTS::monoString *BNM::CreateMonoString(const std::string& str) { return CreateMonoString(str2char(str)); }
 void *BNM::getExternMethod(const std::string& str) {
     DO_API(void*, il2cpp_resolve_icall, (const char *));
-    return il2cpp_resolve_icall(str.c_str());
+    auto c_str =  BNM::str2char(str);
+    auto ret = il2cpp_resolve_icall(c_str);
+    if (!ret) LOGWBNM(OBFUSCATE_BNM("Can't get extern %s. Please check code."), c_str);
+    return ret;
 }
 char *BNM::str2char(const std::string& str) {
-    char *c = new char[str.size() + 1];
-    std::strcpy(c, str.data());
-    return c;
+    size_t size = str.end() - str.begin();
+    if (str.c_str()[size]){
+        auto c = (char *)malloc(size);
+        std::copy(str.begin(), str.end(), c);
+        c[size] = 0;
+        return c;
+    }
+    return (char *)str.c_str();
 }
 [[maybe_unused]] void *BNM::UNITY_STRUCTS::RaycastHit::get_Collider() const {
+    if (!m_Collider || m_Collider < 0) return {};
 #if UNITY_VER > 174
     static void *(*FromId)(int);
     if (!FromId)
@@ -985,4 +1153,13 @@ char *BNM::str2char(const std::string& str) {
 #else
     return (void *)m_Collider;
 #endif
+}
+[[maybe_unused]] std::string BNM::GetLibIl2CppPath() {
+    if (!get_il2cpp()) return OBFUSCATE_BNM("libil2cpp not found!");
+    return BNM_LibAbsolutePath;
+}
+
+void *BNM::offsetInLib(void *offsetInMemory) {
+    Dl_info info; BNM_dladdr(offsetInMemory, &info);
+    return (void *) ((DWORD) offsetInMemory - (DWORD) info.dli_fbase);
 }
