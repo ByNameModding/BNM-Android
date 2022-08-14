@@ -77,6 +77,13 @@ namespace UNITY_STRUCTS {
         bool Decode_Branch_or_Call_Hex(const std::string &hex, DWORD offset, DWORD &outOffset);
         DWORD FindNext_B_BL_offset(DWORD start, int index);
     }
+    namespace UnityEngine {
+        // Can be used for NewClass if Base type is UnityEngine.Object, MonoBehaviour, ScriptableObject
+        // For System.Object use BNM::IL2CPP::Il2CppObject
+        struct Object : public BNM::IL2CPP::Il2CppObject {
+            intptr_t m_CachedPtr;
+        };
+    }
     /********** BNM MACROS **************/
     char* str2char(const std::string& str);
     auto isAllocated = [](auto x) -> bool {
@@ -96,10 +103,9 @@ namespace UNITY_STRUCTS {
             return obj;
         return nullptr;
     }
-    DWORD getCachedPtr();
     // Only if obj child of UnityEngine.Object or object is UnityEngine.Object
     [[maybe_unused]] auto IsUnityObjectAlive = [](auto o) {
-        return CheckObj((void*)o) && *(intptr_t *)((uint64_t)o + getCachedPtr());
+        return CheckObj((void*)o) && ((UnityEngine::Object*)o)->m_CachedPtr;
     };
     // Only if objects children of UnityEngine.Object or objects are UnityEngine.Object
     [[maybe_unused]] auto IsSameUnityObject = [](auto o1, auto o2) {
@@ -896,7 +902,7 @@ namespace UNITY_STRUCTS {
 #define InitResolveFunc(x, y) BNM::InitFunc(x, BNM::getExternMethod(y))
 
 #if __cplusplus >= 201703
-#define BNM_NewClassInit(_namespace, name, base_namespace, base_name, base_size)\
+#define BNM_NewClassInit(_namespace, name, base_namespace, base_name)\
     private: \
     struct _BNMClass : BNM::NEW_CLASSES::NewClass { \
         _BNMClass() { \
@@ -911,7 +917,6 @@ namespace UNITY_STRUCTS {
     }; \
     public: \
     static inline _BNMClass BNMClass = _BNMClass(); \
-    uint8_t _baseFields[base_size]{}; \
     using Me_Type = name
 
 #define BNM_NewMethodInit(_type, _name, args, ...) \
@@ -977,7 +982,7 @@ namespace UNITY_STRUCTS {
     static inline _BNMStaticField_##_name BNMStaticField_##_name = _BNMStaticField_##_name()
 
 // Add class to exist or to new dll. Write dll name without '.dll'!
-#define BNM_NewClassWithDllInit(dll, _namespace, name, base_namespace, base_name, base_size, type)\
+#define BNM_NewClassWithDllInit(dll, _namespace, name, base_namespace, base_name, type)\
     private: \
     struct _BNMClass : BNM::NEW_CLASSES::NewClass { \
         _BNMClass() { \
@@ -993,6 +998,5 @@ namespace UNITY_STRUCTS {
     }; \
     public: \
     static inline _BNMClass BNMClass = _BNMClass(); \
-    uint8_t _baseFields[base_size]{}; \
     using Me_Type = name
 #endif

@@ -735,6 +735,7 @@ void InitNewClasses(std::vector<BNM::NEW_CLASSES::NewClass *> *classes) {
             klass->thisClass->interfaces_count = 0;
             klass->thisClass->implementedInterfaces = nullptr;
         }
+        klass->thisClass->gc_desc = nullptr;
         klass->thisClass->generic_class = nullptr;
         klass->thisClass->genericRecursionDepth = 1;
         klass->thisClass->initialized = 1;
@@ -752,7 +753,7 @@ void InitNewClasses(std::vector<BNM::NEW_CLASSES::NewClass *> *classes) {
         klass->thisClass->genericContainerHandle = nullptr;
         klass->thisClass->typeMetadataHandle = nullptr;
 #endif
-#if UNITY_VER == 202
+#if UNITY_VER < 211
         klass->thisClass->valuetype = 1;
 #endif
         klass->thisClass->token = -1;
@@ -763,6 +764,7 @@ void InitNewClasses(std::vector<BNM::NEW_CLASSES::NewClass *> *classes) {
         klass->thisClass->enumtype = 0;
         klass->thisClass->minimumAlignment = 8;
         klass->thisClass->is_generic = 0;
+        klass->thisClass->rank = 0;
         klass->thisClass->field_count = klass->Fields4Add.size() + klass->StaticFields4Add.size();
         if (klass->thisClass->field_count > 0) {
             auto fields = (BNM::IL2CPP::FieldInfo *)calloc(klass->thisClass->field_count, sizeof(BNM::IL2CPP::FieldInfo));
@@ -997,10 +999,6 @@ void InitIl2cppMethods() {
         }
     }
 }
-BNM::Field<intptr_t> m_CachedPtr;
-DWORD BNM::getCachedPtr() {
-    return m_CachedPtr.GetOffset();
-}
 void (*old_BNM_il2cpp_init)(const char*);
 void BNM_il2cpp_init(const char* domain_name) {
     old_BNM_il2cpp_init(domain_name);
@@ -1008,7 +1006,6 @@ void BNM_il2cpp_init(const char* domain_name) {
 #if __cplusplus >= 201703
     InitNewClasses(Classes4Add);
 #endif
-    m_CachedPtr = BNM::LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object")).GetFieldByName(OBFUSCATE_BNM("m_CachedPtr"));
     BNM_LibLoaded = true;
 }
 [[maybe_unused]] __attribute__((constructor))
@@ -1069,6 +1066,7 @@ string16 Utf8ToUtf16(const char* utf8String, size_t length) {
     return utf16String;
 }
 std::string BNM::MONO_STRUCTS::monoString::get_string() {
+    if (!this) return OBFUSCATE_BNM("ERROR: monoString is null");
     if (!isAllocated(chars)) return OBFUSCATE_BNM("ERROR: chars is null");
     return Utf16ToUtf8(chars, length);
 }
@@ -1079,11 +1077,12 @@ std::string BNM::MONO_STRUCTS::monoString::str() { return get_string(); }
 BNM::MONO_STRUCTS::monoString::operator std::string() { return get_string(); }
 BNM::MONO_STRUCTS::monoString::operator const char *() { return get_const_char(); }
 std::string BNM::MONO_STRUCTS::monoString::get_string_old() {
+    if (!this) return OBFUSCATE_BNM("ERROR: monoString is null");
     if (!isAllocated(chars)) return OBFUSCATE_BNM("ERROR: chars is null");
     return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(std::wstring(chars, chars + length));
 }
 [[maybe_unused]] unsigned int BNM::MONO_STRUCTS::monoString::getHash() {
-    if (!isAllocated(chars)) return 0;
+    if (!this || !isAllocated(chars)) return 0;
     IL2CPP::Il2CppChar* p = chars;
     unsigned int h = 0;
     for (int i = 0; i < length; ++i)
@@ -1151,14 +1150,13 @@ char *BNM::str2char(const std::string& str) {
         InitFunc(FromId, getExternMethod(OBFUSCATE_BNM("UnityEngine.Object::FindObjectFromInstanceID(System.Int32)")));
     return FromId(m_Collider);
 #else
-    return (void *)m_Collider;
+    return m_Collider;
 #endif
 }
 [[maybe_unused]] std::string BNM::GetLibIl2CppPath() {
     if (!get_il2cpp()) return OBFUSCATE_BNM("libil2cpp not found!");
     return BNM_LibAbsolutePath;
 }
-
 void *BNM::offsetInLib(void *offsetInMemory) {
     Dl_info info; BNM_dladdr(offsetInMemory, &info);
     return (void *) ((DWORD) offsetInMemory - (DWORD) info.dli_fbase);
