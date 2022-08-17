@@ -87,13 +87,9 @@ namespace UNITY_STRUCTS {
     /********** BNM MACROS **************/
     char* str2char(const std::string& str);
     auto isAllocated = [](auto x) -> bool {
-        static jmp_buf jump;
-        static sighandler_t handler = [](int) { longjmp(jump, 1); };
-        [[maybe_unused]] volatile char c;
-        volatile bool ok = true;
-        volatile sighandler_t old_handler = signal(SIGSEGV, handler);
-        if (!setjmp (jump)) c = *(char*)(x); else ok = false;
-        signal(SIGSEGV, old_handler);
+        int nullfd = open(OBFUSCATE_BNM("/dev/random"), (int)(OBFUSCATE_BNM("\1")[0]));
+        bool ok = write(nullfd, (void *) x, sizeof(x)) >= 0;
+        close(nullfd);
         return ok;
     };
     template<typename T>
@@ -109,7 +105,7 @@ namespace UNITY_STRUCTS {
     };
     // Only if objects children of UnityEngine.Object or objects are UnityEngine.Object
     [[maybe_unused]] auto IsSameUnityObject = [](auto o1, auto o2) {
-        return (!IsUnityObjectAlive(o1) && !IsUnityObjectAlive(o2)) || (IsUnityObjectAlive(o1) && IsUnityObjectAlive(o2) && *(intptr_t *)((uint64_t)o1 + 0x8) == *(intptr_t *)((uint64_t)o2 + 0x8));
+        return (!IsUnityObjectAlive(o1) && !IsUnityObjectAlive(o2)) || (IsUnityObjectAlive(o1) && IsUnityObjectAlive(o2) && ((UnityEngine::Object*)o1)->m_CachedPtr == ((UnityEngine::Object*)o2)->m_CachedPtr);
     };
     namespace MONO_STRUCTS {
         struct monoString {
@@ -247,7 +243,7 @@ namespace UNITY_STRUCTS {
     template<typename Ret>
     struct Method;
     struct LoadClass {
-        IL2CPP::Il2CppClass *klass = nullptr;
+        IL2CPP::Il2CppClass *klass{};
         LoadClass();
         LoadClass(const IL2CPP::Il2CppClass *clazz);
         LoadClass(const IL2CPP::Il2CppObject *obj);
@@ -329,19 +325,11 @@ namespace UNITY_STRUCTS {
         static bool CheckIsStatic(IL2CPP::FieldInfo *field) {
             if (!field || !field->type)
                 return false;
-            if ((field->type->attrs & 0x0010) == 0)
-                return false;
-            if (field->offset == -1)
-                return false;
-            if ((field->type->attrs & 0x0040) != 0)
-                return false;
-            return true;
+            return (field->type->attrs & 0x0010) != 0 && field->offset != -1 && (field->type->attrs & 0x0040) == 0;
         }
         IL2CPP::FieldInfo *myInfo{};
-        bool init = false;
-        bool thread_static = false;
+        bool init = false, thread_static = false, isStatic = false;
         void *instance{};
-        bool isStatic = false;
         Field() = default;
         template<typename otherT>
         [[maybe_unused]] Field(Field<otherT> f) : Field(f.myInfo) {
@@ -372,8 +360,8 @@ namespace UNITY_STRUCTS {
                 return makeSafeRet();
             }
             if (isStatic)
-                return (T *) ((uint64_t) myInfo->parent->static_fields + myInfo->offset);
-            return (T *) ((uint64_t) instance + myInfo->offset);
+                return (T *) ((DWORD) myInfo->parent->static_fields + myInfo->offset);
+            return (T *) ((DWORD) instance + myInfo->offset);
         }
         T get() {
             if (!init) return {};
@@ -445,8 +433,7 @@ namespace UNITY_STRUCTS {
     struct Method {
         IL2CPP::MethodInfo* myInfo{};
         void *instance{};
-        bool init = false;
-        bool isStatic = false;
+        bool init = false, isStatic = false;
         Method() = default;
         template<typename T = void>
         Method(Method<T> m) : Method(m.myInfo) {
@@ -666,29 +653,23 @@ namespace UNITY_STRUCTS {
             int version;
             [[maybe_unused]] int freeList;
             [[maybe_unused]] int freeCount;
-            [[maybe_unused]] void *compare;
+            [[maybe_unused]] void *comparer;
             monoArray<TKey> *keys;
             monoArray<TValue> *values;
             [[maybe_unused]] void *syncRoot;
             std::map<TKey, TValue> toMap() {
                 std::map<TKey, TValue> ret;
-                auto lst = entries->toCPPlist();
-                for ([[maybe_unused]] auto enter : lst)
-                    ret.insert(std::make_pair(enter.key, enter.value));
+                for (auto it = (Entry*)&entries->m_Items; it != ((Entry*)&entries->m_Items + count); ++it) ret.emplace(std::make_pair(it->key, it->value));
                 return std::move(ret);
             }
             std::vector<TKey> getKeys() {
                 std::vector<TKey> ret;
-                auto lst = entries->toCPPlist();
-                for ([[maybe_unused]] auto enter : lst)
-                    ret.push_back(enter.key);
+                for (int i = 0; i < count; ++i) ret.emplace_back(entries->at(i).key);
                 return std::move(ret);
             }
             std::vector<TValue> getValues() {
                 std::vector<TValue> ret;
-                auto lst = entries->template toCPPlist();
-                for ([[maybe_unused]] auto enter : lst)
-                    ret.push_back(enter.value);
+                for (int i = 0; i < count; ++i) ret.emplace_back(entries->at(i).value);
                 return std::move(ret);
             }
 #endif
@@ -902,22 +883,7 @@ namespace UNITY_STRUCTS {
 #define InitResolveFunc(x, y) BNM::InitFunc(x, BNM::getExternMethod(y))
 
 #if __cplusplus >= 201703
-#define BNM_NewClassInit(_namespace, name, base_namespace, base_name)\
-    private: \
-    struct _BNMClass : BNM::NEW_CLASSES::NewClass { \
-        _BNMClass() { \
-            Name = OBFUSCATE_BNM(#name); \
-            myNamespace = OBFUSCATE_BNM(_namespace); \
-            BaseName = OBFUSCATE_BNM(base_name); \
-            BaseNamespace = OBFUSCATE_BNM(base_namespace); \
-            DllName = OBFUSCATE_BNM("ByNameModding"); \
-            this->size = sizeof(Me_Type); \
-            BNM::NEW_CLASSES::AddNewClass(this); \
-        } \
-    }; \
-    public: \
-    static inline _BNMClass BNMClass = _BNMClass(); \
-    using Me_Type = name
+#define BNM_NewClassInit(_namespace, name, base_namespace, base_name) BNM_NewClassWithDllInit("ByNameModding", _namespace, name, base_namespace, base_name, 0)
 
 #define BNM_NewMethodInit(_type, _name, args, ...) \
     private: \

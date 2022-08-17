@@ -444,11 +444,9 @@ BNM::NEW_CLASSES::NewMethod::NewMethod() = default;
 BNM::NEW_CLASSES::NewField::NewField() = default;
 BNM::NEW_CLASSES::NewClass::NewClass() = default;
 void BNM::NEW_CLASSES::NewClass::AddNewField(NewField *field, bool isStatic) {
-    if (!isStatic)
-        Fields4Add.push_back(field);
+    if (!isStatic) Fields4Add.push_back(field);
     else {
-        if (staticFieldOffset == 0x0)
-            staticFieldsAddress = field->cppOffset;
+        if (staticFieldOffset == 0x0) staticFieldsAddress = field->cppOffset;
         field->offset = staticFieldOffset;
         staticFieldOffset += field->size;
         StaticFields4Add.push_back(field);
@@ -981,7 +979,7 @@ void InitIl2cppMethods() {
         DO_API(BNM::IL2CPP::Il2CppImage*, il2cpp_get_corlib, ());
         DO_API(BNM::IL2CPP::Il2CppClass*, il2cpp_class_from_name, (BNM::IL2CPP::Il2CppImage*, const char*, const char*));
         auto assemblyClass = il2cpp_class_from_name(il2cpp_get_corlib(), OBFUSCATE_BNM("System"), OBFUSCATE_BNM("AppDomain"));
-        auto getAssembly = BNM::LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetTypes"), 1);
+        auto getAssembly = BNM::LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetAssemblies"), 1);
         if (getAssembly) {
             const int sCount
 #if UNITY_VER >= 211
