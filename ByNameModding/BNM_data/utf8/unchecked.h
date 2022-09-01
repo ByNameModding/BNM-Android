@@ -52,6 +52,47 @@ namespace utf8
             }
             return result;
         }
+
+        template <typename octet_iterator, typename output_iterator>
+        output_iterator replace_invalid(octet_iterator start, octet_iterator end, output_iterator out, uint32_t replacement)
+        {
+            while (start != end) {
+                octet_iterator sequence_start = start;
+                internal::utf_error err_code = utf8::internal::validate_next(start, end);
+                switch (err_code) {
+                    case internal::UTF8_OK :
+                        for (octet_iterator it = sequence_start; it != start; ++it)
+                            *out++ = *it;
+                        break;
+                    case internal::NOT_ENOUGH_ROOM:
+                        out = utf8::unchecked::append (replacement, out);
+                        start = end;
+                        break;
+                    case internal::INVALID_LEAD:
+                        out = utf8::unchecked::append (replacement, out);
+                        ++start;
+                        break;
+                    case internal::INCOMPLETE_SEQUENCE:
+                    case internal::OVERLONG_SEQUENCE:
+                    case internal::INVALID_CODE_POINT:
+                        out = utf8::unchecked::append (replacement, out);
+                        ++start;
+                        // just one replacement mark for the sequence
+                        while (start != end && utf8::internal::is_trail(*start))
+                            ++start;
+                        break;
+                }
+            }
+            return out;
+        }
+
+        template <typename octet_iterator, typename output_iterator>
+        inline output_iterator replace_invalid(octet_iterator start, octet_iterator end, output_iterator out)
+        {
+            static const uint32_t replacement_marker = utf8::internal::mask16(0xfffd);
+            return utf8::unchecked::replace_invalid(start, end, out, replacement_marker);
+        }
+
         template <typename octet_iterator>
         uint32_t next(octet_iterator& it)
         {
@@ -82,6 +123,13 @@ namespace utf8
             ++it;
             return cp;
         }
+
+        template <typename octet_iterator>
+        uint32_t peek_next(octet_iterator it)
+        {
+            return utf8::unchecked::next(it);
+        }
+
         template <typename octet_iterator>
         uint32_t prior(octet_iterator& it)
         {
@@ -144,6 +192,25 @@ namespace utf8
             }
             return result;
         }
+
+        template <typename octet_iterator, typename u32bit_iterator>
+        octet_iterator utf32to8 (u32bit_iterator start, u32bit_iterator end, octet_iterator result)
+        {
+            while (start != end)
+                result = utf8::unchecked::append(*(start++), result);
+
+            return result;
+        }
+
+        template <typename octet_iterator, typename u32bit_iterator>
+        u32bit_iterator utf8to32 (octet_iterator start, octet_iterator end, u32bit_iterator result)
+        {
+            while (start < end)
+                (*result++) = utf8::unchecked::next(start);
+
+            return result;
+        }
+
         // The iterator class
         template <typename octet_iterator>
           class iterator {
@@ -152,6 +219,8 @@ namespace utf8
             typedef uint32_t value_type;
             typedef uint32_t* pointer;
             typedef uint32_t& reference;
+            typedef std::ptrdiff_t difference_type;
+            typedef std::bidirectional_iterator_tag iterator_category;
             iterator () {}
             explicit iterator (const octet_iterator& octet_it): it(octet_it) {}
             // the default "big three" are OK
@@ -195,5 +264,3 @@ namespace utf8
 
     } // namespace utf8::unchecked
 } // namespace utf8 
-
-

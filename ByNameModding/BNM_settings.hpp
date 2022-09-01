@@ -80,6 +80,12 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 #define BNM_dlclose dlclose
 #define BNM_dladdr dladdr
 
+// Disabling BNM automatic loading when your lib loaded
+// Define it when you using BNM::HardBypass to speed up loading
+// #define BNM_DISABLE_AUTO_LOAD
+
+// Can make game crashes on arm64
+// #define BNM_USE_APPDOMAIN // Use System.AppDomain to find il2cpp::vm::Assembly::GetAllAssemblies
 /********** USER AREA **************/
 
 

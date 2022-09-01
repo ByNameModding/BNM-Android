@@ -56,7 +56,6 @@ typedef IL2CPP::Il2CppReflectionType MonoType;
 typedef std::vector<IL2CPP::Il2CppAssembly*> AssemblyVector;
 typedef std::vector<IL2CPP::Il2CppClass*> TypeVector;
 
-/********** STRUCTS AND CLASSES **************/
 namespace UNITY_STRUCTS {
 #include "BNM_data/BasicStructs.h"
     }
@@ -77,15 +76,6 @@ namespace UNITY_STRUCTS {
         bool Decode_Branch_or_Call_Hex(const std::string &hex, DWORD offset, DWORD &outOffset);
         DWORD FindNext_B_BL_offset(DWORD start, int index);
     }
-    namespace UnityEngine {
-        // Can be used for NewClass if Base type is UnityEngine.Object, MonoBehaviour, ScriptableObject
-        // For System.Object use BNM::IL2CPP::Il2CppObject
-        struct Object : public BNM::IL2CPP::Il2CppObject {
-            intptr_t m_CachedPtr;
-        };
-    }
-    /********** BNM MACROS **************/
-    char* str2char(const std::string& str);
     auto isAllocated = [](auto x) -> bool {
         int nullfd = open(OBFUSCATE_BNM("/dev/random"), (int)(OBFUSCATE_BNM("\1")[0]));
         bool ok = write(nullfd, (void *) x, sizeof(x)) >= 0;
@@ -95,17 +85,27 @@ namespace UNITY_STRUCTS {
     template<typename T>
     T CheckObj(T obj) {
         static_assert(std::is_pointer<T>::value, "Expected a pointer in CheckObj");
-        if (obj && isAllocated(obj))
-            return obj;
+        if (obj && isAllocated(obj)) return obj;
         return nullptr;
     }
+    namespace UnityEngine {
+        // Can be used for NewClass if Base type is UnityEngine.Object, MonoBehaviour, ScriptableObject
+        // For System.Object use BNM::IL2CPP::Il2CppObject
+        struct Object : public BNM::IL2CPP::Il2CppObject {
+            intptr_t m_CachedPtr = 0;
+            bool Alive() { return BNM::CheckObj((void*)this) && m_CachedPtr; }
+        };
+    }
+    char* str2char(const std::string& str);
     // Only if obj child of UnityEngine.Object or object is UnityEngine.Object
     [[maybe_unused]] auto IsUnityObjectAlive = [](auto o) {
-        return CheckObj((void*)o) && ((UnityEngine::Object*)o)->m_CachedPtr;
+        return ((UnityEngine::Object*)o)->Alive();
     };
     // Only if objects children of UnityEngine.Object or objects are UnityEngine.Object
     [[maybe_unused]] auto IsSameUnityObject = [](auto o1, auto o2) {
-        return (!IsUnityObjectAlive(o1) && !IsUnityObjectAlive(o2)) || (IsUnityObjectAlive(o1) && IsUnityObjectAlive(o2) && ((UnityEngine::Object*)o1)->m_CachedPtr == ((UnityEngine::Object*)o2)->m_CachedPtr);
+        auto obj1 = (UnityEngine::Object*)o1;
+        auto obj2 = (UnityEngine::Object*)o2;
+        return (!obj1->Alive() && !obj2->Alive()) || (obj1->Alive() && obj2->Alive() && obj1->m_CachedPtr == obj2->m_CachedPtr);
     };
     namespace MONO_STRUCTS {
         struct monoString {
@@ -675,15 +675,15 @@ namespace UNITY_STRUCTS {
 #endif
             [[maybe_unused]] int getSize() { return count; }
             [[maybe_unused]] int getVersion() { return version; }
-            bool TryGet(TKey key, TValue &value) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("TryGetValue"), 2).setInstance(this)(key, value); }
+            bool TryGet(TKey key, TValue *value) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("TryGetValue"), 2).setRet<bool>().setInstance(this)(key, value); }
             [[maybe_unused]] void Add(TKey key, TValue value) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("Add"), 2).setInstance(this)(key, value); }
             [[maybe_unused]] void Insert(TKey key, TValue value) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("set_Item"), 2).setInstance(this)(key, value); }
-            [[maybe_unused]] bool Remove(TKey key) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("Remove"), 1).setInstance(this)( key); }
-            [[maybe_unused]] bool ContainsKey(TKey key) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("ContainsKey"), 1).setInstance(this)(key); }
-            [[maybe_unused]] bool ContainsValue(TValue value) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("ContainsValue"), 1).setInstance(this)(value); }
+            [[maybe_unused]] bool Remove(TKey key) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("Remove"), 1).setRet<bool>().setInstance(this)( key); }
+            [[maybe_unused]] bool ContainsKey(TKey key) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("ContainsKey"), 1).setRet<bool>().setInstance(this)(key); }
+            [[maybe_unused]] bool ContainsValue(TValue value) { return LoadClass((IL2CPP::Il2CppObject*)this).GetMethodByName(OBFUSCATE_BNM("ContainsValue"), 1).setRet<bool>().setInstance(this)(value); }
             TValue Get(TKey key) {
                 TValue ret;
-                if (TryGet(key, ret))
+                if (TryGet(key, &ret))
                     return ret;
                 return {};
             }
@@ -826,6 +826,7 @@ namespace UNITY_STRUCTS {
     [[maybe_unused]] IL2CPP::Il2CppThread* CurrentIl2CppThread();
     [[maybe_unused]] void DetachIl2Cpp();
     [[maybe_unused]] std::string GetLibIl2CppPath();
+    [[maybe_unused]] DWORD GetLibIl2CppOffset();
     // Get Il2Cpp mono type name at compile time
     template<typename T>
     constexpr TypeFinder GetType(bool isArray = false) {

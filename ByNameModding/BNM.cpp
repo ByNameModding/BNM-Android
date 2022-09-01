@@ -8,6 +8,7 @@ static void *BNM_dlLib{};
 static bool BNM_hardBypass = false;
 static bool BNM_hardBypassed = false;
 static const char *BNM_LibAbsolutePath{};
+static DWORD BNM_LibAbsoluteAddress{};
 BNM::AssemblyVector *(*Assembly$$GetAllAssemblies)(){};
 #if __cplusplus >= 201703 // Speed up IDE if c++ lower then c++17
 void Image$$GetTypes(BNM::IL2CPP::Il2CppImage* image, bool exportedOnly, BNM::TypeVector* target);
@@ -976,13 +977,14 @@ void InitIl2cppMethods() {
 #endif
     //! il2cpp::vm::Assembly::GetAllAssemblies GET
     if (!Assembly$$GetAllAssemblies) {
+#ifdef BNM_USE_APPDOMAIN
         DO_API(BNM::IL2CPP::Il2CppImage*, il2cpp_get_corlib, ());
         DO_API(BNM::IL2CPP::Il2CppClass*, il2cpp_class_from_name, (BNM::IL2CPP::Il2CppImage*, const char*, const char*));
         auto assemblyClass = il2cpp_class_from_name(il2cpp_get_corlib(), OBFUSCATE_BNM("System"), OBFUSCATE_BNM("AppDomain"));
         auto getAssembly = BNM::LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetAssemblies"), 1);
         if (getAssembly) {
             const int sCount
-#if UNITY_VER >= 211
+#if UNITY_VER >= 211 // TODO: Understand on which versions and architectures the code differs
                 = count;
 #else
                 = count + 1;
@@ -991,10 +993,13 @@ void InitIl2cppMethods() {
             Assembly$$GetAllAssemblies = (BNM::AssemblyVector *(*)())(BNM::HexUtils::FindNext_B_BL_offset(GetTypesAdr, sCount));
             LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies by AppDomain in lib: %p"), BNM::offsetInLib((void *)Assembly$$GetAllAssemblies));
         } else {
+#endif
             auto adr = (DWORD) BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_get_assemblies"));
             Assembly$$GetAllAssemblies = (BNM::AssemblyVector *(*)())(BNM::HexUtils::FindNext_B_BL_offset(adr, count));
             LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies by domain in lib: %p"), BNM::offsetInLib((void *)Assembly$$GetAllAssemblies));
+#ifdef BNM_USE_APPDOMAIN
         }
+#endif
     }
 }
 void (*old_BNM_il2cpp_init)(const char*);
@@ -1006,6 +1011,7 @@ void BNM_il2cpp_init(const char* domain_name) {
 #endif
     BNM_LibLoaded = true;
 }
+#ifndef BNM_DISABLE_AUTO_LOAD
 [[maybe_unused]] __attribute__((constructor))
 void PrepareBNM() {
     std::thread([]() {
@@ -1022,6 +1028,7 @@ void PrepareBNM() {
                     strcpy(s, info.dli_fname);
                     s[l] = 0;
                     BNM_LibAbsolutePath = s;
+                    BNM_LibAbsoluteAddress = (DWORD)info.dli_fbase;
                     HOOK(init, BNM_il2cpp_init, old_BNM_il2cpp_init);
                     break;
                 }
@@ -1030,22 +1037,27 @@ void PrepareBNM() {
         } while (true);
     }).detach();
 }
+#endif
 #ifndef _WIN32
 
 [[maybe_unused]] void BNM::HardBypass(JNIEnv *env) {
     if (!env || BNM_hardBypass) return;
     BNM_hardBypass = true;
+#ifndef BNM_DISABLE_AUTO_LOAD
     while (!BNM_hardBypassed && !BNM_dlLib) usleep(1); // Just in case
+#endif
     jclass activityThread = env->FindClass(OBFUSCATE_BNM("android/app/ActivityThread"));
     auto context = env->CallObjectMethod(env->CallStaticObjectMethod(activityThread, env->GetStaticMethodID(activityThread, OBFUSCATE_BNM("currentActivityThread"), OBFUSCATE_BNM("()Landroid/app/ActivityThread;"))), env->GetMethodID(activityThread, OBFUSCATE_BNM("getApplication"), OBFUSCATE_BNM("()Landroid/app/Application;")));
     auto info = env->CallObjectMethod(context, env->GetMethodID(env->GetObjectClass(context), OBFUSCATE_BNM("getApplicationInfo"), OBFUSCATE_BNM("()Landroid/content/pm/ApplicationInfo;")));
     std::string path = env->GetStringUTFChars((jstring)env->GetObjectField(info, env->GetFieldID(env->GetObjectClass(info), OBFUSCATE_BNM("nativeLibraryDir"), OBFUSCATE_BNM("Ljava/lang/String;"))), nullptr);
     BNM_LibAbsolutePath = BNM::str2char(path + OBFUSCATE_BNM("/libil2cpp.so"));
     BNM_dlLib = BNM_dlopen(BNM_LibAbsolutePath, RTLD_LAZY);
-    if (BNM_dlLib)
-        HOOK(BNM_dlsym(BNM_dlLib, OBFUSCATE_BNM("il2cpp_init")), BNM_il2cpp_init, old_BNM_il2cpp_init);
-    else
-        LOGEBNM(OBFUSCATE_BNM("Can't hard bypass!"));
+    if (BNM_dlLib) {
+        auto init = BNM_dlsym(BNM_dlLib, OBFUSCATE_BNM("il2cpp_init"));
+        HOOK(init, BNM_il2cpp_init, old_BNM_il2cpp_init);
+        Dl_info info; BNM_dladdr(init, &info);
+        BNM_LibAbsoluteAddress = (DWORD)info.dli_fbase;
+    } else LOGEBNM(OBFUSCATE_BNM("Can't hard bypass!"));
 }
 #endif
 typedef std::basic_string<BNM::IL2CPP::Il2CppChar> string16;
@@ -1154,6 +1166,9 @@ char *BNM::str2char(const std::string& str) {
 [[maybe_unused]] std::string BNM::GetLibIl2CppPath() {
     if (!get_il2cpp()) return OBFUSCATE_BNM("libil2cpp not found!");
     return BNM_LibAbsolutePath;
+}
+[[maybe_unused]] DWORD BNM::GetLibIl2CppOffset() {
+    return BNM_LibAbsoluteAddress;
 }
 void *BNM::offsetInLib(void *offsetInMemory) {
     Dl_info info; BNM_dladdr(offsetInMemory, &info);
