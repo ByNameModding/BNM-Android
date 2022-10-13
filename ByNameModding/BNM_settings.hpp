@@ -1,18 +1,18 @@
 /********** USER AREA **************/
 
-//#define UNITY_VER 171 // 2017.1.x // il2cpp version: 24
-//#define UNITY_VER 172 // From 2017.2.x to 2017.4.x // il2cpp version: 24
-//#define UNITY_VER 181 // 2018.1.x // il2cpp version: 24
-//#define UNITY_VER 182 // 2018.2.x // il2cpp version: 24
-//#define UNITY_VER 183 // From 2018.3.x to 2018.4.x // il2cpp version: 24.1
-//#define UNITY_VER 191 // From 2019.1.x to 2019.2.x // il2cpp version: 24.2
-//#define UNITY_VER 193 // 2019.3.x // il2cpp version: 24.3
-//#define UNITY_VER 194 // 2019.4.x // il2cpp version: 24.3 and 24.4
-//#define UNITY_VER 201 // 2020.1.x // il2cpp version: 24.3 and 24.4
-#define UNITY_VER 202 // From 2020.2.x to 2020.3.x (They are same) // il2cpp version: 27.1
-//#define UNITY_VER 211 // 2021.1.x // il2cpp version: 27.2
-//#define UNITY_VER 212 // 2021.2.x // il2cpp version: 27 and 27.2 and 28
-//#define UNITY_VER 213 // 2021.3.x - 2022.1.x // il2cpp version: 29 and 28
+//#define UNITY_VER 171 // 2017.1.x
+//#define UNITY_VER 172 // From 2017.2.x to 2017.4.x
+//#define UNITY_VER 181 // 2018.1.x
+//#define UNITY_VER 182 // 2018.2.x
+//#define UNITY_VER 183 // From 2018.3.x to 2018.4.x
+//#define UNITY_VER 191 // From 2019.1.x to 2019.2.x
+//#define UNITY_VER 193 // 2019.3.x
+//#define UNITY_VER 194 // 2019.4.x
+//#define UNITY_VER 201 // 2020.1.x
+#define UNITY_VER 202 // From 2020.2.x to 2020.3.x (They are same)
+//#define UNITY_VER 211 // 2021.1.x
+//#define UNITY_VER 212 // 2021.2.x
+//#define UNITY_VER 213 // 2021.3.x - 2022.1.x
 
 // Allow to use deprecated methods
 // #define BNM_DEPRECATED
@@ -83,6 +83,7 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 // Disabling BNM automatic loading when your lib loaded
 // Define it when you using BNM::HardBypass to speed up loading
 // #define BNM_DISABLE_AUTO_LOAD
+#define BNM_DISABLE_NEW_CLASSES 0
 
 // Can make game crashes on arm64
 // #define BNM_USE_APPDOMAIN // Use System.AppDomain to find il2cpp::vm::Assembly::GetAllAssemblies

@@ -23,33 +23,33 @@ typedef uint64_t DWORD;
 namespace BNM {
     namespace IL2CPP {
 #if UNITY_VER == 171
-    #include "BNM_data/Il2CppHeaders/2017.1.h"
+#include "BNM_data/Il2CppHeaders/2017.1.h"
 #elif UNITY_VER > 171 && UNITY_VER < 181
-    #include "BNM_data/Il2CppHeaders/2017.4.h"
+#include "BNM_data/Il2CppHeaders/2017.4.h"
 #elif UNITY_VER == 181
-    #include "BNM_data/Il2CppHeaders/2018.1.h"
+#include "BNM_data/Il2CppHeaders/2018.1.h"
 #elif UNITY_VER == 182
-    #include "BNM_data/Il2CppHeaders/2018.2.h"
+#include "BNM_data/Il2CppHeaders/2018.2.h"
 #elif UNITY_VER > 182 && UNITY_VER < 185
-    #include "BNM_data/Il2CppHeaders/2018.4.h"
+#include "BNM_data/Il2CppHeaders/2018.4.h"
 #elif UNITY_VER > 190 && UNITY_VER < 193
-    #include "BNM_data/Il2CppHeaders/2019.2.h"
+#include "BNM_data/Il2CppHeaders/2019.2.h"
 #elif UNITY_VER == 193
-    #include "BNM_data/Il2CppHeaders/2019.3.h"
+#include "BNM_data/Il2CppHeaders/2019.3.h"
 #elif UNITY_VER == 194
-    #include "BNM_data/Il2CppHeaders/2019.4.h"
+#include "BNM_data/Il2CppHeaders/2019.4.h"
 #elif UNITY_VER == 201
-    #include "BNM_data/Il2CppHeaders/2020.1.h"
+#include "BNM_data/Il2CppHeaders/2020.1.h"
 #elif UNITY_VER > 201 && UNITY_VER < 204
-    #include "BNM_data/Il2CppHeaders/2020.3.h"
+#include "BNM_data/Il2CppHeaders/2020.3.h"
 #elif UNITY_VER == 211
-    #include "BNM_data/Il2CppHeaders/2021.1.h"
+#include "BNM_data/Il2CppHeaders/2021.1.h"
 #elif UNITY_VER == 212
-    #include "BNM_data/Il2CppHeaders/2021.2.h"
+#include "BNM_data/Il2CppHeaders/2021.2.h"
 #elif UNITY_VER == 213
-    #include "BNM_data/Il2CppHeaders/2021.3.h"
+#include "BNM_data/Il2CppHeaders/2021.3.h"
 #else
-    #include "BNM_data/Il2CppHeaders/2020.3.h"
+#include "BNM_data/Il2CppHeaders/2020.3.h"
 #endif
 }
 typedef IL2CPP::Il2CppReflectionType MonoType;
@@ -74,7 +74,7 @@ namespace UNITY_STRUCTS {
 #endif
         std::string ReadMemory(DWORD address, size_t len);
         bool Decode_Branch_or_Call_Hex(const std::string &hex, DWORD offset, DWORD &outOffset);
-        DWORD FindNext_B_BL_offset(DWORD start, int index);
+        DWORD FindNext_B_BL_offset(DWORD start, int index = 1);
     }
     auto isAllocated = [](auto x) -> bool {
         int nullfd = open(OBFUSCATE_BNM("/dev/random"), (int)(OBFUSCATE_BNM("\1")[0]));
@@ -151,8 +151,8 @@ namespace UNITY_STRUCTS {
                 return true;
             }
             [[maybe_unused]] void copyTo(T *arr) { if (!this || !CheckObj(m_Items)) return; memcpy(arr, m_Items, sizeof(T) * capacity); }
-            T operator[] (int index) { if (getCapacity() < index) return {}; return m_Items[index]; }
-            [[maybe_unused]] T at(int index) { if (!this || getCapacity() <= index || empty()) return {}; return m_Items[index]; }
+            T& operator[] (int index) { if (getCapacity() < index) {T a{};return a;} return m_Items[index]; }
+            T& at(int index) { if (!this || getCapacity() <= index || empty()) {T a{};return a;} return m_Items[index]; }
             bool empty() { if (!this) return false; return getCapacity() <= 0;}
             static monoArray<T> *Create(int capacity) {
                 auto monoArr = (monoArray<T> *)malloc(sizeof(monoArray) + sizeof(T) * capacity);
@@ -380,9 +380,10 @@ namespace UNITY_STRUCTS {
             }
             *getPointer() = val;
         }
-        Field<T>& setInstance(void *val) {
+        Field<T>& setInstance(void *val, bool doWarn = true) {
             if (init && isStatic) {
-                LOGWBNM(OBFUSCATE_BNM("Trying set instance of static field %s. Please remove setInstance in code."), BNM::str2char(str()));
+                if (doWarn)
+                    LOGWBNM(OBFUSCATE_BNM("Trying set instance of static field %s. Please remove setInstance in code."), BNM::str2char(str()));
                 return *this;
             }
             init = val && myInfo != nullptr;
@@ -416,7 +417,7 @@ namespace UNITY_STRUCTS {
         }
         template<typename NewT>
         Field<NewT> setType() {
-            return Field<NewT>(myInfo);
+            return Field<NewT>(myInfo).setInstance(instance, false);
         }
         std::string str() {
             if (init)
@@ -447,10 +448,11 @@ namespace UNITY_STRUCTS {
                 myInfo = (decltype(myInfo)) info;
             }
         }
-        Method<Ret>& setInstance(void *val) {
+        Method<Ret>& setInstance(void *val, bool doWarn = true) {
             if (!init) return *this;
             if (init && isStatic) {
-                LOGWBNM(OBFUSCATE_BNM("Trying set instance of static method %s. Please remove setInstance in code."), BNM::str2char(str()));
+                if (doWarn)
+                    LOGWBNM(OBFUSCATE_BNM("Trying set instance of static method %s. Please remove setInstance in code."), BNM::str2char(str()));
                 return *this;
             }
             instance = val;
@@ -498,17 +500,20 @@ namespace UNITY_STRUCTS {
             return call(args...);
         }
         std::string str() {
+#if UNITY_VER > 174
+#define kls klass
+#else
+#define kls declaring_type
+#endif
             if (init) {
                 return LoadClass(myInfo->return_type).GetClassName() + OBFUSCATE_BNM(" ") +
-                        LoadClass(myInfo
-#if UNITY_VER > 174
-                                          ->klass
-#else
-                                          ->declaring_type
-#endif
-                        ).GetClassName() + OBFUSCATE_BNM(".[") + myInfo->name + OBFUSCATE_BNM("]{Args count:") + std::to_string(myInfo->parameters_count) + OBFUSCATE_BNM("}") + (isStatic ? OBFUSCATE_BNM("(static)") : OBFUSCATE_BNM(""));
+                       LoadClass(myInfo->kls).GetClassName() + OBFUSCATE_BNM(".[") +
+                       myInfo->name + OBFUSCATE_BNM("]{Args count:") +
+                       std::to_string(myInfo->parameters_count) + OBFUSCATE_BNM("}") +
+                       (isStatic ? OBFUSCATE_BNM("(static)") : OBFUSCATE_BNM(""));
             }
             return OBFUSCATE_BNM("Uninitialized method");
+#undef kls
         }
         IL2CPP::MethodInfo* GetInfo() {
             if (init) return myInfo;
@@ -526,7 +531,7 @@ namespace UNITY_STRUCTS {
         }
         template<typename NewRet>
         [[maybe_unused]] Method<NewRet> setRet() {
-            return Method<NewRet>(myInfo);
+            return Method<NewRet>(myInfo).setInstance(instance, false);
         }
         template<typename other>
         Method<Ret>& operator=(Method<other> m) {
@@ -553,9 +558,9 @@ namespace UNITY_STRUCTS {
         }
         Method<T> getter;
         Method<void> setter;
-        Property<T>& setInstance(void *val) {
-            getter.setInstance(val);
-            setter.setInstance(val);
+        Property<T>& setInstance(void *val, bool doWarn = true) {
+            getter.setInstance(val, doWarn);
+            setter.setInstance(val, doWarn);
             return *this;
         }
         inline Property<T>& operator()(void *val) {
@@ -588,7 +593,7 @@ namespace UNITY_STRUCTS {
         }
         template<typename NewRet>
         [[maybe_unused]] Property<NewRet> setRet() {
-            return Property<NewRet>(Method<NewRet>(getter), setter);
+            return Property<NewRet>(Method<NewRet>(getter), setter).setInstance(getter.instance ? getter.instance : setter.instance, false);
         }
     };
     template<typename ...Args>
@@ -705,7 +710,7 @@ namespace UNITY_STRUCTS {
         operator IL2CPP::Il2CppClass*() const;
         operator LoadClass() const;
     };
-#if __cplusplus >= 201703
+#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
     namespace NEW_CLASSES {
         struct NewMethod {
             NewMethod();
@@ -734,7 +739,7 @@ namespace UNITY_STRUCTS {
             const char* BaseNamespace = OBFUSCATE_BNM("");
             const char* BaseName = OBFUSCATE_BNM("");
             const char* DllName{};
-            int classType = 0;
+            uint8_t classType = 0x12;
             std::vector<NewMethod *> Methods4Add{};
             std::vector<NewField *> Fields4Add{};
             std::vector<NewField *> StaticFields4Add{};
@@ -827,6 +832,8 @@ namespace UNITY_STRUCTS {
     [[maybe_unused]] void DetachIl2Cpp();
     [[maybe_unused]] std::string GetLibIl2CppPath();
     [[maybe_unused]] DWORD GetLibIl2CppOffset();
+    // Don't close it! BNM will just crash without it.
+    [[maybe_unused]] void* GetLibIl2CppDlInst();
     // Get Il2Cpp mono type name at compile time
     template<typename T>
     constexpr TypeFinder GetType(bool isArray = false) {
@@ -883,8 +890,8 @@ namespace UNITY_STRUCTS {
 }
 #define InitResolveFunc(x, y) BNM::InitFunc(x, BNM::getExternMethod(y))
 
-#if __cplusplus >= 201703
-#define BNM_NewClassInit(_namespace, name, base_namespace, base_name) BNM_NewClassWithDllInit("ByNameModding", _namespace, name, base_namespace, base_name, 0)
+#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
+#define BNM_NewClassInit(_namespace, name, base_namespace, base_name) BNM_NewClassWithDllInit("ByNameModding", _namespace, name, base_namespace, base_name)
 
 #define BNM_NewMethodInit(_type, _name, args, ...) \
     private: \
@@ -949,7 +956,7 @@ namespace UNITY_STRUCTS {
     static inline _BNMStaticField_##_name BNMStaticField_##_name = _BNMStaticField_##_name()
 
 // Add class to exist or to new dll. Write dll name without '.dll'!
-#define BNM_NewClassWithDllInit(dll, _namespace, name, base_namespace, base_name, type)\
+#define BNM_NewClassWithDllInit(dll, _namespace, name, base_namespace, base_name)\
     private: \
     struct _BNMClass : BNM::NEW_CLASSES::NewClass { \
         _BNMClass() { \
@@ -958,7 +965,6 @@ namespace UNITY_STRUCTS {
             BaseName = OBFUSCATE_BNM(base_name); \
             BaseNamespace = OBFUSCATE_BNM(base_namespace); \
             DllName = OBFUSCATE_BNM(dll); \
-            classType = type;\
             this->size = sizeof(Me_Type); \
             BNM::NEW_CLASSES::AddNewClass(this); \
         } \

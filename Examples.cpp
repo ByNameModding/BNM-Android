@@ -124,7 +124,7 @@ namespace geokar2006 {
     };
     class BNM_DllExampleClass : public BNM::IL2CPP::Il2CppObject { // Il2CppObject - due System.Object, null parent class namespace and parent class name = System.Object
         // BNM_NewClassWithDllInit(dll, namespace, class, parent class namespace (maybe ""), parent class name (maybe ""), class type(set to 0));
-    BNM_NewClassWithDllInit("Assembly-CSharp", "geokar2006", BNM_DllExampleClass, "", "", 0);
+    BNM_NewClassWithDllInit("Assembly-CSharp", "geokar2006", BNM_DllExampleClass, "", "");
         void Start() {
             LOGIBNM(OBFUSCATE_BNM("geokar2006::BNM_DllExampleClass::Start Called!"));
         }
