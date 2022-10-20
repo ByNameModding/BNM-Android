@@ -751,12 +751,12 @@ void InitNewClasses() {
         klass->thisClass->initialized = 1;
 #if UNITY_VER > 182
         klass->thisClass->initialized_and_no_error = 1;
+        klass->thisClass->initializationExceptionGCHandle = 0;
 #if UNITY_VER < 212
         klass->thisClass->has_initialization_error = 0;
 #endif
         klass->thisClass->naturalAligment = 0;
 #endif
-        klass->thisClass->initializationExceptionGCHandle = 0;
         klass->thisClass->init_pending = 0;
 #if UNITY_VER < 202
         klass->thisClass->genericContainerIndex = -1;
@@ -783,7 +783,9 @@ void InitNewClasses() {
         klass->thisClass->thread_static_fields_offset = 0;
         klass->thisClass->thread_static_fields_size = 0;
         klass->thisClass->cctor_started = 0;
+#if UNITY_VER < 212
         klass->thisClass->cctor_finished = 0;
+#endif
         klass->thisClass->cctor_thread = 0;
         klass->thisClass->field_count = klass->Fields4Add.size() + klass->StaticFields4Add.size();
         if (klass->thisClass->field_count > 0) {
@@ -992,14 +994,14 @@ void InitIl2cppMethods() {
 #if UNITY_VER <= 174
     //! il2cpp::vm::MetadataCache::GetImageFromIndex HOOK
         if (!old_GetImageFromIndex) {
-            auto GetImageFromIndexOffset = HexUtils::FindNext_B_BL_offset(HexUtils::FindNext_B_BL_offset((DWORD)BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_assembly_get_image")), count), count);
+            auto GetImageFromIndexOffset = BNM::HexUtils::FindNext_B_BL_offset(BNM::HexUtils::FindNext_B_BL_offset((DWORD)BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_assembly_get_image")), count), count);
             HOOK(GetImageFromIndexOffset, new_GetImageFromIndex, old_GetImageFromIndex);
             LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::MetadataCache::GetImageFromIndex in lib: %p"), BNM::offsetInLib((void *)GetImageFromIndexOffset));
         }
         static void *old_AssemblyLoad;
         //! il2cpp::vm::Assembly::Load HOOK
         if (!old_AssemblyLoad) {
-            DWORD AssemblyLoadOffset = HexUtils::FindNext_B_BL_offset((DWORD)BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
+            DWORD AssemblyLoadOffset = BNM::HexUtils::FindNext_B_BL_offset((DWORD)BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
             HOOK(AssemblyLoadOffset, new_Assembly_Load, old_AssemblyLoad);
             LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::Load in lib: %p"), BNM::offsetInLib((void *)AssemblyLoadOffset));
         }
@@ -1183,7 +1185,7 @@ char *BNM::str2char(const std::string& str) {
     return (char *)str.c_str();
 }
 [[maybe_unused]] void *BNM::UNITY_STRUCTS::RaycastHit::get_Collider() const {
-    if (!m_Collider || m_Collider < 0) return {};
+    if (!m_Collider || (DWORD)m_Collider < 0) return {};
 #if UNITY_VER > 174
     static void *(*FromId)(int);
     if (!FromId)
