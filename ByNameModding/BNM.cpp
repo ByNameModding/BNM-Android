@@ -23,12 +23,9 @@ static std::vector<BNM::NEW_CLASSES::NewClass *> *Classes4Add{};
 void (*Image$$GetTypes)(BNM::IL2CPP::Il2CppImage* image, bool exportedOnly, TypeVector* target){};
 #endif
 void (*Class$$Init)(BNM::IL2CPP::Il2CppClass *klass){};
-/********** BNM MACRO CODE **************/
 
 void *get_il2cpp() { return BNM_dlLib; }
 bool BNM::Il2cppLoaded() { return BNM_LibLoaded; }
-
-/********** BNM MAIN CODE **************/
 
 #define DO_API(r, n, p) auto (n) = (r (*) p)BNM_dlsym(get_il2cpp(), OBFUSCATE_BNM(#n))
 
@@ -489,21 +486,24 @@ private:
     std::shared_mutex mtx;
     std::map<DWORD, std::vector<BNM::IL2CPP::Il2CppClass *>> map;
 } BNMClassesMap;
+#define BNM_I2C_NEW(type) new BNM::IL2CPP::type()
 BNM::IL2CPP::Il2CppImage *makeOrGetImage(BNM::NEW_CLASSES::NewClass *cls) {
-    std::string name = cls->DllName;
     DO_API(BNM::IL2CPP::Il2CppImage*, il2cpp_assembly_get_image, (const BNM::IL2CPP::Il2CppAssembly*));
     BNM::AssemblyVector *LoadedAssemblies = Assembly$$GetAllAssemblies();
     for (auto assembly : *LoadedAssemblies) {
         BNM::IL2CPP::Il2CppImage *img = il2cpp_assembly_get_image(assembly);
-        if (img->nameNoExt == name)
-            return img;
+        if (!strcmp(img->nameNoExt, cls->DllName)) return img;
     }
-    auto newImg = new BNM::IL2CPP::Il2CppImage();
-    newImg->nameNoExt = (char*)calloc(name.size(), sizeof(char));
-    strcpy((char*)newImg->nameNoExt, name.c_str());
-    std::string nameExt = (name + OBFUSCATES_BNM(".dll"));
-    newImg->name = (char*)calloc(nameExt.size(), sizeof(char));
-    strcpy((char*)newImg->name, nameExt.c_str());
+    auto nameLen = strlen(cls->DllName) + 1;
+    auto newImg = BNM_I2C_NEW(Il2CppImage);
+    newImg->nameNoExt = new char[nameLen];
+    memset((void*)newImg->nameNoExt, 0, nameLen);
+    strcpy((char*)newImg->nameNoExt, cls->DllName);
+    auto extLen = nameLen + 4;
+    newImg->name = new char[extLen];
+    memset((void*)newImg->name, 0, extLen);
+    strcpy((char*)newImg->name, cls->DllName);
+    strcat((char*)newImg->name, OBFUSCATE_BNM(".dll"));
 #if UNITY_VER > 182
     newImg->assembly = nullptr;
     newImg->customAttributeCount = 0;
@@ -528,12 +528,11 @@ BNM::IL2CPP::Il2CppImage *makeOrGetImage(BNM::NEW_CLASSES::NewClass *cls) {
     newImg->typeCount = 0;
     newImg->exportedTypeCount = 0;
     newImg->token = 1;
-    auto newAsm = new BNM::IL2CPP::Il2CppAssembly();
+    auto newAsm = BNM_I2C_NEW(Il2CppAssembly);
 #if UNITY_VER > 174
     newAsm->image = newImg;
     newAsm->image->assembly = newAsm;
-    newAsm->aname.name = (char*)calloc(name.size(), sizeof(char));
-    strcpy((char*)newAsm->aname.name, name.c_str());
+    newAsm->aname.name = newImg->name;
 #else
     static int newAsmCount = 1;
     newImg->assemblyIndex = newAsm->imageIndex = -newAsmCount;
@@ -547,7 +546,7 @@ BNM::IL2CPP::Il2CppImage *makeOrGetImage(BNM::NEW_CLASSES::NewClass *cls) {
     newAsm->referencedAssemblyStart = -1;
     newAsm->referencedAssemblyCount = 0;
     Assembly$$GetAllAssemblies()->push_back(newAsm);
-    LOGIBNM(OBFUSCATE_BNM("Added new assembly: [%s]"), name.c_str());
+    LOGIBNM(OBFUSCATE_BNM("Added new assembly: [%s]"), cls->DllName);
     return newImg;
 }
 bool isBNMType(BNM::IL2CPP::Il2CppType *type) {
@@ -634,12 +633,12 @@ void InitNewClasses() {
             LOGWBNM(OBFUSCATE_BNM("[%s] [%s]::[%s] already exist, it can't be added it to il2cpp! Please check code."), klass->DllName, klass->myNamespace, klass->Name);
             continue;
         }
-        auto typeByVal = new BNM::IL2CPP::Il2CppType();
+        auto typeByVal = BNM_I2C_NEW(Il2CppType);
         typeByVal->type = (BNM::IL2CPP::Il2CppTypeEnum)klass->classType;
         typeByVal->pinned = 0;
         typeByVal->byref = 0;
         typeByVal->num_mods = 0;
-        auto typeThis = new BNM::IL2CPP::Il2CppType();
+        auto typeThis = BNM_I2C_NEW(Il2CppType);
         typeThis->type = (BNM::IL2CPP::Il2CppTypeEnum)klass->classType;
         typeThis->pinned = 0;
         typeThis->byref = 1;
@@ -662,18 +661,26 @@ void InitNewClasses() {
             methods = (const BNM::IL2CPP::MethodInfo **) calloc(klass->Methods4Add.size(), sizeof(BNM::IL2CPP::MethodInfo *));
             for (int i = 0; i < klass->Methods4Add.size(); ++i) {
                 auto method = klass->Methods4Add[i];
-                method->thisMethod->name = (char*)calloc(strlen(method->Name), sizeof(char));
+                method->thisMethod = BNM_I2C_NEW(MethodInfo);
+                method->thisMethod->methodPointer = (BNM::IL2CPP::Il2CppMethodPointer)method->address;
+                method->thisMethod->invoker_method = (BNM::IL2CPP::InvokerMethod)method->invoker_address;
+                method->thisMethod->parameters_count = method->argsCount;
+                auto len = strlen(method->Name) + 1;
+                method->thisMethod->name = new char[len];
+                memset((void*)method->thisMethod->name, 0, len);
                 strcpy((char*)method->thisMethod->name, method->Name);
                 method->thisMethod->flags = 0x0006 | 0x0080;
                 if (method->isStatic) method->thisMethod->flags |= 0x0010; // PUBLIC | HIDE_BY_SIG | (isStatic ? STATIC : NONE)
                 method->thisMethod->is_generic = false;
                 method->thisMethod->return_type = method->ret_type.ToIl2CppType();
 #if UNITY_VER < 212
-                for (int p = 0; p < method->thisMethod->parameters_count; ++p) {
-                    auto newParam = new BNM::IL2CPP::ParameterInfo();
-                    auto name = OBFUSCATES_BNM("arg") + std::to_string(p);
-                    newParam->name = (char*)calloc(name.size(), sizeof(char));
-                    strcpy((char*)newParam->name, name.c_str());
+                for (int p = 0; p < method->argsCount; ++p) {
+                    auto newParam = BNM_I2C_NEW(ParameterInfo);
+                    auto nameLen = (OBFUSCATES_BNM("arg") + std::to_string(p)).size();
+                    newParam->name = new char[nameLen + 1];
+                    memset((void*)newParam->name, 0, nameLen + 1);
+                    strcat((char*)newParam->name, OBFUSCATE_BNM("arg"));
+                    strcpy((char*)newParam->name, std::to_string(p).c_str());
                     newParam->position = p;
                     if (method->args_types && !method->args_types->empty() && p < method->args_types->size())
                         newParam->parameter_type = (*method->args_types)[p].ToIl2CppType();
@@ -684,7 +691,6 @@ void InitNewClasses() {
                 methods[i] = method->thisMethod;
             }
         }
-        klass->thisClass = (BNM::IL2CPP::Il2CppClass*)malloc(sizeof(BNM::IL2CPP::Il2CppClass) + newVTable.size() * sizeof(BNM::IL2CPP::VirtualInvokeData));
 #if UNITY_VER > 174
 #define kls klass
 #define typeSymbol *
@@ -692,6 +698,7 @@ void InitNewClasses() {
 #define typeSymbol
 #define kls declaring_type
 #endif
+        klass->thisClass = (BNM::IL2CPP::Il2CppClass*)malloc(sizeof(BNM::IL2CPP::Il2CppClass) + newVTable.size() * sizeof(BNM::IL2CPP::VirtualInvokeData));
         if (!klass->Methods4Add.empty()) {
             for (int i = 0; i < klass->Methods4Add.size(); ++i)
                 ((BNM::IL2CPP::MethodInfo *)methods[i])->kls = klass->thisClass;
@@ -708,9 +715,13 @@ void InitNewClasses() {
         memcpy(klass->thisClass->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(BNM::IL2CPP::Il2CppClass*));
         klass->thisClass->typeHierarchy[klass->thisClass->typeHierarchyDepth - 1] = klass->thisClass;
         klass->thisClass->image = curImg;
-        klass->thisClass->name = (char*)calloc(strlen(klass->Name), sizeof(char));
+        auto len = strlen(klass->Name) + 1;
+        klass->thisClass->name = new char[len];
+        memset((void*)klass->thisClass->name, 0, len);
         strcpy((char*)klass->thisClass->name, klass->Name);
-        klass->thisClass->namespaze = (char*)calloc(strlen(klass->myNamespace), sizeof(char));
+        len = strlen(klass->myNamespace) + 1;
+        klass->thisClass->namespaze = new char[len];
+        memset((void*)klass->thisClass->namespaze, 0, len);
         strcpy((char*)klass->thisClass->namespaze, klass->myNamespace);
         klass->thisClass->byval_arg = typeSymbol typeByVal;
         klass->thisClass->this_arg = typeSymbol typeThis;
@@ -793,7 +804,9 @@ void InitNewClasses() {
             BNM::IL2CPP::FieldInfo* newField = fields;
             if (!klass->Fields4Add.empty()) {
                 for (auto field : klass->Fields4Add) {
-                    newField->name = (char*)calloc(strlen(field->Name), sizeof(char));
+                    auto len = strlen(field->Name);
+                    newField->name = new char[len];
+                    memset((void*)newField->name, 0, len);
                     strcpy((char*)newField->name, field->Name);
                     newField->type = field->type.ToIl2CppType();
                     newField->parent = klass->thisClass;
@@ -805,7 +818,9 @@ void InitNewClasses() {
             }
             if (!klass->StaticFields4Add.empty()) {
                 for (auto field : klass->StaticFields4Add) {
-                    newField->name = (char*)calloc(strlen(field->Name), sizeof(char));
+                    auto len = strlen(field->Name);
+                    newField->name = new char[len];
+                    memset((void*)newField->name, 0, len);
                     strcpy((char*)newField->name, field->Name);
                     newField->type = field->type.ToIl2CppType();
                     newField->parent = klass->thisClass;
@@ -861,10 +876,10 @@ namespace BNM::HexUtils {
         DWORD hexW = HexStr2DWORD(ReverseHexString(FixHexString(hex)));
         return (hexW & 0xFC000000) == 0x14000000 || (hexW & 0xFC000000) == 0x94000000;
     }
-#elif defined(__i386__)
+#elif defined(__i386__) || defined(__x86_64__)
     bool Is_x86_call_hex(const std::string &hex) { return hex.substr(0, 2) == OBFUSCATE_BNM("E8"); }
 #else
-#warning "Call or B BL hex checker support only arm64, arm and x86"
+#warning "Call or B BL hex checker support only arm64, arm, x86 and x86_64"
 #endif
     std::string ReadMemory(DWORD address, size_t len) {
         char temp[len];
@@ -893,11 +908,11 @@ namespace BNM::HexUtils {
         int add = 8;
 #endif
         outOffset = ((int32_t)(((((HexStr2DWORD(ReverseHexString(FixHexString(hex)))) & (((uint32_t)1 << 24) - 1) << 0) >> 0) << 2) << (32 - 26)) >> (32 - 26)) + offset + add;
-#elif defined(__i386__)
+#elif defined(__i386__) || defined(__x86_64__)
         if (!Is_x86_call_hex(hex)) return false;
         outOffset = offset + HexStr2DWORD(ReverseHexString(FixHexString(hex)).substr(0, 8)) + 5;
 #else
-        #warning "Decode_Branch_or_Call_Hex support only arm64, arm and x86"
+#warning "Decode_Branch_or_Call_Hex support only arm64, arm, x86 and x86_64"
         return false;
 #endif
         return true;
@@ -914,7 +929,7 @@ namespace BNM::HexUtils {
             if (out) index--;
         }
         return outOffset;
-#elif defined(__i386__)
+#elif defined(__i386__) || defined(__x86_64__)
         int offset = 0;
         std::string curHex = ReadMemory(start, 1);
         DWORD outOffset = 0;
@@ -928,7 +943,6 @@ namespace BNM::HexUtils {
         return outOffset;
 #endif
     }
-
 }
 void InitIl2cppMethods() {
 #if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
@@ -961,12 +975,11 @@ void InitIl2cppMethods() {
         GetTypesAdr = BNM::LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetTypes"), 1).GetOffset(); // We can use LoadClass here by Il2CppClass, because for methods we need only it.
         const int sCount
 #if UNITY_VER >= 211
-                = count;
+        = count;
 #elif UNITY_VER > 174
-                = count + 1;
+        = count + 1;
 #else
         = count + 2;
-
 #endif
         auto Image$$GetTypes_t = BNM::HexUtils::FindNext_B_BL_offset(BNM::HexUtils::FindNext_B_BL_offset(BNM::HexUtils::FindNext_B_BL_offset(GetTypesAdr, count), sCount), count);
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
@@ -1055,10 +1068,10 @@ void PrepareBNM() {
                 if (init) {
                     Dl_info info;
                     BNM_dladdr(init, &info);
-                    auto l = strlen(info.dli_fname);
-                    char *s = (char *)malloc(l);
+                    auto l = strlen(info.dli_fname) + 1;
+                    auto s = new char[l];
+                    memset((void*)s, 0, l);
                     strcpy(s, info.dli_fname);
-                    s[l] = 0;
                     BNM_LibAbsolutePath = s;
                     BNM_LibAbsoluteAddress = (DWORD)info.dli_fbase;
                     HOOK(init, BNM_il2cpp_init, old_BNM_il2cpp_init);

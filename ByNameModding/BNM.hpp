@@ -63,14 +63,12 @@ namespace UNITY_STRUCTS {
         std::string ReverseHexString(const std::string &hex);
         std::string FixHexString(std::string str);
         DWORD HexStr2DWORD(const std::string &hex);
-#if defined(__ARM_ARCH_7A__)
+#if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
         bool Is_B_BL_Hex(const std::string& hex);
-#elif defined(__aarch64__)
-        bool Is_B_BL_Hex(const std::string& hex);
-#elif defined(__i386__)
+#elif defined(__i386__) || defined(__x86_64__)
         bool Is_x86_call_hex(const std::string &hex);
 #else
-#warning "Call or B BL hex checker support only arm64, arm and x86"
+#warning "Call or B BL hex checker support only arm64, arm, x86 and x86_64"
 #endif
         std::string ReadMemory(DWORD address, size_t len);
         bool Decode_Branch_or_Call_Hex(const std::string &hex, DWORD offset, DWORD &outOffset);
@@ -715,6 +713,8 @@ namespace UNITY_STRUCTS {
         struct NewMethod {
             NewMethod();
             IL2CPP::MethodInfo *thisMethod{};
+            uint8_t argsCount = 0;
+            void* address{}, *invoker_address{};
             const char* Name{};
             [[maybe_unused]] const IL2CPP::MethodInfo *virtualMethod{};
             TypeFinder ret_type{};
@@ -897,11 +897,10 @@ namespace UNITY_STRUCTS {
     private: \
     struct _BNMMethod_##_name : BNM::NEW_CLASSES::NewMethod { \
         _BNMMethod_##_name() { \
-            thisMethod = new BNM::IL2CPP::MethodInfo(); \
-            thisMethod->parameters_count = args; \
+            argsCount = args; \
             ret_type = _type; \
-            thisMethod->methodPointer = (BNM::IL2CPP::Il2CppMethodPointer)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&Me_Type::_name)>::get<&Me_Type::_name>; \
-            thisMethod->invoker_method = (BNM::IL2CPP::InvokerMethod)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&Me_Type::_name)>::invoke; \
+            address = (void*)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&Me_Type::_name)>::get<&Me_Type::_name>; \
+            invoker_address = (void*)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&Me_Type::_name)>::invoke; \
             args_types = new std::vector<BNM::TypeFinder>({__VA_ARGS__}); \
             Name = OBFUSCATE_BNM(#_name); \
             BNMClass.AddNewMethod(this); \
@@ -914,11 +913,10 @@ namespace UNITY_STRUCTS {
     private: \
     struct _BNMStaticMethod_##_name : BNM::NEW_CLASSES::NewMethod { \
         _BNMStaticMethod_##_name() { \
-            thisMethod = new BNM::IL2CPP::MethodInfo(); \
-            thisMethod->parameters_count = args; \
+            argsCount = args; \
             ret_type = _type; \
-            thisMethod->methodPointer = (BNM::IL2CPP::Il2CppMethodPointer)&Me_Type::_name; \
-            thisMethod->invoker_method = (BNM::IL2CPP::InvokerMethod)&BNM::NEW_CLASSES::GetNewStaticMethodCalls<decltype(&Me_Type::_name)>::invoke; \
+            address = (void*)&Me_Type::_name; \
+            invoker_address = (void*)&BNM::NEW_CLASSES::GetNewStaticMethodCalls<decltype(&Me_Type::_name)>::invoke; \
             args_types = new std::vector<BNM::TypeFinder>({__VA_ARGS__}); \
             Name = OBFUSCATE_BNM(#_name); \
             isStatic = true; \

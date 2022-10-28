@@ -90,7 +90,6 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 /********** USER AREA **************/
 
 
-
 #ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS // If you want try port for windows
 #endif
