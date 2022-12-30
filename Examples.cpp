@@ -102,7 +102,7 @@ void Update(void *instance) {
 }
 namespace geokar2006 {
     class BNM_ExampleClass : public BNM::UnityEngine::Object {  // Behaviour, MonoBehaviour don't contain fields, therefore, you can use UnityEngine.Object
-        // BNM_NewClassInit(namespace, class, parent class namespace, parent class name);
+    // BNM_NewClassInit(namespace, class, parent class namespace, parent class name);
     BNM_NewClassInit("geokar2006", BNM_ExampleClass, "UnityEngine", "MonoBehaviour");
         void FixedUpdate();
         void Update();
@@ -123,7 +123,7 @@ namespace geokar2006 {
     BNM_NewStaticMethodInit(BNM::GetType<void>(), MethodWithGameArgs, 1, BNM::GetType(OBFUSCATE_BNM(""), OBFUSCATE_BNM("PhotonPlayer")));
     };
     class BNM_DllExampleClass : public BNM::IL2CPP::Il2CppObject { // Il2CppObject - due System.Object, null parent class namespace and parent class name = System.Object
-        // BNM_NewClassWithDllInit(dll, namespace, class, parent class namespace (maybe ""), parent class name (maybe ""), class type(set to 0));
+    // BNM_NewClassWithDllInit(dll, namespace, class, parent class namespace (maybe ""), parent class name (maybe ""), class type(set to 0));
     BNM_NewClassWithDllInit("Assembly-CSharp", "geokar2006", BNM_DllExampleClass, "", "");
         void Start() {
             LOGIBNM(OBFUSCATE_BNM("geokar2006::BNM_DllExampleClass::Start Called!"));
