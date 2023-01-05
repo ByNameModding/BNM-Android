@@ -38,5 +38,10 @@ struct Color {
         b = b1;
         a = a1;
     }
+    inline Color ToMono() {
+        return Color(r/255, g/255, b/255, a/255);
+    }
     inline std::string str() { return OBFUSCATES_BNM("r: ") +  std::to_string(r) + OBFUSCATES_BNM(", g: ") + std::to_string(g) + OBFUSCATES_BNM(", b: ") + std::to_string(b) + OBFUSCATES_BNM(", a: ") + std::to_string(a); }
 };
+inline bool operator ==(const Color& lhs, const Color& rhs) { return lhs.r == rhs.r && lhs.g == rhs.g && lhs.b == rhs.b && lhs.a == rhs.a; }
+inline bool operator !=(const Color& lhs, const Color& rhs) { return !(lhs == rhs); }

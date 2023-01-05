@@ -41,7 +41,7 @@ void *set_fov(float value) {
 //! Create new class example
 BNM::LoadClass GameObject;
 BNM::LoadClass ExampleClass;
-void *NewExampleClass() {
+void *Example_NewObject() {
     void *new_GameObject = GameObject.CreateNewObject(); // No args
     bool ExampleArg1 = false;
     float ExampleArg2 = 0.f;
@@ -75,13 +75,13 @@ void Update(void *instance) {
 
         //! Set player pos to 0, 0, 0
         void *myPlayer_Transform = get_Transform(myPlayer);
-        transformPosition(myPlayer_Transform) = Vector3(0, 0, 0);
+        transformPosition[myPlayer_Transform] = Vector3(0, 0, 0);
         Vector3 pos(0, 0, 0);
         set_position_Injected(myPlayer_Transform, &pos); // You can't use Vector3 in Injected, you need pointer to Vector3
 
         //! Get and Set player name
         if (!setName) {
-            PlayerName(myPlayer); //! Same as PlayerName.setInstance(myPlayer); but less code
+            PlayerName[myPlayer]; //! Same as PlayerName.setInstance(myPlayer); but less code
             LOGIBNM(OBFUSCATE_BNM("myPlayer old name is %s"), PlayerName()->c_str());
             PlayerName = BNM::CreateMonoString(OBFUSCATE_BNM("ByNameModding_Player"));
             //! Less safety but work
@@ -93,13 +93,14 @@ void Update(void *instance) {
         //! Parse monoDictionary
         if (parseDict) {
             auto map = Players()->toMap();
-            for (auto [name, player] : map)
-                if (name)
-                    LOGIBNM(OBFUSCATE_BNM("Found Player: [%s, %p]"), name->c_str(), player);
+            for (auto &it : map)
+                if (it.first)
+                    LOGIBNM(OBFUSCATE_BNM("Found Player: [%s, %p]"), it.first->c_str(), it.second);
             parseDict = false;
         }
     }
 }
+#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
 namespace geokar2006 {
     class BNM_ExampleClass : public BNM::UnityEngine::Object {  // Behaviour, MonoBehaviour don't contain fields, therefore, you can use UnityEngine.Object
     // BNM_NewClassInit(namespace, class, parent class namespace, parent class name);
@@ -155,7 +156,7 @@ void geokar2006::BNM_ExampleClass::Update() {
     Frames++;
     if (Frames == 11) Frames = 0;
 }
-
+#endif
 void hack_thread() {
     using namespace BNM; // You can use namespace in methods
     do {
@@ -215,6 +216,9 @@ void hack_thread() {
     // You can't make namespace in class due that, method has only class name
     auto HatManager_c = HatManager.GetInnerClass(OBFUSCATE_BNM("<>c"));
     LOGIBNM("HatManager_c ptr: %p", HatManager_c.GetIl2CppClass());
+
+    // Call method for creating new object from ExampleClass
+    LOGIBNM("Example_NewObject: %p", Example_NewObject());
 
     DetachIl2Cpp(); // Stabilization
 }

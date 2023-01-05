@@ -149,8 +149,8 @@ namespace UNITY_STRUCTS {
                 return true;
             }
             [[maybe_unused]] void copyTo(T *arr) { if (!this || !CheckObj(m_Items)) return; memcpy(arr, m_Items, sizeof(T) * capacity); }
-            T& operator[] (int index) { if (getCapacity() < index) {T a{};return a;} return m_Items[index]; }
-            T& at(int index) { if (!this || getCapacity() <= index || empty()) {T a{};return a;} return m_Items[index]; }
+            T operator[] (int index) { if (getCapacity() < index) return {}; return m_Items[index]; }
+            T at(int index) { if (!this || getCapacity() <= index || empty()) return {}; return m_Items[index]; }
             bool empty() { if (!this) return false; return getCapacity() <= 0;}
             static monoArray<T> *Create(int capacity) {
                 auto monoArr = (monoArray<T> *)malloc(sizeof(monoArray) + sizeof(T) * capacity);
@@ -410,7 +410,7 @@ namespace UNITY_STRUCTS {
         T operator()() {
             return get();
         }
-        Field<T>& operator()(void *val) {
+        Field<T>& operator[](void *val) {
             return setInstance(val);
         }
         template<typename NewT>
@@ -561,7 +561,7 @@ namespace UNITY_STRUCTS {
             setter.setInstance(val, doWarn);
             return *this;
         }
-        inline Property<T>& operator()(void *val) {
+        inline Property<T>& operator[](void *val) {
             return setInstance(val);
         }
         T get() {

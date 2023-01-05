@@ -653,21 +653,37 @@ void InitNewClasses() {
                 if (method->isStatic) method->thisMethod->flags |= 0x0010; // PUBLIC | HIDE_BY_SIG | (isStatic ? STATIC : NONE)
                 method->thisMethod->is_generic = false;
                 method->thisMethod->return_type = method->ret_type.ToIl2CppType();
+                if (method->argsCount) {
 #if UNITY_VER < 212
-                for (int p = 0; p < method->argsCount; ++p) {
-                    auto newParam = BNM_I2C_NEW(ParameterInfo);
-                    auto nameLen = (OBFUSCATES_BNM("arg") + std::to_string(p)).size();
-                    newParam->name = new char[nameLen + 1];
-                    memset((void*)newParam->name, 0, nameLen + 1);
-                    strcat((char*)newParam->name, OBFUSCATE_BNM("arg"));
-                    strcpy((char*)newParam->name, std::to_string(p).c_str());
-                    newParam->position = p;
-                    if (method->args_types && !method->args_types->empty() && p < method->args_types->size())
-                        newParam->parameter_type = (*method->args_types)[p].ToIl2CppType();
-                }
+                    method->thisMethod->parameters = (BNM::IL2CPP::ParameterInfo*)calloc(method->argsCount, sizeof(BNM::IL2CPP::ParameterInfo));
+                    auto newParam = (BNM::IL2CPP::ParameterInfo*)method->thisMethod->parameters;
+                    for (int p = 0; p < method->argsCount; ++p) {
+                        auto nameLen = (OBFUSCATES_BNM("arg") + std::to_string(p)).size();
+                        newParam->name = new char[nameLen + 1];
+                        memset((void*)newParam->name, 0, nameLen + 1);
+                        strcat((char*)newParam->name, OBFUSCATE_BNM("arg"));
+                        strcpy((char*)newParam->name, std::to_string(p).c_str());
+                        newParam->position = p;
+                        if (method->args_types && !method->args_types->empty() && p < method->args_types->size()) {
+                            newParam->parameter_type = (*method->args_types)[p].ToIl2CppType();
+                            newParam->token = newParam->parameter_type->attrs | 1;
+                        } else {
+                            newParam->parameter_type = nullptr;
+                            newParam->token = 1;
+                        }
+                        ++newParam;
+                    }
 #else
-                method->thisMethod->parameters = nullptr;
+                    BNM::IL2CPP::Il2CppType **params = new BNM::IL2CPP::Il2CppType*[method->argsCount];
+                    method->thisMethod->parameters = (const BNM::IL2CPP::Il2CppType**)params;
+                    for (int p = 0; p < method->argsCount; ++p) {
+                        auto newParam = BNM_I2C_NEW(Il2CppType);
+                        memcpy(newParam, (*method->args_types)[p].ToIl2CppType(), sizeof(BNM::IL2CPP::Il2CppType));
+                        newParam->data.dummy = nullptr;
+                        params[p] = newParam;
+                    }
 #endif
+                }
                 methods[i] = method->thisMethod;
             }
         }
