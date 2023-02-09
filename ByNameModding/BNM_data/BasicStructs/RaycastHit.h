@@ -12,5 +12,5 @@ struct RaycastHit {
     void *m_Collider{};
 #endif
     void *get_Collider() const;
-    std::string str() { return OBFUSCATES_BNM("Point: ") + Point.str() + OBFUSCATES_BNM(", Normal: ") + Normal.str() + OBFUSCATES_BNM(", FaceID: ") + std::to_string(FaceID) + OBFUSCATES_BNM(", Distance: ") + std::to_string(Distance) + OBFUSCATES_BNM(", UV: ") + UV.str() + OBFUSCATES_BNM(", m_Collider: ") + std::to_string((DWORD)m_Collider); }
+    std::string str() { return OBFUSCATES_BNM("Point: ") + Point.str() + OBFUSCATES_BNM(", Normal: ") + Normal.str() + OBFUSCATES_BNM(", FaceID: ") + std::to_string(FaceID) + OBFUSCATES_BNM(", Distance: ") + std::to_string(Distance) + OBFUSCATES_BNM(", UV: ") + UV.str() + OBFUSCATES_BNM(", m_Collider: ") + std::to_string((BNM::BNM_PTR)m_Collider); }
 };

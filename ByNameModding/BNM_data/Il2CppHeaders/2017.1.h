@@ -945,7 +945,7 @@ typedef struct Il2CppClass
     uint8_t is_blittable : 1;
     uint8_t is_import_or_windows_runtime : 1;
     uint8_t is_vtable_initialized : 1;
-    VirtualInvokeData vtable[32];
+    VirtualInvokeData vtable[0];
 } Il2CppClass;
 
 typedef struct Il2CppClass_0 {
@@ -1025,7 +1025,7 @@ typedef struct __attribute__((aligned(8))) Il2CppClass_Merged {
     void* static_fields;
     const Il2CppRGCTXData* rgctx_data;
     struct Il2CppClass_1 _1;
-    VirtualInvokeData vtable[32];
+    VirtualInvokeData vtable[0];
 } Il2CppClass_Merged;
 
 typedef struct Il2CppTypeDefinitionSizes

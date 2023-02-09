@@ -288,6 +288,7 @@ typedef enum Il2CppMetadataUsage
     kIl2CppMetadataUsageFieldInfo,
     kIl2CppMetadataUsageStringLiteral,
     kIl2CppMetadataUsageMethodRef,
+    kIl2CppMetadataUsageFieldRva
 } Il2CppMetadataUsage;
 typedef enum Il2CppInvalidMetadataUsageToken
 {
@@ -521,10 +522,10 @@ typedef struct Il2CppGlobalMetadataHeader
     int32_t attributeDataSize;
     int32_t attributeDataRangeOffset;
     int32_t attributeDataRangeSize;
-    int32_t unresolvedVirtualCallParameterTypesOffset;
-    int32_t unresolvedVirtualCallParameterTypesSize;
-    int32_t unresolvedVirtualCallParameterRangesOffset;
-    int32_t unresolvedVirtualCallParameterRangesSize;
+    int32_t unresolvedIndirectCallParameterTypesOffset;
+    int32_t unresolvedIndirectCallParameterTypesSize;
+    int32_t unresolvedIndirectCallParameterRangesOffset;
+    int32_t unresolvedIndirectCallParameterRangesSize;
     int32_t windowsRuntimeTypeNamesOffset;
     int32_t windowsRuntimeTypeNamesSize;
     int32_t windowsRuntimeStringsOffset;
@@ -542,7 +543,7 @@ typedef struct Il2CppMetadataField
 } Il2CppMetadataField;
 typedef enum Il2CppMetadataTypeFlags
 {
-    kNone = 0,
+    il2cpp_kNone = 0,
     kValueType = 1 << 0,
     kArray = 1 << 1,
     kArrayRankMask = 0xFFFF0000
@@ -1273,7 +1274,6 @@ typedef struct MethodInfo
     uint8_t is_inflated : 1;
     uint8_t wrapper_type : 1;
     uint8_t has_full_generic_sharing_signature : 1;
-    uint8_t indirect_call_via_invokers : 1;
 } MethodInfo;
 typedef struct Il2CppRuntimeInterfaceOffsetPair
 {
@@ -1553,8 +1553,10 @@ typedef struct Il2CppCodeRegistration
     const Il2CppMethodPointer* genericAdjustorThunks;
     uint32_t invokerPointersCount;
     const InvokerMethod* invokerPointers;
-    uint32_t unresolvedVirtualCallCount;
+    uint32_t unresolvedIndirectCallCount;
     const Il2CppMethodPointer* unresolvedVirtualCallPointers;
+    const Il2CppMethodPointer* unresolvedInstanceCallPointers;
+    const Il2CppMethodPointer* unresolvedStaticCallPointers;
     uint32_t interopDataCount;
     Il2CppInteropData* interopData;
     uint32_t windowsRuntimeFactoryCount;
@@ -2018,7 +2020,7 @@ typedef struct Il2CppDelegate
     const MethodInfo *method;
     void* delegate_trampoline;
     intptr_t extraArg;
-    uint8_t **method_code;
+    Il2CppObject* invoke_impl_this;
     void* interp_method;
     void* interp_invoke_impl;
     Il2CppReflectionMethod *method_info;

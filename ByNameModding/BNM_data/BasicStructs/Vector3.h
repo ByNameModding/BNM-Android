@@ -2,19 +2,29 @@
 struct Quaternion;
 struct Vector3 {
     union {
-        struct { float x, y, z; };
+        struct { float x{}, y{}, z{}; };
+        union {
+            struct {
+                // Y axis
+                float pitch{};
+                // Z axis
+                float yaw{};
+                // X axis
+                float roll{};
+            } UE4;
+            struct {
+                // Z axis
+                float yaw{};
+                // X axis
+                float roll{};
+                // Y axis
+                float pitch{};
+            } Unity;
+        } Rot;
         float data[3];
     };
-    inline Vector3() : x(0), y(0), z(0) {};
-    inline Vector3(float x, float y, float z) : x(x), y(y), z(z) {};
-    [[maybe_unused]] inline static Vector3 Back() { return Vector3(0, 0, -1); };
-    [[maybe_unused]] inline static Vector3 Down() { return Vector3(0, -1, 0); };
-    [[maybe_unused]] inline static Vector3 Forward() { return Vector3(0, 0, 1); };
-    [[maybe_unused]] inline static Vector3 Left() { return Vector3(-1, 0, 0); };
-    [[maybe_unused]] inline static Vector3 Right() { return Vector3(1, 0, 0); };
-    [[maybe_unused]] inline static Vector3 Up() { return Vector3(0, 1, 0); }
-    [[maybe_unused]] inline static Vector3 Zero() { return Vector3(0, 0, 0); }
-    [[maybe_unused]] inline static Vector3 One() { return Vector3(1, 1, 1); }
+    inline Vector3() noexcept : x(0.f), y(0.f), z(0.f) {};
+    inline Vector3(float x, float y, float z) noexcept : x(x), y(y), z(z) {};
     inline static float Angle(Vector3 from, Vector3 to);
     inline static float Dot(Vector3, Vector3);
     [[maybe_unused]] inline static Vector3 ClampMagnitude(Vector3, float);
@@ -36,39 +46,46 @@ struct Vector3 {
     inline static float Magnitude(Vector3);
     inline static float SqrMagnitude(Vector3);
     inline static Vector3 Normalize(Vector3);
-    inline static Vector3 NormalizeEuler(Vector3);
-    inline static float NormalizeAngle(float f);
+    inline static Vector3 NormalizeEuler(Vector3, bool is180 = true);
+    inline static float NormalizeAngle(float f, bool is180 = true);
     [[maybe_unused]] inline static Vector3 FromString(std::string);
     inline Vector3 orthogonal() { return Orthogonal(*this); }
     inline float magnitude() { return Magnitude(*this); }
     inline float sqrMagnitude() { return SqrMagnitude(*this); }
     inline Vector3 normalized() { return Normalize(*this); }
-    [[maybe_unused]] inline Vector3 normalizedEuler() { return NormalizeEuler(*this); }
+    [[maybe_unused]] inline Vector3 normalizedEuler(bool is180 = true) { return NormalizeEuler(*this, is180); }
     inline std::string str() { return std::to_string(x) + OBFUSCATES_BNM(", ") + std::to_string(y) + OBFUSCATES_BNM(", ") + std::to_string(z); }
-    inline const Vector3& operator+=(float v) { x+=v; y+=v; y+=v; return *this; };
-    inline const Vector3& operator-=(float v) { x-=v; y-=v; y-=v; return *this; };
-    inline const Vector3& operator*=(float v) { x*=v; y*=v; z*=v; return *this; };
-    inline const Vector3& operator/=(float v) { x/=v; y/=v; z/=v; return *this; };
-    inline const Vector3& operator+=(Vector3 v) { x+=v.x; y+=v.y; z+=v.z; return *this; };
-    inline const Vector3& operator-=(Vector3 v) { x-=v.x; y-=v.y; z-=v.z; return *this; };
-    inline const Vector3& operator*=(Vector3 v) { x*=v.x; y*=v.y; z*=v.z; return *this; };
-    inline Vector3& operator/=(Vector3 v) { x/=v.x; y/=v.y; z/=v.z; return *this; };
+    bool operator==(const Vector3& v) const { return x == v.x && y == v.y && z == v.z; }
+    bool operator!=(const Vector3& v) const { return x != v.x || y != v.y || z != v.z; }
+    Vector3& operator+=(const Vector3& inV) { x += inV.x; y += inV.y; z += inV.z; return *this; }
+    Vector3& operator-=(const Vector3& inV) { x -= inV.x; y -= inV.y; z -= inV.z; return *this; }
+    Vector3& operator*=(float s) { x *= s; y *= s; z *= s; return *this; }
+    Vector3& operator/=(float s);
+    Vector3& operator/=(const Vector3& inV) { x /= inV.x; y /= inV.y; z /= inV.z; return *this; }
+    Vector3 operator-() const { return Vector3(-x, -y, -z); }
+    [[maybe_unused]] static const Vector3 infinityVec;
+    [[maybe_unused]] static const Vector3 zero;
+    [[maybe_unused]] static const Vector3 one;
+    [[maybe_unused]] static const Vector3 up;
+    [[maybe_unused]] static const Vector3 down;
+    [[maybe_unused]] static const Vector3 left;
+    [[maybe_unused]] static const Vector3 right;
+    [[maybe_unused]] static const Vector3 forward;
+    [[maybe_unused]] static const Vector3 back;
 };
-inline Vector3 operator+(Vector3 lhs, const float rhs) { return Vector3(lhs.x + rhs, lhs.y + rhs, lhs.z + rhs); }
-inline Vector3 operator-(Vector3 lhs, const float rhs) { return Vector3(lhs.x - rhs, lhs.y - rhs, lhs.z - rhs); }
-inline Vector3 operator*(Vector3 lhs, const float rhs) { return Vector3(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs); }
-inline Vector3 operator/(Vector3 lhs, const float rhs) { return Vector3(lhs.x / rhs, lhs.y / rhs, lhs.z / rhs); }
-inline Vector3 operator+(const float lhs, Vector3 rhs) { return Vector3(lhs + rhs.x, lhs + rhs.y, lhs + rhs.z); }
-inline Vector3 operator-(const float lhs, Vector3 rhs) { return Vector3(lhs - rhs.x, lhs - rhs.y, lhs - rhs.z); }
-inline Vector3 operator*(const float lhs, Vector3 rhs) { return Vector3(lhs * rhs.x, lhs * rhs.y, lhs * rhs.z); }
-inline Vector3 operator/(const float lhs, Vector3 rhs) { return Vector3(lhs / rhs.x, lhs / rhs.y, lhs / rhs.z); }
-inline Vector3 operator+(Vector3 lhs, const Vector3 rhs) { return Vector3(lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z); }
-inline Vector3 operator-(Vector3 lhs, const Vector3 rhs) { return Vector3(lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z); }
-inline Vector3 operator*(Vector3 lhs, const Vector3 rhs) { return Vector3(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z); }
-inline Vector3 operator/(Vector3 lhs, const Vector3 rhs) { return Vector3(lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z); }
-inline bool operator==(const Vector3 lhs, const Vector3 rhs) { return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z; }
-inline bool operator!=(const Vector3 lhs, const Vector3 rhs) { return lhs.x != rhs.x && lhs.y != rhs.y && lhs.z != rhs.z; }
-inline Vector3 operator-(Vector3 v) {return v * -1;}
+inline Vector3 operator+(const Vector3& lhs, const Vector3& rhs) { return Vector3(lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z); }
+inline Vector3 operator-(const Vector3& lhs, const Vector3& rhs) { return Vector3(lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z); }
+inline Vector3 operator*(const Vector3& inV, const float s) { return Vector3(inV.x * s, inV.y * s, inV.z * s); }
+inline Vector3 operator*(const float s, const Vector3& inV) { return Vector3(inV.x * s, inV.y * s, inV.z * s); }
+inline Vector3 operator*(const Vector3& lhs, const Vector3& rhs) { return Vector3(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z); }
+inline Vector3 operator/(const Vector3& inV, const float s) { Vector3 temp(inV); temp /= s; return temp; }
+inline Vector3 operator/(const Vector3& lhs, const Vector3& rhs) { return Vector3(lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z); }
+inline Vector3& Vector3::operator/=(float s) {
+    x /= s;
+    y /= s;
+    z /= s;
+    return *this;
+}
 
 float Vector3::Angle(Vector3 from, Vector3 to) {
     float v = Dot(from, to) / (from.magnitude() * to.magnitude());
@@ -206,20 +223,20 @@ float Vector3::SqrMagnitude(Vector3 v) {
 
 Vector3 Vector3::Normalize(Vector3 v) {
     float mag = v.magnitude();
-    if (mag == 0) return Vector3::Zero();
+    if (mag == 0) return Vector3::zero;
     return v / mag;
 }
 
-float Vector3::NormalizeAngle(float f) {
-    while (f > 360) f -= 360;
-    while (f < 0) f += 360;
+float Vector3::NormalizeAngle(float f, bool is180) {
+    while (f > (is180 ? 180 : 360)) f -= 360;
+    while (f < (is180 ? -180 : 0.f)) f += 360;
     return f;
 }
 
-Vector3 Vector3::NormalizeEuler(Vector3 vec) {
-    vec.x = NormalizeAngle(vec.x);
-    vec.y = NormalizeAngle(vec.y);
-    vec.z = NormalizeAngle(vec.z);
+Vector3 Vector3::NormalizeEuler(Vector3 vec, bool is180) {
+    vec.x = NormalizeAngle(vec.x, is180);
+    vec.y = NormalizeAngle(vec.y, is180);
+    vec.z = NormalizeAngle(vec.z, is180);
     return vec;
 }
 
@@ -235,6 +252,6 @@ Vector3 Vector3::NormalizeEuler(Vector3 vec) {
             buffer = "";
         }
     }
-    if (buffer != "") commands.push_back(buffer);
+    if (!buffer.empty()) commands.push_back(buffer);
     return Vector3(std::atof(commands[0].c_str()), std::atof(commands[1].c_str()), std::atof(commands[2].c_str()));
 }

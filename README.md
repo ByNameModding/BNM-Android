@@ -1,7 +1,22 @@
 ## ByNameModding
-ByNameModding is a library for modding il2cpp games by classes, methods, field names on Android. It includes everything you need for modding unity games. 
+ByNameModding is a library for modding il2cpp games by classes, methods, field names on Android. It includes everything you need for modding unity games.<br>
+Requires c++14 minimum.
 
-### Requires c++14 and above for basic functionality and c++17 and above to create new il2cpp classes
+### What you can do with BNM?
++ Finding everything by names (classes, methods, fields ane etc.)
++ Adding your own classes to game that work even with AssetBundles!
++ Use basic c# structs like string (monoString), array (monoArray), dictionary (monoDictionary) that fully work.
+
+### New classes
+BNM can add your own class to game, it requires c++17 and above.<br>
+If you nest your class from MonoBehaviour (or other class with events) methods like `Update` will work.<br>
+And it fully computable with AssetBundles!<br>
+For bundles need add your class to dlls that listed in ScriptingAssemblies.json.<br>
+Basically BNM add classes to `Assembly-CSharp.dll` that always in this list.<br>
+If you want to use your own dll with bundles, add it to this file, but this will work only if you use BNM internally.<br>
+
+### Can I use BNM externally?
+Yes, you can, but this is not tested. To do that see `BNM::External::LoadBNM`
 
 ## Getting Started
 + First clone the repo and add it to your project.

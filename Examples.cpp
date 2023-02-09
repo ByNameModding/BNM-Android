@@ -9,13 +9,12 @@ using namespace BNM::MONO_STRUCTS; // monoString, monoArray and etc
 * MJx0's IL2CppResolver doesn't work in all unity versions
 * getExternMethod working ONLY with extern methods
 */
-void *set_fov(float value) {
+void set_fov(float value) {
     int (*Screen$$get_height)();
     int (*Screen$$get_width)();
     InitResolveFunc(Screen$$get_height, OBFUSCATE_BNM("UnityEngine.Screen::get_height")); // #define InitResolveFunc(x, y)
     InitResolveFunc(Screen$$get_width, OBFUSCATE_BNM("UnityEngine.Screen::get_width"));
-    if (Screen$$get_height && Screen$$get_width)
-        LOGIBNM(OBFUSCATE_BNM("%dx%d"), Screen$$get_height(), Screen$$get_width());
+    if (Screen$$get_height && Screen$$get_width) LOGIBNM(OBFUSCATE_BNM("[set_fov] %dx%d"), Screen$$get_height(), Screen$$get_width());
 
     uintptr_t (*Camera$$get_main)(); // you can use void *
     float (*Camera$$get_fieldofview)(uintptr_t);
@@ -31,26 +30,14 @@ void *set_fov(float value) {
             float oldFOV = Camera$$get_fieldofview(mainCamera);
             Camera$$set_fieldofview(mainCamera, value);
             float newFOV = Camera$$get_fieldofview(mainCamera);
-            LOGIBNM(OBFUSCATE_BNM("Camera Ptr: %p  |  oldFOV: %.2f  |  newFOV: %.2f"), (void *) mainCamera, oldFOV, newFOV);
-        } else
-            LOGEBNM(OBFUSCATE_BNM("mainCamera is currently not available!"));
+            LOGIBNM(OBFUSCATE_BNM("[set_fov] Camera Ptr: %p  |  oldFOV: %.2f  |  newFOV: %.2f"), (void *) mainCamera, oldFOV, newFOV);
+        } else LOGEBNM(OBFUSCATE_BNM("[set_fov] mainCamera is currently not available!"));
     }
-}
-
-
-//! Create new class example
-BNM::LoadClass GameObject;
-BNM::LoadClass ExampleClass;
-void *Example_NewObject() {
-    void *new_GameObject = GameObject.CreateNewObject(); // No args
-    bool ExampleArg1 = false;
-    float ExampleArg2 = 0.f;
-    void *new_ExampleClass = ExampleClass.CreateNewObject(ExampleArg1, ExampleArg2, new_GameObject); // 3 args
-    return new_ExampleClass;
 }
 
 bool setName;
 bool parseDict = true;
+BNM::LoadClass FPSController;
 //! Find example
 BNM::Method<void *> get_Transform;
 BNM::Property<Vector3> transformPosition;
@@ -66,6 +53,10 @@ void Update(void *instance) {
     myPlayer = LocalPlayer();
 
     if (BNM::IsSameUnityObject(myPlayer, instance)) { // Check is unity object (UnityEngine.Object) are same
+        // Do sth
+    }
+
+    if (BNM::IsA(myPlayer, FPSController)) { // Check is object instantiated from special class or type
         // Do sth
     }
 
@@ -124,8 +115,8 @@ namespace geokar2006 {
     BNM_NewStaticMethodInit(BNM::GetType<void>(), MethodWithGameArgs, 1, BNM::GetType(OBFUSCATE_BNM(""), OBFUSCATE_BNM("PhotonPlayer")));
     };
     class BNM_DllExampleClass : public BNM::IL2CPP::Il2CppObject { // Il2CppObject - due System.Object, null parent class namespace and parent class name = System.Object
-    // BNM_NewClassWithDllInit(dll, namespace, class, parent class namespace (maybe ""), parent class name (maybe ""), class type(set to 0));
-    BNM_NewClassWithDllInit("Assembly-CSharp", "geokar2006", BNM_DllExampleClass, "", "");
+    // BNM_NewClassWithDllInit(dll, namespace, class, parent class namespace (maybe ""), parent class name (maybe ""));
+    BNM_NewClassWithDllInit("mscorlib", "geokar2006", BNM_DllExampleClass, "", "");
         void Start() {
             LOGIBNM(OBFUSCATE_BNM("geokar2006::BNM_DllExampleClass::Start Called!"));
         }
@@ -156,7 +147,23 @@ void geokar2006::BNM_ExampleClass::Update() {
     Frames++;
     if (Frames == 11) Frames = 0;
 }
+void *MyGameObject = nullptr;
+//! Create new object
+BNM::LoadClass GameObject;
+BNM::Method AddComponent;
+BNM::Method DontDestroyOnLoad;
+void *Example_NewGameObject() {
+    void *new_GameObject = GameObject.CreateNewObject();
+    AddComponent[new_GameObject](geokar2006::BNM_ExampleClass::BNMClass.type);
+    DontDestroyOnLoad(new_GameObject);
+    return new_GameObject;
+}
 #endif
+void (*old_FPS$$ctor)(void*);
+void FPS$$ctor(void *instance) {
+    old_FPS$$ctor(instance);
+    // Do sth
+}
 void hack_thread() {
     using namespace BNM; // You can use namespace in methods
     do {
@@ -164,14 +171,23 @@ void hack_thread() {
     } while (!Il2cppLoaded());
     AttachIl2Cpp(); // Stabilization
 
-    //! For create new instance of class example
+    //! Create GameObject and add new class to it and get your own update and other methods
+    //! New classes work with AssetBundles too!
     GameObject = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("GameObject"));
-    ExampleClass = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("ExampleClass"));
+    AddComponent = GameObject.GetMethodByName(OBFUSCATE_BNM("AddComponent"), 1);
+    DontDestroyOnLoad = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object"))
+            .GetMethodByName(OBFUSCATE_BNM("DontDestroyOnLoad"));
+    MyGameObject = Example_NewGameObject();
 
     //! Find example
     auto Transform = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Transform"));
     auto Component = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Component"));
-    auto FPSController = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("FPSController"));
+    FPSController = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("FPSController"));
+
+    //! Allow hook methods that crash game using basic HOOK, but only if method called by il2cpp_invoke
+    //! Methods that called by invoke: .ctor(no args!), ..ctor(), unity events like Update and some other methods that generated by compiler
+    //! If you hook Update using this and in child class it overwritten it won't be called
+    BNM::InvokeHook(FPSController.GetMethodByName(OBFUSCATE_BNM(".ctor")), (void*) FPS$$ctor, (void**)&old_FPS$$ctor);
 
     PlayerName = FPSController.GetFieldByName(OBFUSCATE_BNM("PlayerName")); // Field, Methods, Properties can automatically cast type
     LocalPlayer = FPSController.GetFieldByName(OBFUSCATE_BNM("LocalPlayer"));
@@ -217,9 +233,6 @@ void hack_thread() {
     auto HatManager_c = HatManager.GetInnerClass(OBFUSCATE_BNM("<>c"));
     LOGIBNM("HatManager_c ptr: %p", HatManager_c.GetIl2CppClass());
 
-    // Call method for creating new object from ExampleClass
-    LOGIBNM("Example_NewObject: %p", Example_NewObject());
-
     DetachIl2Cpp(); // Stabilization
 }
 
@@ -228,10 +241,15 @@ JNIEXPORT jint JNICALL
 JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
     JNIEnv *env;
     vm->GetEnv((void **) &env, JNI_VERSION_1_6);
-    BNM::HardBypass(env);
+    BNM::HardBypass(env); // BNM can work without this, but need to load lib before game loads to bypass some protections
     return JNI_VERSION_1_6;
 }
 
 #include <thread>
 [[maybe_unused]] __attribute__((constructor))
-void lib_main() { std::thread(hack_thread).detach(); }
+void lib_main() {
+    // The method will be called when il2cpp_init completes
+    BNM::SetIl2CppLoadEvent(hack_thread);
+    // Or
+    // std::thread(hack_thread).detach();
+}

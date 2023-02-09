@@ -4,8 +4,8 @@ struct Vector2 {
         struct { float x, y; };
         float data[2];
     };
-    inline Vector2() : x(0), y(0) {};
-    inline Vector2(float x, float y) : x(x), y(y) {};
+    inline Vector2() noexcept : x(0), y(0) {};
+    inline Vector2(float x, float y) noexcept : x(x), y(y) {};
     [[maybe_unused]] inline static Vector2 Down() { return Vector2(0, -1); }
     [[maybe_unused]] inline static Vector2 Left() { return Vector2(-1, 0); }
     [[maybe_unused]] inline static Vector2 One() { return Vector2(1, 1); }

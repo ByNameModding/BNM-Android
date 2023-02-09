@@ -1,7 +1,6 @@
 #pragma once
 #define SMALL_FLOAT 0.0000000001
-#define PI 3.14159265358979323846264338327950288419716939937510f
-#define Deg2Rad (2.f * PI / 360.f)
+#define Deg2Rad (2.f * M_PI / 360.f)
 #define Rad2Deg (1.f / Deg2Rad)
 #include <string>
 #include "Vector3.h"
@@ -10,16 +9,12 @@ struct Quaternion {
         struct { float x, y, z, w; };
         float data[4];
     };
-    inline Quaternion() : x(0), y(0), z(0), w(1) {};
-    inline Quaternion(float data[]) : x(data[0]), y(data[1]), z(data[2]), w(data[3]) {}
-    inline Quaternion(Vector3 vector, float scalar) : x(vector.x), y(vector.y), z(vector.z), w(scalar) {};
-    inline Quaternion(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {};
+    inline Quaternion() noexcept : x(0), y(0), z(0), w(1) {};
+    inline Quaternion(float data[]) noexcept : x(data[0]), y(data[1]), z(data[2]), w(data[3]) {}
+    inline Quaternion(Vector3 vector, float scalar) noexcept : x(vector.x), y(vector.y), z(vector.z), w(scalar) {};
+    inline Quaternion(float x, float y, float z, float w) noexcept : x(x), y(y), z(z), w(w) {};
     inline Quaternion(float Pitch, float Yaw, float Roll) {
-        Quaternion tmp = Quaternion::FromEuler(Pitch, Yaw, Roll);
-        x = tmp.x;
-        y = tmp.y;
-        z = tmp.z;
-        w = tmp.w;
+        *this = Quaternion::FromEuler(Pitch, Yaw, Roll);
     };
     inline static Quaternion Identity() { return Quaternion(0, 0, 0, 1); };
     [[maybe_unused]] inline static Vector3 Up(Quaternion q);
@@ -33,7 +28,7 @@ struct Quaternion {
     inline static float Dot(Quaternion lhs, Quaternion rhs);
     [[maybe_unused]] inline static Quaternion FromAngleAxis(float angle, Vector3 axis);
     [[maybe_unused]] inline static Quaternion FromEuler(Vector3 rotation);
-    inline static Quaternion FromEuler(float x, float y, float z);
+    inline static Quaternion FromEuler(float roll, float pitch, float yaw, bool fromDeg = true);
     inline static Quaternion FromToRotation(Vector3 fromVector, Vector3 toVector);
     [[maybe_unused]] inline static Quaternion Inverse(Quaternion rotation);
     [[maybe_unused]] inline static Quaternion Lerp(Quaternion a, Quaternion b, float t);
@@ -46,46 +41,117 @@ struct Quaternion {
     [[maybe_unused]] inline static Quaternion Slerp(Quaternion a, Quaternion b, float t);
     inline static Quaternion SlerpUnclamped(Quaternion a, Quaternion b, float t);
     [[maybe_unused]] inline static void ToAngleAxis(Quaternion rotation, float &angle, Vector3 &axis);
-    inline static Vector3 ToEuler(Quaternion rotation);
+    inline static Vector3 ToEuler(Quaternion rotation, bool toDeg = true);
     [[maybe_unused]] inline Vector3 euler() { return ToEuler(*this); }
     inline Quaternion normalized() { return Normalize(*this); }
     inline std::string str() {return std::to_string(x) + OBFUSCATES_BNM(", ") + std::to_string(y) + OBFUSCATES_BNM(", ") + std::to_string(z) + OBFUSCATES_BNM(", ") + std::to_string(w); }
-    inline Quaternion& operator+=(float v) { x += v; y += v; z += v; w += v; return *this; }
-    inline Quaternion& operator-=(float v) { x -= v; y -= v; z -= v; w -= v; return *this; }
-    inline Quaternion& operator*=(float v) { x *= v; y *= v; z *= v; w *= v; return *this; }
-    inline Quaternion& operator/=(float v) { x /= v; y /= v; z /= v; w /= v; return *this; }
-    inline Quaternion& operator+=(Quaternion v) { x += v.x; y += v.y; z += v.z; w += v.w; return *this; }
-    inline Quaternion& operator-=(Quaternion v) { x -= v.x; y -= v.y; z -= v.z; w -= v.w; return *this; }
-    inline Quaternion& operator*=(Quaternion v) { x *= v.x; y *= v.y; z *= v.z; w *= v.w; return *this; }
+    Quaternion& operator+=(const Quaternion& aQuat);
+    Quaternion& operator-=(const Quaternion& aQuat);
+    Quaternion& operator*=(const float aScalar);
+    Quaternion& operator*=(const Quaternion& aQuat);
+    Quaternion& operator/=(const Quaternion& aQuat);
+    Quaternion& operator/=(const float aScalar);
+    friend Quaternion operator+(const Quaternion& lhs, const Quaternion& rhs) {
+        Quaternion q(lhs);
+        return q += rhs;
+    }
+
+    friend Quaternion  operator-(const Quaternion& lhs, const Quaternion& rhs) {
+        Quaternion t(lhs);
+        return t -= rhs;
+    }
+
+    Quaternion operator-() const {
+        return Quaternion(-x, -y, -z, -w);
+    }
+
+    Quaternion operator*(const float s) const {
+        return Quaternion(x * s, y * s, z * s, w * s);
+    }
+
+    friend Quaternion  operator*(const float s, const Quaternion& q) {
+        Quaternion t(q);
+        return t *= s;
+    }
+
+    friend Quaternion  operator/(const Quaternion& q, const float s) {
+        Quaternion t(q);
+        return t /= s;
+    }
+
+    inline friend Quaternion operator*(const Quaternion& lhs, const Quaternion& rhs) {
+        return {lhs.w * rhs.x + lhs.x * rhs.w + lhs.y * rhs.z - lhs.z * rhs.y,
+                lhs.w * rhs.y + lhs.y * rhs.w + lhs.z * rhs.x - lhs.x * rhs.z,
+                lhs.w * rhs.z + lhs.z * rhs.w + lhs.x * rhs.y - lhs.y * rhs.x,
+                lhs.w * rhs.w - lhs.x * rhs.x - lhs.y * rhs.y - lhs.z * rhs.z};
+    }
+    inline friend Quaternion operator/(const Quaternion& lhs, const Quaternion& rhs) {
+        return {lhs.w / rhs.x + lhs.x / rhs.w + lhs.y / rhs.z - lhs.z / rhs.y,
+                lhs.w / rhs.y + lhs.y / rhs.w + lhs.z / rhs.x - lhs.x / rhs.z,
+                lhs.w / rhs.z + lhs.z / rhs.w + lhs.x / rhs.y - lhs.y / rhs.x,
+                lhs.w / rhs.w - lhs.x / rhs.x - lhs.y / rhs.y - lhs.z / rhs.z};
+    }
 };
 
-inline Quaternion operator+(Quaternion lhs, const float rhs) { return Quaternion(lhs.x + rhs, lhs.y + rhs, lhs.z + rhs, lhs.w + rhs); }
-inline Quaternion operator-(Quaternion lhs, const float rhs) { return Quaternion(lhs.x - rhs, lhs.y - rhs, lhs.z - rhs, lhs.w - rhs); }
-inline Quaternion operator*(Quaternion lhs, const float rhs) { return Quaternion(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs); }
-inline Quaternion operator/(Quaternion lhs, const float rhs) { return Quaternion(lhs.x / rhs, lhs.y / rhs, lhs.z / rhs, lhs.w / rhs); }
-inline Quaternion operator+(const float lhs, Quaternion rhs) { return Quaternion(lhs + rhs.x, lhs + rhs.y, lhs + rhs.z, lhs + rhs.w); }
-inline Quaternion operator-(const float lhs, Quaternion rhs) { return Quaternion(lhs - rhs.x, lhs - rhs.y, lhs - rhs.z, lhs - rhs.w); }
-inline Quaternion operator*(const float lhs, Quaternion rhs) { return Quaternion(lhs * rhs.x, lhs * rhs.y, lhs * rhs.z, lhs * rhs.w); }
-inline Quaternion operator/(const float lhs, Quaternion rhs) { return Quaternion(lhs / rhs.x, lhs / rhs.y, lhs / rhs.z, lhs / rhs.w); }
-inline Quaternion operator+(Quaternion lhs, const Quaternion rhs) { return Quaternion(lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z, lhs.w + rhs.w); }
-inline Quaternion operator-(Quaternion lhs, const Quaternion rhs) { return Quaternion(lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z, lhs.w - rhs.w); }
-inline Quaternion operator*(Quaternion lhs, const Quaternion rhs) { return Quaternion(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z, lhs.w * rhs.w); }
-inline Quaternion operator/(Quaternion lhs, const Quaternion rhs) { return Quaternion(lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z, lhs.w / rhs.w); }
-inline bool operator==(const Quaternion lhs, const Quaternion rhs) { return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w; }
-inline bool operator!=(const Quaternion lhs, const Quaternion rhs) { return lhs.x != rhs.x && lhs.y != rhs.y && lhs.z != rhs.z && lhs.w != rhs.w; }
-inline Quaternion operator-(Quaternion v) {return v * -1;}
+inline Quaternion& Quaternion::operator+=(const Quaternion& aQuat) {
+    x += aQuat.x;
+    y += aQuat.y;
+    z += aQuat.z;
+    w += aQuat.w;
+    return *this;
+}
 
+inline Quaternion& Quaternion::operator-=(const Quaternion& aQuat) {
+    x -= aQuat.x;
+    y -= aQuat.y;
+    z -= aQuat.z;
+    w -= aQuat.w;
+    return *this;
+}
+
+inline Quaternion& Quaternion::operator*=(float aScalar) {
+    x *= aScalar;
+    y *= aScalar;
+    z *= aScalar;
+    w *= aScalar;
+    return *this;
+}
+
+inline Quaternion& Quaternion::operator/=(const float aScalar) {
+    x /= aScalar;
+    y /= aScalar;
+    z /= aScalar;
+    w /= aScalar;
+    return *this;
+}
+
+inline Quaternion& Quaternion::operator*=(const Quaternion& rhs) {
+    float tempx = w * rhs.x + x * rhs.w + y * rhs.z - z * rhs.y;
+    float tempy = w * rhs.y + y * rhs.w + z * rhs.x - x * rhs.z;
+    float tempz = w * rhs.z + z * rhs.w + x * rhs.y - y * rhs.x;
+    float tempw = w * rhs.w - x * rhs.x - y * rhs.y - z * rhs.z;
+    x = tempx; y = tempy; z = tempz; w = tempw;
+    return *this;
+}
+inline Quaternion& Quaternion::operator/=(const Quaternion& rhs) {
+    float tempx = w / rhs.x + x / rhs.w + y / rhs.z - z / rhs.y;
+    float tempy = w / rhs.y + y / rhs.w + z / rhs.x - x / rhs.z;
+    float tempz = w / rhs.z + z / rhs.w + x / rhs.y - y / rhs.x;
+    float tempw = w / rhs.w - x / rhs.x - y / rhs.y - z / rhs.z;
+    x = tempx; y = tempy; z = tempz; w = tempw;
+    return *this;
+}
 inline Vector3 operator*(Quaternion lhs, const Vector3 rhs) {
     Vector3 u = Vector3(lhs.x, lhs.y, lhs.z);
     float s = lhs.w;
     return u * (Vector3::Dot(u, rhs) * 2.0f) + rhs * (s * s - Vector3::Dot(u, u)) + Vector3::Cross(u, rhs) * (2.0f * s);
 }
-[[maybe_unused]] Vector3 Quaternion::Up(Quaternion q) { return q * Vector3::Up(); }
-[[maybe_unused]] Vector3 Quaternion::Down(Quaternion q) { return q * Vector3::Down(); }
-[[maybe_unused]] Vector3 Quaternion::Left(Quaternion q) { return q * Vector3::Left(); }
-[[maybe_unused]] Vector3 Quaternion::Right(Quaternion q) { return q * Vector3::Right(); }
-[[maybe_unused]] Vector3 Quaternion::Forward(Quaternion q) { return q * Vector3::Forward(); }
-[[maybe_unused]] Vector3 Quaternion::Back(Quaternion q) { return q * Vector3::Back(); }
+[[maybe_unused]] Vector3 Quaternion::Up(Quaternion q) { return q * Vector3::up; }
+[[maybe_unused]] Vector3 Quaternion::Down(Quaternion q) { return q * Vector3::down; }
+[[maybe_unused]] Vector3 Quaternion::Left(Quaternion q) { return q * Vector3::left; }
+[[maybe_unused]] Vector3 Quaternion::Right(Quaternion q) { return q * Vector3::right; }
+[[maybe_unused]] Vector3 Quaternion::Forward(Quaternion q) { return q * Vector3::forward; }
+[[maybe_unused]] Vector3 Quaternion::Back(Quaternion q) { return q * Vector3::back; }
 
 float Quaternion::Angle(Quaternion a, Quaternion b) {
     float dot = Dot(a, b);
@@ -112,27 +178,56 @@ float Quaternion::Dot(Quaternion lhs, Quaternion rhs) {
 }
 
 [[maybe_unused]] Quaternion Quaternion::FromEuler(Vector3 rotation) {
-    return FromEuler(rotation.x, rotation.y, rotation.z);
+    return FromEuler(rotation.Rot.Unity.roll, rotation.Rot.Unity.pitch, rotation.Rot.Unity.yaw);
 }
 
-Quaternion Quaternion::FromEuler(float x, float y, float z) {
-    (x -= 180) *= Deg2Rad;
-    (y -= 180) *= Deg2Rad;
-    (z -= 180) *= Deg2Rad;
-    float cx = cosf(x * 0.5f);
-    float cy = cosf(y * 0.5f);
-    float cz = cosf(z * 0.5f);
-    float sx = sinf(x * 0.5f);
-    float sy = sinf(y * 0.5f);
-    float sz = sinf(z * 0.5f);
+Quaternion Quaternion::FromEuler(float roll, float pitch, float yaw, bool fromDeg) {
+    if (fromDeg) {
+        roll *= Deg2Rad;
+        pitch *= Deg2Rad;
+        yaw *= Deg2Rad;
+    }
+    double cr = cos((double)roll * 0.5);
+    double sr = sin((double)roll * 0.5);
+    double cp = cos((double)pitch * 0.5);
+    double sp = sin((double)pitch * 0.5);
+    double cy = cos((double)yaw * 0.5);
+    double sy = sin((double)yaw * 0.5);
+
     Quaternion q;
-    q.x = cx * sy * sz + cy * cz * sx;
-    q.y = cx * cz * sy - cy * sx * sz;
-    q.z = cx * cy * sz - cz * sx * sy;
-    q.w = sx * sy * sz + cx * cy * cz;
+    q.w = cr * cp * cy + sr * sp * sy;
+    q.x = sr * cp * cy - cr * sp * sy;
+    q.y = cr * sp * cy + sr * cp * sy;
+    q.z = cr * cp * sy - sr * sp * cy;
+
     return q;
 }
-
+Vector3 Quaternion::ToEuler(Quaternion q, bool toDeg) {
+    auto singularity_test = q.y * q.z - q.x * q.w;
+    auto Z1 = 2.0f * (q.x * q.y + q.z * q.w);
+    auto Z2 = q.y * q.y - q.z * q.z - q.x * q.x + q.w * q.w;
+    auto X1 = -1.0f;
+    auto X2 = 2.0f * singularity_test;
+    float Y1 = 0, Y2 = 0;
+    bool n = false;
+    const float SINGULARITY_CUTOFF = 0.499999f;
+    if (abs(singularity_test) < SINGULARITY_CUTOFF) {
+        Y1 = 2.0f * (q.x * q.z + q.y * q.w);
+        Y2 = q.z * q.z - q.x * q.x - q.y * q.y + q.w * q.w;
+    } else {
+        float a, b, c, e;
+        a = q.x * q.y + q.z * q.w;
+        b = -(q.y * q.z) + q.x * q.w;
+        c = q.x * q.y - q.z * q.w;
+        e = q.y * q.z + q.x * q.w;
+        Y1 = a * e + b * c;
+        Y2 = b * e - a * c;
+        n = true;
+    }
+    Vector3 v {X1 * asinf(std::clamp(X2, -1.f, 1.f)), atan2f(Y1, Y2), n ? 0 : atan2f(Z1, Z2)};
+    if (toDeg) v *= Rad2Deg;
+    return v;
+}
 Quaternion Quaternion::FromToRotation(Vector3 fromVector, Vector3 toVector) {
     float dot = Vector3::Dot(fromVector, toVector);
     float k = sqrt(fromVector.sqrMagnitude() * toVector.sqrMagnitude());
@@ -172,7 +267,7 @@ Quaternion Quaternion::LookRotation(Vector3 forward, Vector3 upwards) {
     if (forward.sqrMagnitude() < SMALL_FLOAT || upwards.sqrMagnitude() < SMALL_FLOAT)
         return Quaternion::Identity();
     if (1 - fabs(Vector3::Dot(forward, upwards)) < SMALL_FLOAT)
-        return FromToRotation(Vector3::Forward(), forward);
+        return FromToRotation(Vector3::forward, forward);
     Vector3 right = Vector3::Cross(upwards, forward).normalized();
     upwards = Vector3::Cross(forward, right);
     Quaternion quaternion;
@@ -273,29 +368,4 @@ Quaternion Quaternion::SlerpUnclamped(Quaternion a, Quaternion b, float t) {
         axis.y = rotation.y / s;
         axis.z = rotation.z / s;
     }
-}
-Vector3 Quaternion::ToEuler(Quaternion rotation) {
-    float sqw = rotation.w * rotation.w;
-    float sqx = rotation.x * rotation.x;
-    float sqy = rotation.y * rotation.y;
-    float sqz = rotation.z * rotation.z;
-    float unit = sqx + sqy + sqz + sqw;
-    float test = rotation.x * rotation.w - rotation.y * rotation.z;
-    Vector3 v;
-    if (test > 0.4995f * unit) {
-        v.y = 2 * atan2f(rotation.y, rotation.x);
-        v.x = (float)M_PI_2;
-        v.z = 0;
-        return v;
-    }
-    if (test < -0.4995f * unit) {
-        v.y = -2 * atan2f(rotation.y, rotation.x);
-        v.x = -(float)M_PI_2;
-        v.z = 0;
-        return v;
-    }
-    v.y = atan2f(2 * rotation.w * rotation.y + 2 * rotation.z * rotation.x, 1 - 2 * (rotation.x * rotation.x + rotation.y * rotation.y));
-    v.x = asinf(2 * (rotation.w * rotation.x - rotation.y * rotation.z));
-    v.z = atan2f(2 * rotation.w * rotation.z + 2 * rotation.x * rotation.y, 1 - 2 * (rotation.z * rotation.z + rotation.x * rotation.x));
-    return (v * Rad2Deg) + 180;
 }
