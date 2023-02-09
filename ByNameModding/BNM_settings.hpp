@@ -101,23 +101,23 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 #ifdef BNM_INFO
 #define LOGIBNM(...) ((void)__android_log_print(4,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGIBNM(...) ((void))
+#define LOGIBNM(...)
 #endif
 
 #ifdef BNM_DEBUG
 #define LOGDBNM(...) ((void)__android_log_print(3,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGDBNM(...) ((void))
+#define LOGDBNM(...)
 #endif
 
 #ifdef BNM_ERROR
 #define LOGEBNM(...) ((void)__android_log_print(6,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGEBNM(...) ((void))
+#define LOGEBNM(...)
 #endif
 
 #ifdef BNM_WARNING
 #define LOGWBNM(...) ((void)__android_log_print(5,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGWBNM(...) ((void))
+#define LOGWBNM(...)
 #endif

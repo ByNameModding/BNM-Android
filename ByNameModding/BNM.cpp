@@ -773,7 +773,7 @@ namespace BNM_Internal {
 #endif
 #endif
 #if UNITY_VER > 201
-        auto handle  = (IL2CPP::Il2CppImageDefinition *)malloc(sizeof(IL2CPP::Il2CppImageDefinition));
+        auto handle = (IL2CPP::Il2CppImageDefinition *)malloc(sizeof(IL2CPP::Il2CppImageDefinition));
         handle->typeStart = -1;
         handle->exportedTypeStart = -1;
         handle->typeCount = 0;
@@ -836,7 +836,7 @@ namespace BNM_Internal {
         return ret;
     }
     // Need due Image and Assembly in 2017.x- has index instead of pointer to Image and Assembly
-    #if UNITY_VER <= 174
+#if UNITY_VER <= 174
     IL2CPP::Il2CppImage *(*old_GetImageFromIndex)(IL2CPP::ImageIndex index);
     IL2CPP::Il2CppImage *new_GetImageFromIndex(IL2CPP::ImageIndex index) {
         if (index < 0) {
@@ -862,7 +862,7 @@ namespace BNM_Internal {
         }
         return nullptr;
     }
-    #endif
+#endif
     void InitNewClasses() {
         if (!Classes4Add) return;
         for (auto& klass : *Classes4Add) {
