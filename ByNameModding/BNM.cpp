@@ -21,7 +21,12 @@ namespace BNM_Internal {
     // Vector with all new classes that BNM need add at runtime
     static std::vector<NEW_CLASSES::NewClass *> *classes4Add{};
 
-    void EmptyCtor(){} // Empty .ctor to prevent il2cpp from crashes
+    // Dummy .ctor that just calling base .ctor
+    void DefaultConstructor(IL2CPP::Il2CppObject* instance) {
+        LoadClass(instance->klass->parent).GetMethodByName(OBFUSCATE_BNM(".ctor"), 0)[instance]();
+    }
+    void DefaultConstructorInvoke(IL2CPP::Il2CppMethodPointer, IL2CPP::MethodInfo*, IL2CPP::Il2CppObject *instance, void**) { DefaultConstructor(instance); }
+
 
     IL2CPP::Il2CppClass *(*old_Class$$FromIl2CppType)(IL2CPP::Il2CppType *type){};
     IL2CPP::Il2CppClass *Class$$FromIl2CppType(IL2CPP::Il2CppType *type);
@@ -88,7 +93,7 @@ namespace BNM {
     // Safe convert std::string to const char *
     char *str2char(const std::string &str) {
         size_t size = str.end() - str.begin();
-        if (str.c_str()[size]){
+        if (str.c_str()[size]) {
             auto c = (char *)malloc(size);
             std::copy(str.begin(), str.end(), c);
             c[size] = 0;
@@ -145,7 +150,6 @@ namespace BNM {
     }
 
     /*** LoadClass ***/
-    constexpr LoadClass::LoadClass() noexcept = default;
     LoadClass::LoadClass(const IL2CPP::Il2CppClass *clazz) { klass = (IL2CPP::Il2CppClass *)clazz; }
 
     LoadClass::LoadClass(const IL2CPP::Il2CppObject *obj) {
@@ -422,7 +426,7 @@ namespace BNM {
         TryInit();
         auto get = GetMethodByName(OBFUSCATES_BNM("get_") + name);
         auto set = GetMethodByName(OBFUSCATES_BNM("set_") + name);
-        if (!get && !set){
+        if (!get && !set) {
             LOGWBNM(OBFUSCATE_BNM("Property %s.[%s] not found"), str().c_str(), name.c_str());
             return {};
         }
@@ -959,15 +963,7 @@ namespace BNM_Internal {
 #define BNM_I2C_NEW(type, ...) new IL2CPP::type(__VA_ARGS__)
 
     // Get loaded image or create new and add it to list
-    IL2CPP::Il2CppImage *makeOrGetImage(NEW_CLASSES::NewClass *cls) {
-        DO_API(IL2CPP::Il2CppImage *, il2cpp_assembly_get_image, (const IL2CPP::Il2CppAssembly *));
-
-        // Try find already added to vector
-        auto LoadedAssemblies = Assembly$$GetAllAssemblies();
-        for (auto assembly : *LoadedAssemblies) {
-            IL2CPP::Il2CppImage *img = il2cpp_assembly_get_image(assembly);
-            if (!strcmp(img->nameNoExt, cls->dllName)) return img;
-        }
+    IL2CPP::Il2CppImage *makeImage(NEW_CLASSES::NewClass *cls) {
 
         // Create new image
         auto newImg = BNM_I2C_NEW(Il2CppImage);
@@ -1042,7 +1038,7 @@ namespace BNM_Internal {
         newImg->nameToClassHashTable = (decltype(newImg->nameToClassHashTable)) -0x424e4d;
 
         // Add assembly to list
-        LoadedAssemblies->push_back(newAsm);
+        Assembly$$GetAllAssemblies()->push_back(newAsm);
 
         LOGIBNM(OBFUSCATE_BNM("Added new assembly: [%s]"), cls->dllName);
 
@@ -1138,14 +1134,57 @@ namespace BNM_Internal {
     void InitNewClasses() {
         if (!classes4Add) return;
         for (auto& klass : *classes4Add) {
+            IL2CPP::Il2CppImage *curImg = nullptr;
 
             // Check is class already exist in il2cpp
-            LoadClass existLS(klass->namespaze, klass->name, klass->dllName);
-            if (existLS) {
-                LOGWBNM(OBFUSCATE_BNM("%s already exist, it can't be added it to il2cpp! Please check code."), existLS.str().c_str());
-                // Just in case
-                klass->thisClass = existLS.klass;
-                continue;
+            {
+                LoadClass existLS;
+
+                DO_API(IL2CPP::Il2CppImage *, il2cpp_assembly_get_image, (const IL2CPP::Il2CppAssembly *));
+
+                auto assemblies = BNM_Internal::Assembly$$GetAllAssemblies();
+
+                // Try find image
+                for (auto assembly : *assemblies)
+                    if (!strcmp(klass->dllName, il2cpp_assembly_get_image(assembly)->name)) {
+                        curImg = il2cpp_assembly_get_image(assembly);
+                        break;
+                    }
+
+                // Check is image found
+                if (curImg) {
+
+                    // Get all types of image
+                    TypeVector classes;
+                    BNM_Internal::Image$$GetTypes(curImg, false, &classes);
+
+                    // Try find type
+                    for (auto cls : classes) {
+                        if (!cls) continue;
+
+                        // Init class if it not initialized
+                        BNM_Internal::Class$$Init(cls);
+
+                        // Check is new class already exist
+                        if (!strcmp(cls->name, klass->name) && !strcmp(cls->namespaze, klass->namespaze)) {
+                            existLS = cls;
+                            break;
+                        }
+                    }
+
+                    // Clear classes vector
+                    classes.clear(); classes.shrink_to_fit();
+
+                } else curImg = makeImage(klass); // Make new image for new class
+
+                // If exist warn and set class and type
+                if (existLS) {
+                    LOGWBNM(OBFUSCATE_BNM("%s already exist, it can't be added it to il2cpp! Please check code."), existLS.str().c_str());
+                    // Just in case
+                    klass->thisClass = existLS.klass;
+                    klass->type = existLS;
+                    continue;
+                }
             }
 
 
@@ -1163,9 +1202,6 @@ namespace BNM_Internal {
             typeThis->pinned = 0;
             typeThis->byref = 1;
             typeThis->num_mods = 0;
-
-            // Get or make new image for new class
-            IL2CPP::Il2CppImage *curImg = makeOrGetImage(klass);
 
             // Make BNMTypeData for getting class from type
             auto bnmTypeData = new BNMTypeData();
@@ -1304,9 +1340,8 @@ namespace BNM_Internal {
                     method->return_type = GetType<void>().ToIl2CppType();
                     method->is_generic = false;
                     method->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
-                    method->methodPointer = EmptyCtor;
-                    // We use static because this is just empty .ctor
-                    method->invoker_method = (IL2CPP::InvokerMethod)NEW_CLASSES::GetNewStaticMethodCalls<decltype(&EmptyCtor)>::invoke;
+                    method->methodPointer = (IL2CPP::Il2CppMethodPointer) DefaultConstructor;
+                    method->invoker_method = (IL2CPP::InvokerMethod) DefaultConstructorInvoke;
                     methods[klass->methods4Add.size()] = method;
                 }
             }
@@ -1314,7 +1349,7 @@ namespace BNM_Internal {
 #define kls klass
 #define typeSymbol *
 #else
-            #define kls declaring_type
+#define kls declaring_type
 #define typeSymbol
 #endif
 
@@ -1407,7 +1442,7 @@ namespace BNM_Internal {
             memset((void *)klass->thisClass->name, 0, len);
             strcpy((char *)klass->thisClass->name, klass->name);
 
-            // Create namespase
+            // Create namespace
             len = strlen(klass->namespaze) + 1;
             klass->thisClass->namespaze = new char[len];
             memset((void *)klass->thisClass->namespaze, 0, len);
@@ -1596,9 +1631,8 @@ namespace BNM_Internal {
         if (!old_Image$$GetTypes && !HasImageGetCls) {
             DO_API(const IL2CPP::Il2CppImage *, il2cpp_get_corlib, ());
             DO_API(IL2CPP::Il2CppClass *, il2cpp_class_from_name, (const IL2CPP::Il2CppImage *, const char *, const char *));
-            BNM_PTR GetTypesAdr = 0;
             auto assemblyClass = il2cpp_class_from_name(il2cpp_get_corlib(), OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("Assembly"));
-            GetTypesAdr = LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetTypes"), 1).GetOffset(); // We can use LoadClass here by Il2CppClass, because for methods we need only it.
+            BNM_PTR GetTypesAdr = LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetTypes"), 1).GetOffset(); // We can use LoadClass here by Il2CppClass, because for methods we need only it.
             const int sCount
 #if UNITY_VER >= 211
                     = count;
@@ -1609,8 +1643,8 @@ namespace BNM_Internal {
 #endif
             // Path:
             // System.Reflection.Assembly.GetTypes(bool) ->
-            // il2cpp::vm::Assembly::GetTypes ->
-            // il2cpp::vm::Module::InternalGetTypes ->
+            // il2cpp::icalls::mscorlib::System::Reflection::Assembly::GetTypes ->
+            // il2cpp::icalls::mscorlib::System::Module::InternalGetTypes ->
             // il2cpp::vm::Image::GetTypes
             auto Image$$GetTypes_t = HexUtils::FindNextJump(HexUtils::FindNextJump(HexUtils::FindNextJump(GetTypesAdr, count), sCount), count);
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
@@ -1687,7 +1721,7 @@ namespace BNM_Internal {
 #endif
                 // Path:
                 // System.AppDomain.GetAssemblies(bool) ->
-                // il2cpp::vm::AppDomain::GetAssemblies ->
+                // il2cpp::icalls::mscorlib::System::AppDomain::GetAssemblies ->
                 // il2cpp::vm::Assembly::GetAllAssemblies
                 BNM_PTR GetAssembliesAdr = HexUtils::FindNextJump(getAssembly.GetOffset(), count);
                 Assembly$$GetAllAssemblies = (AssemblyVector *(*)())(HexUtils::FindNextJump(GetAssembliesAdr, sCount));

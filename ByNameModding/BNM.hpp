@@ -61,10 +61,10 @@ namespace BNM {
 #else
 #include "BNM_data/Il2CppHeaders/2020.3.h"
 #endif
-}
-typedef IL2CPP::Il2CppReflectionType MonoType;
-typedef std::vector<IL2CPP::Il2CppAssembly *> AssemblyVector;
-typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
+    }
+    typedef IL2CPP::Il2CppReflectionType MonoType;
+    typedef std::vector<IL2CPP::Il2CppAssembly *> AssemblyVector;
+    typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
 
     namespace UNITY_STRUCTS {
 #include "BNM_data/BasicStructs.h"
@@ -241,7 +241,7 @@ typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
     struct LoadClass {
         IL2CPP::Il2CppClass *klass{};
 
-        constexpr LoadClass() noexcept; // Just default
+        constexpr LoadClass() noexcept = default; // Just default
 
         LoadClass(const IL2CPP::Il2CppClass *clazz); // From class
         LoadClass(const IL2CPP::Il2CppObject *obj); // From object
@@ -328,6 +328,7 @@ typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
         static IL2CPP::Il2CppObject *ObjNew(IL2CPP::Il2CppClass *);
         static IL2CPP::Il2CppArray *ArrayNew(IL2CPP::Il2CppClass*, IL2CPP::il2cpp_array_size_t);
     };
+    
     // For thread static fields
     namespace PRIVATE_FILED_UTILS {
         void GetStaticValue(IL2CPP::FieldInfo *info, void *value);
@@ -846,8 +847,6 @@ typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
         // Class for creating invoker for methods
         template<typename RetT, typename T, typename ...ArgsT>
         struct GetNewMethodCalls<RetT(T:: *)(ArgsT...)> {
-            template<RetT(T:: *member)(ArgsT...)>
-            static RetT get(T *self, ArgsT ...args) { return (self->*member)(args...); }
             template<std::size_t ...As>
             static void *InvokeMethod(RetT(*func)(T*, ArgsT...), T *instance, void **args, std::index_sequence<As...>) {
                 if constexpr (std::is_same_v<RetT, void>) {
@@ -1028,16 +1027,16 @@ typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
 #define InitResolveFunc(x, y) BNM::InitFunc(x, BNM::getExternMethod(y))
 
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
-#define BNM_NewClassInit(_namespase, _name, _baseNamespase, _baseName, ...) BNM_NewClassWithDllInit("Assembly-CSharp", _namespase, _name, _baseNamespase, _baseName, __VA_ARGS__)
+#define BNM_NewClassInit(_namespace, _name, _baseNamespace, _baseName, ...) BNM_NewClassWithDllInit("Assembly-CSharp", _namespace, _name, _baseNamespace, _baseName, __VA_ARGS__)
 
-#define BNM_NewMethodInit(_type, _name, args, ...) \
+#define BNM_NewMethodInit(_retType, _name, _argsCount, ...) \
     private: \
     struct _BNMMethod_##_name : BNM::NEW_CLASSES::NewMethod { \
         _BNMMethod_##_name() { \
-            argsCount = args; \
-            retType = _type; \
-            address = (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&Me_Type::_name)>::get<&Me_Type::_name>; \
-            invoker = (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&Me_Type::_name)>::invoke; \
+            argsCount = _argsCount; \
+            retType = _retType; \
+            auto p = &NewBNMType::_name; address = *(void **)&p; \
+            invoker = (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&NewBNMType::_name)>::invoke; \
             argTypes = {__VA_ARGS__}; \
             name = OBFUSCATE_BNM(#_name); \
             BNMClass.AddNewMethod(this); \
@@ -1046,14 +1045,14 @@ typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
     public: \
     static inline _BNMMethod_##_name BNMMethod_##_name = _BNMMethod_##_name()
 
-#define BNM_NewStaticMethodInit(_type, _name, args, ...) \
+#define BNM_NewStaticMethodInit(_retType, _name, _argsCount, ...) \
     private: \
     struct _BNMStaticMethod_##_name : BNM::NEW_CLASSES::NewMethod { \
         _BNMStaticMethod_##_name() { \
-            argsCount = args; \
-            retType = _type; \
-            address = (void *)&Me_Type::_name; \
-            invoker = (void *)&BNM::NEW_CLASSES::GetNewStaticMethodCalls<decltype(&Me_Type::_name)>::invoke; \
+            argsCount = _argsCount; \
+            retType = _retType; \
+            address = (void *)&NewBNMType::_name; \
+            invoker = (void *)&BNM::NEW_CLASSES::GetNewStaticMethodCalls<decltype(&NewBNMType::_name)>::invoke; \
             argTypes = {__VA_ARGS__}; \
             name = OBFUSCATE_BNM(#_name); \
             isStatic = true; \
@@ -1068,8 +1067,8 @@ typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
     struct _BNMField_##_name : BNM::NEW_CLASSES::NewField { \
         _BNMField_##_name() { \
             name = OBFUSCATE_BNM(#_name); \
-            offset = offsetof(Me_Type, _name); \
-            attributes = 0x0006;      \
+            offset = offsetof(NewBNMType, _name); \
+            attributes = 0x0006; \
             type = _type; \
             BNMClass.AddNewField(this, false); \
         } \
@@ -1077,12 +1076,12 @@ typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
     public: \
     static inline _BNMField_##_name BNMField_##_name = _BNMField_##_name()
 
-#define BNM_NewStaticFieldInit(_name, _type, cppType) \
+#define BNM_NewStaticFieldInit(_name, _type, _cppType) \
     private: \
     struct _BNMStaticField_##_name : BNM::NEW_CLASSES::NewField { \
         _BNMStaticField_##_name() { \
             name = OBFUSCATE_BNM(#_name); \
-            size = sizeof(cppType); \
+            size = sizeof(_cppType); \
             cppOffset = (size_t)&(_name); \
             attributes = 0x0006 | 0x0010; \
             type = _type; \
@@ -1092,14 +1091,14 @@ typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
     public: \
     static inline _BNMStaticField_##_name BNMStaticField_##_name = _BNMStaticField_##_name()
 
-#define BNM_NewDotCtorInit(_name, args, ...) \
+#define BNM_NewDotCtorInit(_name, _argsCount, ...) \
     private: \
     struct _BNMMethod_##_name : BNM::NEW_CLASSES::NewMethod { \
         _BNMMethod_##_name() { \
-            argsCount = args; \
+            argsCount = _argsCount; \
             retType = BNM::GetType<void>(); \
-            address = (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&Me_Type::_name)>::get<&Me_Type::_name>; \
-            invoker = (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&Me_Type::_name)>::invoke; \
+            auto p = &NewBNMType::_name; address = *(void **)&p; \
+            invoker = (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&NewBNMType::_name)>::invoke; \
             argTypes = {__VA_ARGS__}; \
             name = OBFUSCATE_BNM(".ctor"); \
             BNMClass.AddNewMethod(this); \
@@ -1109,21 +1108,21 @@ typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
     static inline _BNMMethod_##_name BNMMethod_##_name = _BNMMethod_##_name()
 
 // Add class to exist or to new dll. Write dll name without '.dll'!
-#define BNM_NewClassWithDllInit(dll, _namespase, _name, _baseNamespase, _baseName, ...)\
+#define BNM_NewClassWithDllInit(_dllName, _namespace, _name, _baseNamespace, _baseName, ...)\
     private: \
     struct _BNMClass : BNM::NEW_CLASSES::NewClass { \
         _BNMClass() { \
             name = OBFUSCATE_BNM(#_name); \
-            namespaze = OBFUSCATE_BNM(_namespase); \
+            namespaze = OBFUSCATE_BNM(_namespace); \
             baseName = OBFUSCATE_BNM(_baseName); \
-            baseNamespace = OBFUSCATE_BNM(_baseNamespase); \
-            dllName = OBFUSCATE_BNM(dll); \
+            baseNamespace = OBFUSCATE_BNM(_baseNamespace); \
+            dllName = OBFUSCATE_BNM(_dllName); \
             interfaces = {__VA_ARGS__}; \
-            size = sizeof(name); \
+            size = sizeof(_name); \
             BNM::NEW_CLASSES::AddNewClass(this); \
         } \
     }; \
     public: \
     static inline _BNMClass BNMClass = _BNMClass(); \
-    using Me_Type = _name
+    using NewBNMType = _name
 #endif
