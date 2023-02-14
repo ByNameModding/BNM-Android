@@ -1145,11 +1145,13 @@ namespace BNM_Internal {
                 auto assemblies = BNM_Internal::Assembly$$GetAllAssemblies();
 
                 // Try find image
-                for (auto assembly : *assemblies)
-                    if (!strcmp(klass->dllName, il2cpp_assembly_get_image(assembly)->name)) {
-                        curImg = il2cpp_assembly_get_image(assembly);
+                for (auto assembly : *assemblies) {
+                    auto image = il2cpp_assembly_get_image(assembly);
+                    if (!strcmp(klass->dllName, image->nameNoExt)) {
+                        curImg = image;
                         break;
                     }
+                }
 
                 // Check is image found
                 if (curImg) {
