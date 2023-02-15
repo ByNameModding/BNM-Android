@@ -169,7 +169,9 @@ void hack_thread() {
     do {
         usleep(1);
     } while (!Il2cppLoaded());
-    AttachIl2Cpp(); // Stabilization
+    // Need if you use std::thread or pthread_create
+    // But here used BNM::SetIl2CppLoadEvent
+    // AttachIl2Cpp(); // Stabilization
 
     //! Create GameObject and add new class to it and get your own update and other methods
     //! New classes work with AssetBundles too!
@@ -217,14 +219,8 @@ void hack_thread() {
     /**
     Or you can find by parameters type
     **/
-    auto RayCastOffset2 = Physics.GetMethodByName(OBFUSCATE_BNM("Raycast"), {GetType<Ray>().ToIl2CppType(), GetType<RaycastHit>().ToIl2CppType()});
+    auto RayCastOffset2 = Physics.GetMethodByName(OBFUSCATE_BNM("Raycast"), {GetType<Ray>(), GetType<RaycastHit>()});
     LOGIBNM("RayCastOffset2 ptr: %p", BNM::offsetInLib((void *)RayCastOffset2.GetOffset()));
-
-    /**
-    Or all together
-    **/
-    auto RayCastOffset3 = Physics.GetMethodByName(OBFUSCATE_BNM("Raycast"), {OBFUSCATES_BNM("ray"), OBFUSCATES_BNM("hitInfo")}, {GetType<Ray>().ToIl2CppType(), GetType<RaycastHit>().ToIl2CppType()});
-    LOGIBNM("RayCastOffset3 ptr: %p", BNM::offsetInLib((void *)RayCastOffset3.GetOffset()));
 
     //! Get Inner class example
     auto HatManager = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("HatManager"));
@@ -233,7 +229,9 @@ void hack_thread() {
     auto HatManager_c = HatManager.GetInnerClass(OBFUSCATE_BNM("<>c"));
     LOGIBNM("HatManager_c ptr: %p", HatManager_c.GetIl2CppClass());
 
-    DetachIl2Cpp(); // Stabilization
+    // Need if you use std::thread or pthread_create
+    // But here used BNM::SetIl2CppLoadEvent
+    // DetachIl2Cpp(); // Stabilization
 }
 
 // BNM::HardBypass example
