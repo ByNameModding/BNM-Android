@@ -919,9 +919,6 @@ namespace BNM {
     // Истина (true), когда il2cpp и BNM загружены
     bool Il2cppLoaded();
 
-    // Вызов после загрузки il2cpp и BNM
-    void SetIl2CppLoadEvent(void (*event)());
-
     // Утилиты потоков il2cpp
     [[maybe_unused]] bool AttachIl2Cpp();
     [[maybe_unused]] IL2CPP::Il2CppThread *CurrentIl2CppThread();

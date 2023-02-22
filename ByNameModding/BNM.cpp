@@ -12,7 +12,6 @@ namespace BNM_Internal {
     static const char *LibAbsolutePath{};
     static BNM_PTR LibAbsoluteAddress{};
     static bool HasImageGetCls = false;
-    static void (*OnIl2CppLoadedEvent)(){};
 
     // Методы для новых классов и для обычного режима
     AssemblyVector *(*Assembly$$GetAllAssemblies)(){};
@@ -88,7 +87,6 @@ namespace BNM_Internal {
 namespace BNM {
     // Получить/Установить внутренние данные
     bool Il2cppLoaded() { return BNM_Internal::LibLoaded; }
-    void SetIl2CppLoadEvent(void (*event)()) { BNM_Internal::OnIl2CppLoadedEvent = event; }
 
     // Безопасно конвертировать std::string в const char *
     char *str2char(const std::string &str) {
@@ -871,20 +869,6 @@ namespace BNM {
                 BNM_Internal::InitNewClasses(); // Создать новые классы и добавить их в il2cpp
 #endif
                 BNM_Internal::LibLoaded = true; // Установить LibLoaded в значение "истина"
-
-                // Вызвать событие загрузки il2cpp
-                if (BNM_Internal::OnIl2CppLoadedEvent) {
-
-                    // Поскольку мы не можем быть на 100% уверены, что пользователь вызовет этот метод из потока il2cpp, нужно проверить и заново подключить, даже если он это сделает
-                    bool needReattach = BNM::CurrentIl2CppThread();
-                    if (!needReattach) BNM::AttachIl2Cpp();
-
-                    BNM_Internal::OnIl2CppLoadedEvent();
-
-                    // Переподключить на место, если он был подключён, иначе отключаем
-                    if (needReattach) BNM::AttachIl2Cpp();
-                    else BNM::DetachIl2Cpp();
-                }
             } else LOGWBNM(OBFUSCATE_BNM("[External::LoadBNM] dl мёртв или неверен, BNM не загружен!"));
         }
         [[maybe_unused]] void ForceLoadBNM(void *dl) {
@@ -894,20 +878,6 @@ namespace BNM {
             BNM_Internal::InitNewClasses(); // Создать новые классы и добавить их в il2cpp
 #endif
             BNM_Internal::LibLoaded = true; // Установить LibLoaded в значение "истина"
-
-            // Вызвать событие загрузки il2cpp
-            if (BNM_Internal::OnIl2CppLoadedEvent) {
-
-                // Поскольку мы не можем быть на 100% уверены, что пользователь вызовет этот метод из потока il2cpp, нужно проверить и заново подключить, даже если он это сделает
-                bool needReattach = BNM::CurrentIl2CppThread();
-                if (!needReattach) BNM::AttachIl2Cpp();
-
-                BNM_Internal::OnIl2CppLoadedEvent();
-
-                // Переподключить на место, если он был подключён, иначе отключаем
-                if (needReattach) BNM::AttachIl2Cpp();
-                else BNM::DetachIl2Cpp();
-            }
         }
     }
 }
@@ -1734,14 +1704,6 @@ namespace BNM_Internal {
         InitNewClasses();  // Создать новые классы и добавить их в il2cpp
 #endif
         LibLoaded = true; // Установить LibLoaded в значение "истина"
-
-        // Вызвать событие загрузки il2cpp
-        if (OnIl2CppLoadedEvent) {
-            OnIl2CppLoadedEvent();
-
-            // Если пользователь отключил, нужно снова подключить, иначе игра просто вылетит
-            BNM::AttachIl2Cpp();
-        }
     }
 #ifndef BNM_DISABLE_AUTO_LOAD
     [[maybe_unused]] __attribute__((constructor))

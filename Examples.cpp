@@ -173,9 +173,7 @@ void hack_thread() {
     do {
         usleep(1);
     } while (!Il2cppLoaded());
-	// Требуется, только если использовать std::thread или pthread_create
-    // Но здесь, в примере, используется BNM::SetIl2CppLoadEvent
-    // AttachIl2Cpp(); // Стабилизация
+    AttachIl2Cpp(); // Стабилизация
 
 	//! Создать GameObject и добавить новый класс к нему, и тем самым получить личный Update и остальные методы.
 	//! Новые классы работают с AssetBundles!
@@ -233,9 +231,7 @@ void hack_thread() {
     auto HatManager_c = HatManager.GetInnerClass(OBFUSCATE_BNM("<>c"));
     LOGIBNM("HatManager_c указатель: %p", HatManager_c.GetIl2CppClass());
 
-	// Требуется, только если использовать std::thread или pthread_create
-    // Но здесь, в примере, используется BNM::SetIl2CppLoadEvent
-    // DetachIl2Cpp(); // Стабилизация
+    DetachIl2Cpp(); // Стабилизация
 }
 
 // Пример использования BNM::HardBypass
@@ -251,8 +247,5 @@ JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
 #include <thread>
 [[maybe_unused]] __attribute__((constructor))
 void lib_main() {
-	// Метод, установленный здесь, будет вызван после завершения il2cpp_init
-    BNM::SetIl2CppLoadEvent(hack_thread);
-    // или
-    // std::thread(hack_thread).detach();
+	std::thread(hack_thread).detach();
 }
