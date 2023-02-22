@@ -919,9 +919,6 @@ namespace BNM {
     // True when il2cpp and BNM loaded
     bool Il2cppLoaded();
 
-    // Calling after il2cpp and BNM loaded
-    void SetIl2CppLoadEvent(void (*event)());
-
     // Il2cpp thread utils
     [[maybe_unused]] bool AttachIl2Cpp(); // Return true if need Detach
     [[maybe_unused]] IL2CPP::Il2CppThread *CurrentIl2CppThread();

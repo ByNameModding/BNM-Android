@@ -12,7 +12,6 @@ namespace BNM_Internal {
     static const char *LibAbsolutePath{};
     static BNM_PTR LibAbsoluteAddress{};
     static bool HasImageGetCls = false;
-    static void (*OnIl2CppLoadedEvent)(){};
 
     // Methods for new classes and for basic mode
     AssemblyVector *(*Assembly$$GetAllAssemblies)(){};
@@ -88,7 +87,6 @@ namespace BNM_Internal {
 namespace BNM {
     // Get/Set internal data
     bool Il2cppLoaded() { return BNM_Internal::LibLoaded; }
-    void SetIl2CppLoadEvent(void (*event)()) { BNM_Internal::OnIl2CppLoadedEvent = event; }
 
     // Safe convert std::string to const char *
     char *str2char(const std::string &str) {
@@ -868,20 +866,6 @@ namespace BNM {
                 BNM_Internal::InitNewClasses(); // Make new classes and add them to il2cpp
 #endif
                 BNM_Internal::LibLoaded = true; // Set LibLoaded to true
-
-                // Call il2cpp load event
-                if (BNM_Internal::OnIl2CppLoadedEvent) {
-
-                    // Because we can't 100% be sure that user call this method from il2cpp thread, need check and Attach even if he do this
-                    bool needReattach = BNM::CurrentIl2CppThread();
-                    if (!needReattach) BNM::AttachIl2Cpp();
-
-                    BNM_Internal::OnIl2CppLoadedEvent();
-
-                    // Reattach if it been attached and detach otherwise
-                    if (needReattach) BNM::AttachIl2Cpp();
-                    else BNM::DetachIl2Cpp();
-                }
             } else LOGWBNM(OBFUSCATE_BNM("[External::LoadBNM] dl is null or wrong, can't load BNM"));
         }
         [[maybe_unused]] void ForceLoadBNM(void *dl) {
@@ -891,20 +875,6 @@ namespace BNM {
             BNM_Internal::InitNewClasses(); // Make new classes and add them to il2cpp
 #endif
             BNM_Internal::LibLoaded = true; // Set LibLoaded to true
-
-            // Call il2cpp load event
-            if (BNM_Internal::OnIl2CppLoadedEvent) {
-
-                // Because we can't 100% be sure that user call this method from il2cpp thread, need check and Attach even if he do this
-                bool needReattach = BNM::CurrentIl2CppThread();
-                if (!needReattach) BNM::AttachIl2Cpp();
-
-                BNM_Internal::OnIl2CppLoadedEvent();
-
-                // Reattach if it been attached and detach otherwise
-                if (needReattach) BNM::AttachIl2Cpp();
-                else BNM::DetachIl2Cpp();
-            }
         }
     }
 }
@@ -1730,14 +1700,6 @@ namespace BNM_Internal {
         InitNewClasses();  // Make new classes and add them to il2cpp
 #endif
         LibLoaded = true; // Set LibLoaded to true
-
-        // Call il2cpp load event
-        if (OnIl2CppLoadedEvent) {
-            OnIl2CppLoadedEvent();
-
-            // If user detach need to reattach otherwise game just crash
-            BNM::AttachIl2Cpp();
-        }
     }
 #ifndef BNM_DISABLE_AUTO_LOAD
     [[maybe_unused]] __attribute__((constructor))
