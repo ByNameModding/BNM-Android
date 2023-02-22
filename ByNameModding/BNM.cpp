@@ -52,8 +52,8 @@ namespace BNM_Internal {
 #endif
 
 #endif
-    void (*old_Image$$GetTypes)(IL2CPP::Il2CppImage *image, bool exportedOnly, TypeVector *target){};
-    void Image$$GetTypes(IL2CPP::Il2CppImage *image, bool exportedOnly, TypeVector *target);
+    void (*old_Image$$GetTypes)(IL2CPP::Il2CppImage *image, bool exportedOnly, ClassVector *target){};
+    void Image$$GetTypes(IL2CPP::Il2CppImage *image, bool exportedOnly, ClassVector *target);
 
     void (*Class$$Init)(IL2CPP::Il2CppClass *klass){};
 
@@ -181,7 +181,7 @@ namespace BNM {
             auto image = il2cpp_assembly_get_image(assembly);
 
             // Get all types of image
-            TypeVector classes;
+            ClassVector classes;
             BNM_Internal::Image$$GetTypes(image, false, &classes);
 
             for (auto cls : classes) {
@@ -222,7 +222,7 @@ namespace BNM {
         }
 
         // Get all types of image
-        TypeVector classes;
+        ClassVector classes;
         BNM_Internal::Image$$GetTypes(image, false, &classes);
 
         // Try find type
@@ -487,45 +487,6 @@ namespace BNM {
         return ret;
     }
 
-#ifdef BNM_DEPRECATED
-    // Just GetMethods + GetMethodByName(argsName) + GetMethodByName(argsType)
-    Method<void> LoadClass::GetMethodByName(const std::string &name, const std::vector<std::string> &params_names, const std::vector<IL2CPP::Il2CppType *> &params_types) const {
-        if (!klass) return {};
-        TryInit();
-        DO_API(IL2CPP::Il2CppClass *, il2cpp_class_from_il2cpp_type, (const IL2CPP::Il2CppType *));
-        DO_API(const char *, il2cpp_method_get_param_name, (IL2CPP::MethodInfo *method, uint32_t index));
-        auto curClass = klass;
-        size_t paramCount = params_names.size();
-        if (paramCount != params_types.size()) return {};
-        do {
-            for (int i = 0; i < curClass->method_count; ++i) {
-                auto method = (IL2CPP::MethodInfo *)curClass->methods[i];
-                if (name == method->name && method->parameters_count == paramCount) {
-                    bool ok = true;
-                    for (int g = 0; g < paramCount; ++g) {
-#if UNITY_VER < 212
-                        auto param = method->parameters + g;
-                    auto cls = il2cpp_class_from_il2cpp_type(param->parameter_type);
-#else
-                        auto param = method->parameters[g];
-                        auto cls = il2cpp_class_from_il2cpp_type(param);
-#endif
-                        auto param_cls = il2cpp_class_from_il2cpp_type(params_types[g]);
-                        if (il2cpp_method_get_param_name(method, g) != params_names[g] || !(!strcmp(cls->name, param_cls->name) && !strcmp(cls->namespaze, param_cls->namespaze))) {
-                            ok = false;
-                            break;
-                        }
-                    }
-                    if (ok) return {method};
-                }
-            }
-            curClass = curClass->parent;
-        } while (curClass);
-        LOGWBNM(OBFUSCATE_BNM("Method: [%s]::[%s]::[%s], %d - not found (using params_names and params_types)"), klass->namespaze, klass->name, name.c_str(), paramCount);
-        return {};
-    }
-#endif
-
     [[maybe_unused]] LoadClass LoadClass::GetArrayClass() const {
         if (!klass) return {};
         TryInit(); // Try init klass in it not initialized
@@ -779,7 +740,7 @@ namespace BNM {
         bool IsCallHex(const std::string &hex) { return hex.substr(0, 2) == OBFUSCATE_BNM("E8"); }
 
 #else
-#error "Call or B BL hex checker support only arm64, arm, x86 and x86_64"
+#error "BNM support only arm64, arm, x86 and x86_64"
 #endif
 
         // Read memory as hex string
@@ -813,7 +774,7 @@ namespace BNM {
             // offest + address from call + size of instruction
             outOffset = offset + HexStr2Value(ReverseHexString(FixHexString(hex)).substr(0, 8)) + 5;
 #else
-            #error "DecodeBranchOrCall support only arm64, arm, x86 and x86_64"
+#error "BNM support only arm64, arm, x86 and x86_64"
             return false;
 #endif
             return true;
@@ -1136,14 +1097,12 @@ namespace BNM_Internal {
     // In unity 2017 and lower name stored as metadata index so we can't use it
     // But we can check name by images
     IL2CPP::Il2CppAssembly *Assembly$$Load(const char *name) {
-        DO_API(IL2CPP::Il2CppImage *, il2cpp_assembly_get_image, (const IL2CPP::Il2CppAssembly *));
-
         auto LoadedAssemblies = Assembly$$GetAllAssemblies();
 
         for (auto assembly : *LoadedAssemblies) {
 
             // Get image from assembly
-            auto image = il2cpp_assembly_get_image(assembly);
+            auto image = new_GetImageFromIndex(assembly->imageIndex);
 
             // Check is name is same
             if (!strcmp(image->name, name) || !strcmp(image->nameNoExt, name)) return assembly;
@@ -1179,7 +1138,7 @@ namespace BNM_Internal {
                 if (curImg) {
 
                     // Get all types of image
-                    TypeVector classes;
+                    ClassVector classes;
                     BNM_Internal::Image$$GetTypes(curImg, false, &classes);
 
                     // Try find type
@@ -1588,7 +1547,7 @@ namespace BNM_Internal {
         classes4Add = nullptr;
     }
 #endif
-    void Image$$GetTypes(IL2CPP::Il2CppImage *image, bool, TypeVector *target) {
+    void Image$$GetTypes(IL2CPP::Il2CppImage *image, bool, ClassVector *target) {
         // Check image and target
         if (!image || !target) return;
 

@@ -15,9 +15,7 @@
 #include <typeinfo>
 #include <csetjmp>
 #include <signal.h>
-#ifndef _WIN32
 #include <jni.h>
-#endif
 #include "BNM_settings.hpp"
 namespace BNM {
 #if defined(__LP64__)
@@ -80,9 +78,8 @@ namespace BNM {
         signal(SIGSEGV, old_handler);
         return ok;
     };
-    template<typename T>
+    template<typename T, typename = std::enable_if<std::is_pointer<T>::value>>
     T CheckObj(T obj) {
-        static_assert(std::is_pointer<T>::value, "Expected a pointer in CheckObj");
         if (obj && isAllocated(obj)) return obj;
         return nullptr;
     }
@@ -263,11 +260,6 @@ namespace BNM {
         [[maybe_unused]] LoadClass GetInnerClass(const std::string &name) const; // Get inner by name
         Field<int> GetFieldByName(const std::string &name) const; // Get field by name
 
-#ifdef BNM_DEPRECATED
-        // Not needed because in c# we can't make 2 method with same arg types, but with different arg names
-        Method<void> GetMethodByName(const std::string &name, const std::vector<std::string> &params_names, const std::vector<IL2CPP::Il2CppType *> &params_types) const; // Get method by name and args name and args type
-#endif
-
         [[maybe_unused]] LoadClass GetArrayClass() const; // To array class
 
         IL2CPP::Il2CppType *GetIl2CppType() const; // To il2cpp type
@@ -370,13 +362,13 @@ namespace BNM {
         T *getPointer() {
             if (!init) return makeSafeRet();
             if (!isStatic && !CheckObj(instance)) {
-                LOGEBNM(OBFUSCATE_BNM("Can't get non static %s pointer without instance! Please call setInstance before getting or setting field."), BNM::str2char(str()));
+                LOGEBNM(OBFUSCATE_BNM("Can't get non static %s pointer without instance! Please call setInstance before getting or setting field."), str().c_str());
                 return makeSafeRet();
             } else if (isStatic && !CheckObj(myInfo->parent)) {
-                LOGEBNM(OBFUSCATE_BNM("Something went wrong, %s field has null parent class."), BNM::str2char(str()));
+                LOGEBNM(OBFUSCATE_BNM("Something went wrong, %s field has null parent class."), str().c_str());
                 return makeSafeRet();
             } else if (thread_static) {
-                LOGEBNM(OBFUSCATE_BNM("Thread static pointer don't supported, %s."), BNM::str2char(str()));
+                LOGEBNM(OBFUSCATE_BNM("Thread static pointer don't supported, %s."), str().c_str());
                 return makeSafeRet();
             }
             if (isStatic) return (T *) ((BNM_PTR) myInfo->parent->static_fields + myInfo->offset);
@@ -413,7 +405,7 @@ namespace BNM {
         // Set instance
         Field<T> &setInstance(IL2CPP::Il2CppObject *val, bool doWarn = true) {
             if (init && isStatic) {
-                if (doWarn) LOGWBNM(OBFUSCATE_BNM("Trying set instance of static field %s. Please remove setInstance in code."), BNM::str2char(str()));
+                if (doWarn) LOGWBNM(OBFUSCATE_BNM("Trying set instance of static field %s. Please remove setInstance in code."), str().c_str());
                 return *this;
             }
             init = val && myInfo != nullptr;
@@ -493,7 +485,7 @@ namespace BNM {
             if (!init) return *this;
             if (init && isStatic) {
                 if (doWarn)
-                    LOGWBNM(OBFUSCATE_BNM("Trying set instance of static method %s. Please remove setInstance in code."), BNM::str2char(str()));
+                    LOGWBNM(OBFUSCATE_BNM("Trying set instance of static method %s. Please remove setInstance in code."), str().c_str());
                 return *this;
             }
             instance = val;
@@ -512,10 +504,10 @@ namespace BNM {
             bool canInfo = true;
             if (sizeof...(Args) != myInfo->parameters_count){
                 canInfo = false;
-                LOGWBNM(OBFUSCATE_BNM("Trying to call %s with wrong parameters count... I hope you know what you're doing. Just I can't add MethodInfo to args(. Please try fix this."), BNM::str2char(str()));
+                LOGWBNM(OBFUSCATE_BNM("Trying to call %s with wrong parameters count... I hope you know what you're doing. Just I can't add MethodInfo to args(. Please try fix this."), str().c_str());
             }
             if (!isStatic && !CheckObj(instance)) {
-                LOGEBNM(OBFUSCATE_BNM("Can't call non static %s without instance! Please call setInstance before calling method."), BNM::str2char(str()));
+                LOGEBNM(OBFUSCATE_BNM("Can't call non static %s without instance! Please call setInstance before calling method."), str().c_str());
                 return SafeReturn<Ret>();
             }
             auto method = myInfo;
