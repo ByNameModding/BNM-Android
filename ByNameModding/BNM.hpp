@@ -15,9 +15,7 @@
 #include <typeinfo>
 #include <csetjmp>
 #include <signal.h>
-#ifndef _WIN32
 #include <jni.h>
-#endif
 #include "BNM_settings.hpp"
 namespace BNM {
 #if defined(__LP64__)
@@ -64,12 +62,12 @@ namespace BNM {
     }
     typedef IL2CPP::Il2CppReflectionType MonoType;
     typedef std::vector<IL2CPP::Il2CppAssembly *> AssemblyVector;
-    typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
+    typedef std::vector<IL2CPP::Il2CppClass *> ClassVector;
 
     namespace UNITY_STRUCTS {
 #include "BNM_data/BasicStructs.h"
     }
-    // Check is pointer valid
+    // Проверить, действителен ли указатель
     auto isAllocated = [](auto x) -> bool {
         static jmp_buf jump;
         static sighandler_t handler = [](int) { longjmp(jump, 1); };
@@ -80,26 +78,25 @@ namespace BNM {
         signal(SIGSEGV, old_handler);
         return ok;
     };
-    template<typename T>
+    template<typename T, typename = std::enable_if<std::is_pointer<T>::value>>
     T CheckObj(T obj) {
-        static_assert(std::is_pointer<T>::value, "Expected a pointer in CheckObj");
         if (obj && isAllocated(obj)) return obj;
         return nullptr;
     }
     namespace UnityEngine {
-        // Can be used for NewClass if Base type is UnityEngine.Object, MonoBehaviour, ScriptableObject
-        // For System.Object use BNM::IL2CPP::Il2CppObject
+        // Должен быть использован для новых классов, если родитель: UnityEngine.Object, MonoBehaviour, ScriptableObject
+        // Для System.Object нужно использовать BNM::IL2CPP::Il2CppObject
         struct Object : public BNM::IL2CPP::Il2CppObject {
             BNM_INT_PTR m_CachedPtr = 0;
             bool Alive() { return BNM::CheckObj((void *)this) && (BNM_PTR)m_CachedPtr; }
         };
     }
     char *str2char(const std::string &str);
-    // Only if obj child of UnityEngine.Object or object is UnityEngine.Object
+	// Только если объект - дочерний элемент класса UnityEngine.Object или объект - это UnityEngine.Object
     [[maybe_unused]] auto IsUnityObjectAlive = [](auto o) {
         return ((UnityEngine::Object *)o)->Alive();
     };
-    // Only if objects children of UnityEngine.Object or objects are UnityEngine.Object
+	// Только если объект - дочерний элемент класса UnityEngine.Object или объект - это UnityEngine.Object
     [[maybe_unused]] auto IsSameUnityObject = [](auto o1, auto o2) {
         auto obj1 = (UnityEngine::Object *)o1;
         auto obj2 = (UnityEngine::Object *)o2;
@@ -109,8 +106,8 @@ namespace BNM {
     auto InitFunc = [](auto&& method, auto ptr) {
         if (ptr != 0) *(void **)(&method) = (void *)(ptr);
     };
-
-    // Basic c# classes (string, array, list)
+	
+	// Обычные классы C# (строка, массив, список) (string, [], List)
     namespace MONO_STRUCTS {
         struct monoString : BNM::IL2CPP::Il2CppObject {
             int length;
@@ -206,7 +203,7 @@ namespace BNM {
                 nItems->monitor = items->monitor;
                 nItems->bounds = items->bounds;
                 nItems->capacity = newCapacity;
-                if (items->capacity > 0) // Don't copy if array empty
+                if (items->capacity > 0) // Не копировать, если массив пустой
                     memcpy(nItems->m_Items, items->m_Items, items->capacity  *sizeof(T));
                 items = nItems;
                 return true;
@@ -229,7 +226,7 @@ namespace BNM {
         };
     }
 
-    // Just structs define for LoadClass
+    // Просто определение структур для loadClass
     template<typename T = int>
     struct Field;
     template<typename T>
@@ -241,50 +238,45 @@ namespace BNM {
     struct LoadClass {
         IL2CPP::Il2CppClass *klass{};
 
-        constexpr LoadClass() noexcept = default; // Just default
+        constexpr LoadClass() noexcept = default;
 
-        LoadClass(const IL2CPP::Il2CppClass *clazz); // From class
-        LoadClass(const IL2CPP::Il2CppObject *obj); // From object
-        [[maybe_unused]] LoadClass(const IL2CPP::Il2CppType *type); // From type
-        [[maybe_unused]] LoadClass(const MonoType *type); // From c# vm type
-        [[maybe_unused]] LoadClass(RuntimeTypeGetter type); // From runtime type
+        LoadClass(const IL2CPP::Il2CppClass *clazz); // Из класса
+        LoadClass(const IL2CPP::Il2CppObject *obj); // Из объекта
+        [[maybe_unused]] LoadClass(const IL2CPP::Il2CppType *type); // Из типа
+        [[maybe_unused]] LoadClass(const MonoType *type); // Из C#-типа
+        [[maybe_unused]] LoadClass(RuntimeTypeGetter type); // Из BNM-типа 
 
-        LoadClass(const std::string &namespaze, const std::string &name); // From class name
-        LoadClass(const std::string &namespaze, const std::string &name, const std::string &dllName); // From class name and dll
+        LoadClass(const std::string &namespaze, const std::string &name); // Из имени класса
+        LoadClass(const std::string &namespaze, const std::string &name, const std::string &dllName); // Из имён класса и dll
 
-        [[maybe_unused]] std::vector<LoadClass> GetInnerClasses(bool includeParent = true) const; // Get all inner classes
-        [[maybe_unused]] std::vector<IL2CPP::FieldInfo *> GetFieldsInfo(bool includeParent = true) const; // Get all fields
-        [[maybe_unused]] std::vector<IL2CPP::MethodInfo *> GetMethodsInfo(bool includeParent = true) const; // Get all methods
+        [[maybe_unused]] std::vector<LoadClass> GetInnerClasses(bool includeParent = true) const; // Получить все вложенные классы
+        [[maybe_unused]] std::vector<IL2CPP::FieldInfo *> GetFieldsInfo(bool includeParent = true) const; // Получить все поля
+        [[maybe_unused]] std::vector<IL2CPP::MethodInfo *> GetMethodsInfo(bool includeParent = true) const; // Получить все методы
 
-        Method<void> GetMethodByName(const std::string &name, int parameters = -1) const; // Get method by name and args count
-        Method<void> GetMethodByName(const std::string &name, const std::vector<std::string> &parametersName) const; // Get method by name and args name
-        Method<void> GetMethodByName(const std::string &name, const std::vector<RuntimeTypeGetter> &parametersType) const; // Get method by name and args type
-        [[maybe_unused]] Property<bool> GetPropertyByName(const std::string &name, bool warning = false); // Get property by name
-        [[maybe_unused]] LoadClass GetInnerClass(const std::string &name) const; // Get inner by name
-        Field<int> GetFieldByName(const std::string &name) const; // Get field by name
+        Method<void> GetMethodByName(const std::string &name, int parameters = -1) const; // Получить метод по имени и кол-ву аргументов
+        Method<void> GetMethodByName(const std::string &name, const std::vector<std::string> &parametersName) const; // Получить метод по имени и именам аргументов
+        Method<void> GetMethodByName(const std::string &name, const std::vector<RuntimeTypeGetter> &parametersType) const; // Получить метод по имени и типам аргументов
+        [[maybe_unused]] Property<bool> GetPropertyByName(const std::string &name, bool warning = false); // Получить свойство по имени
+        [[maybe_unused]] LoadClass GetInnerClass(const std::string &name) const; // Получить вложенный класс по имени
+        Field<int> GetFieldByName(const std::string &name) const; // Получить поле по имени
 
-#ifdef BNM_DEPRECATED
-        // Not needed because in c# we can't make 2 method with same arg types, but with different arg names
-        Method<void> GetMethodByName(const std::string &name, const std::vector<std::string> &params_names, const std::vector<IL2CPP::Il2CppType *> &params_types) const; // Get method by name and args name and args type
-#endif
+        [[maybe_unused]] LoadClass GetArrayClass() const; // В класс массива (класс[])
 
-        [[maybe_unused]] LoadClass GetArrayClass() const; // To array class
+        IL2CPP::Il2CppType *GetIl2CppType() const; // В il2cpp-тип
 
-        IL2CPP::Il2CppType *GetIl2CppType() const; // To il2cpp type
+        [[maybe_unused]] MonoType *GetMonoType() const; // В C#-тип
 
-        [[maybe_unused]] MonoType *GetMonoType() const; // To c# vm type
+        IL2CPP::Il2CppClass *GetIl2CppClass() const; // В il2cpp-класс
 
-        IL2CPP::Il2CppClass *GetIl2CppClass() const; // Just get klass field
-
-        // Fast operators
+        // Быстрые операторы
         inline operator IL2CPP::Il2CppType *() const { return GetIl2CppType(); };
         inline operator MonoType *() const { return GetMonoType(); };
 
-        void *CreateNewInstance() const; // like c# new Object(), but without calling .ctor
+        void *CreateNewInstance() const; // То же самое, что и new Object() в C#, но без вызова конструктора (.ctor)
 
-        [[maybe_unused]] std::string str() const; // Get namespace and name
+        [[maybe_unused]] std::string str() const; // Получить информацию о классе
 
-        // like c# new Object[]
+        // То же самое, что и new Object[] в C#
         template<typename T>
         MONO_STRUCTS::monoArray<T> *NewArray(IL2CPP::il2cpp_array_size_t length = 0) {
             if (!klass) return nullptr;
@@ -292,7 +284,7 @@ namespace BNM {
             return (BNM::MONO_STRUCTS::monoArray<T> *) ArrayNew(klass, length);
         }
 
-        // like c# new List<Object>()
+        // То же самое, что и List<Object>() в C#
         template<typename T>
         [[maybe_unused]] MONO_STRUCTS::monoList<T> *NewList() {
             if (!klass) return nullptr;
@@ -304,7 +296,7 @@ namespace BNM {
             return lst;
         }
 
-        // Box object
+        // Упоковать объект
         template<typename T>
         [[maybe_unused]] IL2CPP::Il2CppObject *BoxObject(T obj) {
             if (!klass) return nullptr;
@@ -312,24 +304,24 @@ namespace BNM {
             return ObjBox(klass, (void *) obj);
         }
 
-        // like c# new Object() with finding .ctor with args by count
+        // То же самое, что и new Object() в C# с вызовом .ctor по кол-ву аргументов
         template<typename ...Args>
         [[maybe_unused]] void *CreateNewObject(Args ...args) { return CreateNewObjectCtor(sizeof...(Args), {}, args...); }
 
-        // like c# new Object() with finding .ctor with args by count and names
+        // То же самое, что и new Object() в C# с вызовом .ctor по кол-ву аргументов или их именам
         template<typename ...Args>
         void *CreateNewObjectCtor(int args_count, const std::vector<std::string> &arg_names, Args ...args);
 
-        // Check is LoadClass valid
+        // Проверка, жив ли LoadClass
         inline operator bool() const { return klass != nullptr; };
-    private: // Private) Just call il2cpp methods
+    private: // Приватно) Просто вызовы il2cpp-методов
         void TryInit() const;
         static IL2CPP::Il2CppObject *ObjBox(IL2CPP::Il2CppClass*, void *);
         static IL2CPP::Il2CppObject *ObjNew(IL2CPP::Il2CppClass *);
         static IL2CPP::Il2CppArray *ArrayNew(IL2CPP::Il2CppClass*, IL2CPP::il2cpp_array_size_t);
     };
     
-    // For thread static fields
+    // Для статических полей потоков
     namespace PRIVATE_FILED_UTILS {
         void GetStaticValue(IL2CPP::FieldInfo *info, void *value);
         void SetStaticValue(IL2CPP::FieldInfo *info, void *value);
@@ -343,14 +335,14 @@ namespace BNM {
 
         Field() noexcept = default;
 
-        // Copy other field, just for auto casts
+        // Скопировать другое поле, только для автоматического приведения типов
         template<typename otherT>
         [[maybe_unused]] Field(Field<otherT> f) : Field(f.myInfo) {
             if (f.Initialized() && !f.isStatic && !f.thread_static && BNM::CheckObj(f.instance))
                 setInstance(f.instance);
         }
 
-        // From info
+        // Из информации
         Field(IL2CPP::FieldInfo *info) {
             init = BNM::CheckObj(info);
             if (init) {
@@ -360,30 +352,30 @@ namespace BNM {
             }
         }
 
-        // Get offset
+        // Получить адрес (смещение)
         BNM_PTR GetOffset() {
             if (!init) return 0;
             return myInfo->offset;
         }
 
-        // Get pointer to field
+        // Получить указатель на поле
         T *getPointer() {
             if (!init) return makeSafeRet();
             if (!isStatic && !CheckObj(instance)) {
-                LOGEBNM(OBFUSCATE_BNM("Can't get non static %s pointer without instance! Please call setInstance before getting or setting field."), BNM::str2char(str()));
+                LOGEBNM(OBFUSCATE_BNM("Не могу получить нестатический указатель поля %s без объекта! Пожалуйста, установите объект перед попыткой получить указатель."), str().c_str());
                 return makeSafeRet();
             } else if (isStatic && !CheckObj(myInfo->parent)) {
-                LOGEBNM(OBFUSCATE_BNM("Something went wrong, %s field has null parent class."), BNM::str2char(str()));
+                LOGEBNM(OBFUSCATE_BNM("Что-то пошло не так, статическое поле %s не имеет класс."), str().c_str());
                 return makeSafeRet();
             } else if (thread_static) {
-                LOGEBNM(OBFUSCATE_BNM("Thread static pointer don't supported, %s."), BNM::str2char(str()));
+                LOGEBNM(OBFUSCATE_BNM("Получение указателя на статические поля потоков не поддерживается, поле: %s"), str().c_str());
                 return makeSafeRet();
             }
             if (isStatic) return (T *) ((BNM_PTR) myInfo->parent->static_fields + myInfo->offset);
             return (T *) ((BNM_PTR) instance + myInfo->offset);
         }
 
-        // Get value from field
+        // Получить значение из поля
         T get() {
             if (!init) return {};
             if (thread_static) {
@@ -396,7 +388,7 @@ namespace BNM {
         operator T() { return get(); }
         T operator()() { return get(); }
 
-        // Set value to field
+        // Изменить значение поля
         void set(T val) {
             if (!init) return;
             if (thread_static) {
@@ -410,10 +402,10 @@ namespace BNM {
             return *this;
         }
 
-        // Set instance
+        // Установить объект
         Field<T> &setInstance(IL2CPP::Il2CppObject *val, bool doWarn = true) {
             if (init && isStatic) {
-                if (doWarn) LOGWBNM(OBFUSCATE_BNM("Trying set instance of static field %s. Please remove setInstance in code."), BNM::str2char(str()));
+                if (doWarn) LOGWBNM(OBFUSCATE_BNM("Попытка установить объект статическому полю %s. Пожалуйста, уберите вызов setInstance в коде."), str().c_str());
                 return *this;
             }
             init = val && myInfo != nullptr;
@@ -421,12 +413,12 @@ namespace BNM {
             return *this;
         }
 
-        // Just fast set instance
+        // Быстрая установка объекта
         Field<T> &operator[](void *val) { return setInstance((IL2CPP::Il2CppObject *)val); }
         Field<T> &operator[](IL2CPP::Il2CppObject *val) { return setInstance((IL2CPP::Il2CppObject *)val); }
         Field<T> &operator[](UnityEngine::Object *val) { return setInstance((IL2CPP::Il2CppObject *)val); }
 
-        // Copy
+        // Копировать поле
         template<typename otherT>
         Field<T> &operator=(Field<otherT> f) {
             init = BNM::CheckObj(f.myInfo);
@@ -440,17 +432,17 @@ namespace BNM {
             return *this;
         }
 
-        // Cast field to other type
+        // Изменить тип поля
         template<typename NewT>
         Field<NewT> cast() { return Field<NewT>(myInfo).setInstance(instance, false); }
 
-        // Get field name
+        // Получить данные о поле
         std::string str() {
             if (init) return LoadClass(myInfo->parent).str() + OBFUSCATE_BNM(".(") + myInfo->name + OBFUSCATE_BNM(")");
-            return OBFUSCATE_BNM("Uninitialized field");
+            return OBFUSCATE_BNM("Мёртвое поле");
         }
 
-        // Just get init
+        // Проверить, живо ли поле
         bool Initialized() noexcept { return init; }
     private:
         static bool CheckIsStatic(IL2CPP::FieldInfo *field) {
@@ -460,7 +452,7 @@ namespace BNM {
         [[maybe_unused]] T *makeSafeRet() { T ret{}; return &ret; }
     };
 
-    // Converts offset in memory to offset in lib (work for any lib)
+    // Преобразует адрес (смещение) в памяти в адрес (смещение) в библиотеке (работает для любой библиотеки)
     void *offsetInLib(void *offsetInMemory);
 
     template<typename Ret = void>
@@ -471,14 +463,14 @@ namespace BNM {
 
         Method() noexcept = default;
 
-        // Copy other method, just for auto casts
+        // Скопировать другой метод, только для автоматического приведения типов
         template<typename T = void>
         Method(Method<T> m) : Method(m.myInfo) {
             if (m.Initialized() && !m.isStatic && BNM::CheckObj(m.instance))
                 setInstance(m.instance);
         }
 
-        // From info
+        // Из информации
         Method(const IL2CPP::MethodInfo *info) {
             init = BNM::CheckObj(info);
             if (init) {
@@ -488,34 +480,34 @@ namespace BNM {
             }
         }
 
-        // Set instance
+        // Установить объект
         Method<Ret> &setInstance(IL2CPP::Il2CppObject *val, bool doWarn = true) {
             if (!init) return *this;
             if (init && isStatic) {
                 if (doWarn)
-                    LOGWBNM(OBFUSCATE_BNM("Trying set instance of static method %s. Please remove setInstance in code."), BNM::str2char(str()));
+                    LOGWBNM(OBFUSCATE_BNM("Попытка установить объект статическому методу %s. Пожалуйста, уберите вызов setInstance в коде."), str().c_str());
                 return *this;
             }
             instance = val;
             return *this;
         }
 
-        // Just fast set instance
+        // Быстрая установка объекта
         inline Method<Ret> &operator[](void *val) { return setInstance((IL2CPP::Il2CppObject *)val); }
         inline Method<Ret> &operator[](IL2CPP::Il2CppObject *val) { return setInstance((IL2CPP::Il2CppObject *)val); }
         inline Method<Ret> &operator[](UnityEngine::Object *val) { return setInstance((IL2CPP::Il2CppObject *)val); }
 
-        // Call method
+        // Вызвать метод
         template<typename ...Args>
         Ret call(Args...args) {
             if (!init) return SafeReturn<Ret>();
             bool canInfo = true;
             if (sizeof...(Args) != myInfo->parameters_count){
                 canInfo = false;
-                LOGWBNM(OBFUSCATE_BNM("Trying to call %s with wrong parameters count... I hope you know what you're doing. Just I can't add MethodInfo to args(. Please try fix this."), BNM::str2char(str()));
+                LOGWBNM(OBFUSCATE_BNM("Попытка вызвать %s с неправильным кол-вом аргументов... Я надеюсь, вы знаете, что делаете. BNM не может добавить MethodInfo к аргументам :(. Пожалуйста, исправьте это."), str().c_str());
             }
             if (!isStatic && !CheckObj(instance)) {
-                LOGEBNM(OBFUSCATE_BNM("Can't call non static %s without instance! Please call setInstance before calling method."), BNM::str2char(str()));
+                LOGEBNM(OBFUSCATE_BNM("Нельзя вызвать нестатический метод %s без объекта! Пожалуйста, установите объект перед вызовом метода."), str().c_str());
                 return SafeReturn<Ret>();
             }
             auto method = myInfo;
@@ -540,11 +532,11 @@ namespace BNM {
             return (((Ret(*)(IL2CPP::Il2CppObject *,Args...))method->methodPointer)(instance, args...));
         }
 
-        // Fast call method
+        // Быстро вызвать метод
         template<typename ...Args>
         inline Ret operator ()(Args ...args) { return call(args...); }
 
-        // To string
+        // Получить данные
         std::string str() {
 #if UNITY_VER > 174
 #define kls klass
@@ -553,38 +545,38 @@ namespace BNM {
 #endif
             if (init) {
                 return LoadClass(myInfo->return_type).str() + OBFUSCATE_BNM(" ") +
-                       LoadClass(myInfo->kls).str() + OBFUSCATE_BNM(".[") +
-                       myInfo->name + OBFUSCATE_BNM("]{Args count:") +
+                       LoadClass(myInfo->kls).str() + OBFUSCATE_BNM(".(") +
+                       myInfo->name + OBFUSCATE_BNM("){кол-во аргументов: ") +
                        std::to_string(myInfo->parameters_count) + OBFUSCATE_BNM("}") +
-                       (isStatic ? OBFUSCATE_BNM("(static)") : OBFUSCATE_BNM(""));
+                       (isStatic ? OBFUSCATE_BNM("(статический)") : OBFUSCATE_BNM(""));
             }
-            return OBFUSCATE_BNM("Uninitialized method");
+            return OBFUSCATE_BNM("Мёртвый метод");
 #undef kls
         }
 
-        // Just get myInfo
+        // Получить информацию
         IL2CPP::MethodInfo *GetInfo() {
             if (init) return myInfo;
             return {};
         }
 
-        // Get offset
+        // Получить адрес (смещение)
         BNM_PTR GetOffset() {
             if (init) return (BNM_PTR) myInfo->methodPointer;
             return {};
         }
 
-        // Just get init
+        // Проверить, жив ли метод
         bool Initialized() noexcept { return init; }
         operator bool() noexcept { return Initialized(); }
 
-        // Just cast method
+        // Изменить тип метода
         template<typename NewRet>
         [[maybe_unused]] Method<NewRet> cast() {
             return Method<NewRet>(myInfo).setInstance(instance, false);
         }
 
-        // Copy method
+        // Копировать метод
         template<typename other>
         Method<Ret> &operator=(Method<other> m) {
             init = BNM::CheckObj(m.myInfo);
@@ -596,7 +588,7 @@ namespace BNM {
             if (m.Initialized() && !m.isStatic && BNM::CheckObj(m.instance)) setInstance(m.instance);
             return *this;
         }
-    private: // Crutch)
+    private: // Костыль)
         template<typename T>static T SafeReturn(){return{};}
         template<>static void SafeReturn(){}
     };
@@ -604,62 +596,62 @@ namespace BNM {
 
     template<typename T = bool>
     struct Property {
-        // This is easier than finding PropertyInfo
+        // Так проще, чем искать PropertyInfo
         Method<T> getter;
         Method<void> setter;
 
         Property() noexcept = default;
 
-        // From getter and setter, you can use non property methods if you want
+		// Для получателя и установщика, можно использовать методы не из свойства
         template<typename V>
         Property(Method<V> getter, Method<void> setter) {
             this->getter = getter;
             this->setter = setter;
         }
 
-        // Set instance
+        // Установить объект
         Property<T> &setInstance(IL2CPP::Il2CppObject *val, bool doWarn = true) {
             getter.setInstance(val, doWarn);
             setter.setInstance(val, doWarn);
             return *this;
         }
 
-        // Just fast set instance
+        // Быстрая установка объекта
         inline Property<T> &operator[](void *val) { return setInstance((IL2CPP::Il2CppObject *)val); }
         inline Property<T> &operator[](IL2CPP::Il2CppObject *val) { return setInstance((IL2CPP::Il2CppObject *)val); }
         inline Property<T> &operator[](UnityEngine::Object *val) { return setInstance((IL2CPP::Il2CppObject *)val); }
 
-        // Call getter
+        // Вызвать получатель
         T get() { return getter(); }
         operator T() { return get(); }
         T operator()() { return get(); }
 
-        // Call setter
+        // Вызвать установщик
         void set(T v) { return setter(v); }
         Property<T> &operator=(T val) {
             set(val);
             return *this;
         }
 
-        // Copy
+        // Копировать свойство
         template<typename V>
-        Property<T> &operator=(Property<V> val) { // We don't need to set Instance here because it saved in methods
+        Property<T> &operator=(Property<V> val) {
             getter = val.getter;
             setter = val.setter;
             return *this;
         }
 
-        // Just get init
+        // Проверить, живо ли свойство
         [[maybe_unused]] bool Initialized() noexcept { return getter.init || setter.init; }
 
-        // Just cast property
+        // Изменить тип свойста
         template<typename NewRet>
         [[maybe_unused]] Property<NewRet> cast() {
             return Property<NewRet>(Method<NewRet>(getter), setter).setInstance(getter.instance ? getter.instance : setter.instance, false);
         }
     };
 
-    // Code of CreateNewObjectCtor
+    // Код CreateNewObjectCtor
     template<typename ...Args>
     void *LoadClass::CreateNewObjectCtor(int args_count, const std::vector<std::string> &arg_names, Args ...args) {
         if (!klass) return nullptr;
@@ -670,7 +662,7 @@ namespace BNM {
         return instance;
     }
 
-    // Basic c# Dictionary
+    // Обычный C#-словарь (Dictionary)
     namespace MONO_STRUCTS {
         template<typename TKey, typename TValue>
         struct [[maybe_unused]] monoDictionary {
@@ -761,7 +753,7 @@ namespace BNM {
         };
     }
 
-    // Struct to save data for finding it at runtime
+	// Структура для сохранения данных для их поиска во время выполнения кода
     struct RuntimeTypeGetter {
         const char *namespaze{}, *name{};
         bool isArray = false;
@@ -774,7 +766,7 @@ namespace BNM {
         operator LoadClass();
     };
 
-    // TODO: implement something like GetType for this struct
+    // TODO: Реализовать что-то вроде GetType для этой структуры
     struct RuntimeMethodGetter {
         RuntimeTypeGetter type{};
         const char* name{};
@@ -787,23 +779,23 @@ namespace BNM {
     };
 
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
-    // Structures for creating new classes
+    // Структуры для создания новых классов
     namespace NEW_CLASSES {
 
-        // Data of new method
+        // Данные о новых методах
         struct NewMethod {
             NewMethod() noexcept;
             IL2CPP::MethodInfo *thisMethod{};
             uint8_t argsCount = 0;
             void *address{}, *invoker{};
             const char *name{};
-            RuntimeMethodGetter virtualMethod{}; // TODO: Need to implement
+            RuntimeMethodGetter virtualMethod{}; // TODO: Нужно реализовать
             RuntimeTypeGetter retType{};
             std::vector<RuntimeTypeGetter> argTypes{};
             bool isStatic = false;
         };
 
-        // Data of new field
+        // Данные о новых полях
         struct NewField {
             NewField() noexcept;
             const char *name{};
@@ -814,7 +806,7 @@ namespace BNM {
             bool isStatic = false;
         };
 
-        // Data of new class
+        // Данные о новых классах
         struct NewClass {
             NewClass() noexcept;
             size_t size{};
@@ -830,10 +822,10 @@ namespace BNM {
             void AddNewMethod(NewMethod *method);
         };
 
-        // Add new class to list
+        // Добавить новый класс в список
         void AddNewClass(NEW_CLASSES::NewClass *klass);
 
-        // Unpack arg
+        // Распаковать аргумент
         template<typename Q>
         static inline Q UnpackArg(void *arg) {
             if constexpr (std::is_pointer_v<Q>) return (Q)arg;
@@ -844,7 +836,7 @@ namespace BNM {
         template<typename> struct GetNewMethodCalls {};
         template<typename> struct GetNewStaticMethodCalls {};
 
-        // Class for creating invoker for methods
+        // Класс для создания инициатора вызовов для методов
         template<typename RetT, typename T, typename ...ArgsT>
         struct GetNewMethodCalls<RetT(T:: *)(ArgsT...)> {
             template<std::size_t ...As>
@@ -872,7 +864,7 @@ namespace BNM {
         };
 
 #if UNITY_VER > 174
-        // Class for creating invoker for static methods
+        // Класс для создания инициатора вызовов для статических методов
         template<typename RetT, typename ...ArgsT>
         struct GetNewStaticMethodCalls<RetT(*)(ArgsT...)> {
             template<std::size_t ...As>
@@ -914,37 +906,37 @@ namespace BNM {
     }
 #endif
 
-    // Get game mono type name at compile time
+    // Сохранить название типа во время компиляции
     [[maybe_unused]] constexpr RuntimeTypeGetter GetType(const char *namespaze, const char *name, bool isArray = false) noexcept { return RuntimeTypeGetter{.namespaze = namespaze, .name = name, .isArray = isArray, .loadedClass = {}}; }
 
-    // Method for creating basic c# strings
+    // Метод создания обычных C#-строк
     MONO_STRUCTS::monoString *CreateMonoString(const char *str);
     [[maybe_unused]] MONO_STRUCTS::monoString *CreateMonoString(const std::string &str);
 
-    // Get extern methods (icall)
+    // Получить внешние методы (icall)
     void *getExternMethod(const std::string &str);
 
-    // True when il2cpp and BNM loaded
+    // Истина (true), когда il2cpp и BNM загружены
     bool Il2cppLoaded();
 
-    // Calling after il2cpp and BNM loaded
+    // Вызов после загрузки il2cpp и BNM
     void SetIl2CppLoadEvent(void (*event)());
 
-    // Il2cpp thread utils
-    [[maybe_unused]] bool AttachIl2Cpp(); // Return true if need Detach
+    // Утилиты потоков il2cpp
+    [[maybe_unused]] bool AttachIl2Cpp();
     [[maybe_unused]] IL2CPP::Il2CppThread *CurrentIl2CppThread();
     [[maybe_unused]] void DetachIl2Cpp();
 
-    // Get path to libil2cpp.so
+    // Получить путь к libil2cpp.so
     [[maybe_unused]] std::string GetLibIl2CppPath();
 
-    // Get offset of loaded libil2cpp.so
+    // Получить адрес (смещение) загруженного libil2cpp.so
     [[maybe_unused]] BNM_PTR GetLibIl2CppOffset();
 
-    // Don't close it! BNM will just crash without it.
+    // Не закрывать его! BNM вызовет сбой из-за этого.
     [[maybe_unused]] void *GetLibIl2CppDlInst();
 
-    // Get Il2Cpp mono type name at compile time
+    // Сохранить имя базовых типов во время компиляции
     template<typename T>
     constexpr RuntimeTypeGetter GetType(bool isArray = false) noexcept {
         if (std::is_same<T, void>::value)
@@ -990,15 +982,15 @@ namespace BNM {
         else return {.namespaze = OBFUSCATE_BNM("System"), .name = OBFUSCATE_BNM("Object"), .isArray = isArray};
     }
 
-    // Unbox object just copy of il2cpp method
+    // Распаковка объекта, просто копия метода из il2cpp
     template<typename T>
     [[maybe_unused]] static T UnboxObject(T obj) { return (T)(void *)(((char *)obj) + sizeof(BNM::IL2CPP::Il2CppObject)); }
 
-    // Hook method by changing MethodInfo
+    // Подмена метода путем изменения MethodInfo
     void InvokeHook(BNM::Method<int> m, void *newMet, void **oldMet);
     void InvokeHook(IL2CPP::MethodInfo *m, void *newMet, void **oldMet);
 
-    // Method for checking class of object
+    // Методы проверки класса объекта
     template<typename T, typename = std::enable_if<std::is_pointer<T>::value>>
     bool IsA(T object, IL2CPP::Il2CppClass *klass) { return IsA<BNM::IL2CPP::Il2CppObject *>((IL2CPP::Il2CppObject *)object, klass); }
     template<> bool IsA<IL2CPP::Il2CppObject *>(IL2CPP::Il2CppObject *object, IL2CPP::Il2CppClass *klass);
@@ -1010,17 +1002,17 @@ namespace BNM {
     bool IsA(T object, MonoType *type) { return IsA(object, LoadClass(type)); }
 
 
-    // Try bypass any protection by getting full lib path (INTERNAL ONLY)
+    // Попробовать обойти любую защиту, получив полный путь до библиотеки (ТОЛЬКО ВНУТРЕННЕЕ ИСПОЛЬЗОВАНИЕ)
     [[maybe_unused]] void HardBypass(JNIEnv *env);
     namespace External {
-        // Try load BNM if you externally load BNM
-        // Need call this from any unity thread
-        // dl - dlopened libil2cpp.so
+		// Попробовать загрузить BNM, если вы используете BNM извне
+		// Нужно вызвать это из любого потока unity
+		// dl - дескриптор загруженной libil2cpp.so
         [[maybe_unused]] void LoadBNM(void *dl);
-        // Set dlopened libil2cpp.so without checking it and try load BNM
-        // GetLibIl2CppOffset and GetLibIl2CppPath will be empty
-        // Need call this from any unity thread
-        // dl - dl opened libil2cpp.so
+		// Установить дескриптор libil2cpp.so, не проверяя его, и попробовать загрузить BNM
+		// GetLibIl2CppOffset и GetLibIl2CppPath будут пустыми
+		// Нужно вызвать это из любого потока unity
+		// dl - дескриптор загруженной libil2cpp.so
         [[maybe_unused]] void ForceLoadBNM(void *dl);
     }
 }
@@ -1107,7 +1099,7 @@ namespace BNM {
     public: \
     static inline _BNMMethod_##_name BNMMethod_##_name = _BNMMethod_##_name()
 
-// Add class to exist or to new dll. Write dll name without '.dll'!
+// Добавьте класс в существующую или в новую библиотеку dll. Имя библиотеки dll без '.dll'!
 #define BNM_NewClassWithDllInit(_dllName, _namespace, _name, _baseNamespace, _baseName, ...)\
     private: \
     struct _BNMClass : BNM::NEW_CLASSES::NewClass { \
