@@ -92,17 +92,17 @@ void Update(void *instance) {
     }
 }
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
-namespace geokar2006 {
+namespace BNM {
     class BNM_ExampleClass : public BNM::UnityEngine::Object {  // Behaviour, MonoBehaviour don't contain fields, therefore, you can use UnityEngine.Object
     // BNM_NewClassInit(namespace, class, parent class namespace, parent class name);
-    BNM_NewClassInit("geokar2006", BNM_ExampleClass, "UnityEngine", "MonoBehaviour");
+    BNM_NewClassInit("BNM", BNM_ExampleClass, "UnityEngine", "MonoBehaviour");
         void FixedUpdate();
         void Update();
         void Awake();
         void Start();
         void LateUpdate();
         static void MethodWithGameArgs(void *PhotonPlayer) { // Code can by here
-            LOGIBNM(OBFUSCATE_BNM("geokar2006::BNM_ExampleClass::PhotonPlayer Called with (%p) as PhotonPlayer!"), PhotonPlayer);
+            LOGIBNM(OBFUSCATE_BNM("BNM::BNM_ExampleClass::PhotonPlayer called with (%p) as PhotonPlayer!"), PhotonPlayer);
         }
         int FixedFrames = 0;
         int LateFrames = 0;
@@ -116,34 +116,34 @@ namespace geokar2006 {
     };
     class BNM_DllExampleClass : public BNM::IL2CPP::Il2CppObject { // Il2CppObject - due System.Object, null parent class namespace and parent class name = System.Object
     // BNM_NewClassWithDllInit(dll, namespace, class, parent class namespace (maybe ""), parent class name (maybe ""));
-    BNM_NewClassWithDllInit("mscorlib", "geokar2006", BNM_DllExampleClass, "", "");
+    BNM_NewClassWithDllInit("mscorlib", "BNM", BNM_DllExampleClass, "", "");
         void Start() {
-            LOGIBNM(OBFUSCATE_BNM("geokar2006::BNM_DllExampleClass::Start Called!"));
+            LOGIBNM(OBFUSCATE_BNM("BNM::BNM_DllExampleClass::Start called!"));
         }
     BNM_NewMethodInit(BNM::GetType<void>(), Start, 0);
     };
 }
-void geokar2006::BNM_ExampleClass::Awake() {
-    LOGIBNM(OBFUSCATE_BNM("geokar2006::BNM_ExampleClass::Awake Called!"));
+void BNM::BNM_ExampleClass::Awake() {
+    LOGIBNM(OBFUSCATE_BNM("BNM::BNM_ExampleClass::Awake called!"));
 }
-void geokar2006::BNM_ExampleClass::Start() {
-    LOGIBNM(OBFUSCATE_BNM("geokar2006::BNM_ExampleClass::Start Called!"));
+void BNM::BNM_ExampleClass::Start() {
+    LOGIBNM(OBFUSCATE_BNM("BNM::BNM_ExampleClass::Start called!"));
 }
-void geokar2006::BNM_ExampleClass::FixedUpdate() {
+void BNM::BNM_ExampleClass::FixedUpdate() {
     if (FixedFrames == 10)
-        LOGIBNM(OBFUSCATE_BNM("geokar2006::BNM_ExampleClass::FixedUpdate Called!"));
+        LOGIBNM(OBFUSCATE_BNM("BNM::BNM_ExampleClass::FixedUpdate called!"));
     FixedFrames++;
     if (FixedFrames == 11) FixedFrames = 0;
 }
-void geokar2006::BNM_ExampleClass::LateUpdate() {
+void BNM::BNM_ExampleClass::LateUpdate() {
     if (LateFrames == 10)
-        LOGIBNM(OBFUSCATE_BNM("geokar2006::BNM_ExampleClass::LateUpdate Called!"));
+        LOGIBNM(OBFUSCATE_BNM("BNM::BNM_ExampleClass::LateUpdate called!"));
     LateFrames++;
     if (LateFrames == 11) LateFrames = 0;
 }
-void geokar2006::BNM_ExampleClass::Update() {
+void BNM::BNM_ExampleClass::Update() {
     if (Frames == 10)
-        LOGIBNM(OBFUSCATE_BNM("geokar2006::BNM_ExampleClass::Update Called!"));
+        LOGIBNM(OBFUSCATE_BNM("BNM::BNM_ExampleClass::Update called!"));
     Frames++;
     if (Frames == 11) Frames = 0;
 }
@@ -154,7 +154,7 @@ BNM::Method AddComponent;
 BNM::Method DontDestroyOnLoad;
 void *Example_NewGameObject() {
     void *new_GameObject = GameObject.CreateNewObject();
-    AddComponent[new_GameObject](geokar2006::BNM_ExampleClass::BNMClass.type);
+    AddComponent[new_GameObject](BNM::BNM_ExampleClass::BNMClass.type);
     DontDestroyOnLoad(new_GameObject);
     return new_GameObject;
 }

@@ -64,7 +64,7 @@ namespace BNM {
     }
     typedef IL2CPP::Il2CppReflectionType MonoType;
     typedef std::vector<IL2CPP::Il2CppAssembly *> AssemblyVector;
-    typedef std::vector<IL2CPP::Il2CppClass *> TypeVector;
+    typedef std::vector<IL2CPP::Il2CppClass *> ClassVector;
 
     namespace UNITY_STRUCTS {
 #include "BNM_data/BasicStructs.h"
