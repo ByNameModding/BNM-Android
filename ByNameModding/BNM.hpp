@@ -92,11 +92,11 @@ namespace BNM {
         };
     }
     char *str2char(const std::string &str);
-	// Только если объект - дочерний элемент класса UnityEngine.Object или объект - это UnityEngine.Object
+    // Только если объект - дочерний элемент класса UnityEngine.Object или объект - это UnityEngine.Object
     [[maybe_unused]] auto IsUnityObjectAlive = [](auto o) {
         return ((UnityEngine::Object *)o)->Alive();
     };
-	// Только если объект - дочерний элемент класса UnityEngine.Object или объект - это UnityEngine.Object
+    // Только если объект - дочерний элемент класса UnityEngine.Object или объект - это UnityEngine.Object
     [[maybe_unused]] auto IsSameUnityObject = [](auto o1, auto o2) {
         auto obj1 = (UnityEngine::Object *)o1;
         auto obj2 = (UnityEngine::Object *)o2;
@@ -106,8 +106,8 @@ namespace BNM {
     auto InitFunc = [](auto&& method, auto ptr) {
         if (ptr != 0) *(void **)(&method) = (void *)(ptr);
     };
-	
-	// Обычные классы C# (строка, массив, список) (string, [], List)
+    
+    // Обычные классы C# (строка, массив, список) (string, [], List)
     namespace MONO_STRUCTS {
         struct monoString : BNM::IL2CPP::Il2CppObject {
             int length;
@@ -602,7 +602,7 @@ namespace BNM {
 
         Property() noexcept = default;
 
-		// Для получателя и установщика, можно использовать методы не из свойства
+        // Для получателя и установщика, можно использовать методы не из свойства
         template<typename V>
         Property(Method<V> getter, Method<void> setter) {
             this->getter = getter;
@@ -753,7 +753,7 @@ namespace BNM {
         };
     }
 
-	// Структура для сохранения данных для их поиска во время выполнения кода
+    // Структура для сохранения данных для их поиска во время выполнения кода
     struct RuntimeTypeGetter {
         const char *namespaze{}, *name{};
         bool isArray = false;
@@ -1002,14 +1002,14 @@ namespace BNM {
     // Попробовать обойти любую защиту, получив полный путь до библиотеки (ТОЛЬКО ВНУТРЕННЕЕ ИСПОЛЬЗОВАНИЕ)
     [[maybe_unused]] void HardBypass(JNIEnv *env);
     namespace External {
-		// Попробовать загрузить BNM, если вы используете BNM извне
-		// Нужно вызвать это из любого потока unity
-		// dl - дескриптор загруженной libil2cpp.so
+        // Попробовать загрузить BNM, если вы используете BNM извне
+        // Нужно вызвать это из любого потока unity
+        // dl - дескриптор загруженной libil2cpp.so
         [[maybe_unused]] void LoadBNM(void *dl);
-		// Установить дескриптор libil2cpp.so, не проверяя его, и попробовать загрузить BNM
-		// GetLibIl2CppOffset и GetLibIl2CppPath будут пустыми
-		// Нужно вызвать это из любого потока unity
-		// dl - дескриптор загруженной libil2cpp.so
+        // Установить дескриптор libil2cpp.so, не проверяя его, и попробовать загрузить BNM
+        // GetLibIl2CppOffset и GetLibIl2CppPath будут пустыми
+        // Нужно вызвать это из любого потока unity
+        // dl - дескриптор загруженной libil2cpp.so
         [[maybe_unused]] void ForceLoadBNM(void *dl);
     }
 }

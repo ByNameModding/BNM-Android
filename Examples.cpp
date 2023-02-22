@@ -68,19 +68,19 @@ void Update(void *instance) {
         void *myPlayer_Transform = get_Transform(myPlayer);
         transformPosition[myPlayer_Transform] = Vector3(0, 0, 0);
         Vector3 pos(0, 0, 0);
-		// Нельзя использовать просто Vector3 в методах, где перед аргументом написано `ref` или `out`, нужен указатель на Vector3
-		// Поэтому &pos
+        // Нельзя использовать просто Vector3 в методах, где перед аргументом написано `ref` или `out`, нужен указатель на Vector3
+        // Поэтому &pos
         set_position_Injected(myPlayer_Transform, &pos); 
 
         //! Получить и изменить имя игрока 
         if (!setName) {
             PlayerName[myPlayer]; //! То же самое, что и PlayerName.setInstance(myPlayer); 
             LOGIBNM(OBFUSCATE_BNM("Старое имя myPlayer: %s"), PlayerName()->c_str());
-			
+            
             PlayerName = BNM::CreateMonoString(OBFUSCATE_BNM("ByNameModding_Игрок"));
             //! Опаснее, но работает
             // PlayerName = monoString::Create(OBFUSCATE_BNM("ByNameModding_Игрок"));
-			
+            
             LOGIBNM(OBFUSCATE_BNM("Новое имя myPlayer: %s"), PlayerName()->c_str());
             setName = true;
         }
@@ -175,8 +175,8 @@ void hack_thread() {
     } while (!Il2cppLoaded());
     AttachIl2Cpp(); // Стабилизация
 
-	//! Создать GameObject и добавить новый класс к нему, и тем самым получить личный Update и остальные методы.
-	//! Новые классы работают с AssetBundles!
+    //! Создать GameObject и добавить новый класс к нему, и тем самым получить личный Update и остальные методы.
+    //! Новые классы работают с AssetBundles!
     GameObject = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("GameObject"));
     AddComponent = GameObject.GetMethodByName(OBFUSCATE_BNM("AddComponent"), 1);
     DontDestroyOnLoad = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object"))
@@ -188,9 +188,9 @@ void hack_thread() {
     auto Component = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Component"));
     FPSController = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("FPSController"));
 
-	//! Позволяет подменять методы, которые при использовании базового HOOK вылетают, НО если они вызываются через il2cpp_invoke
-	//! Методы, которые вызываются через invoke: .ctor(без аргументов!), ..ctor(), события от Unity (Update и т.п.) и другие методы, созданные компилятором.
-	//! Если вызвать этот метод на Update и он перезаписан в дочернем классе, он не будет вызван
+    //! Позволяет подменять методы, которые при использовании базового HOOK вылетают, НО если они вызываются через il2cpp_invoke
+    //! Методы, которые вызываются через invoke: .ctor(без аргументов!), ..ctor(), события от Unity (Update и т.п.) и другие методы, созданные компилятором.
+    //! Если вызвать этот метод на Update и он перезаписан в дочернем классе, он не будет вызван
     BNM::InvokeHook(FPSController.GetMethodByName(OBFUSCATE_BNM(".ctor")), (void*) FPS$$ctor, (void**)&old_FPS$$ctor);
 
     PlayerName = FPSController.GetFieldByName(OBFUSCATE_BNM("PlayerName")); // Поля, методы, свойства могут автоматически менять свой тип
@@ -204,11 +204,11 @@ void hack_thread() {
     HOOK(FPSController.GetMethodByName(OBFUSCATE_BNM("Update"), 0).GetOffset(), Update, old_Update);
 
     LoadClass Physics = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Physics"));
-	
-	//! Поиск метода по имени и именам аргументов
+    
+    //! Поиск метода по имени и именам аргументов
     /** 
     В UnityEngine.Physics есть 16 Raycast методов
-	Часть имеет одинаковое кол-во аргументов.
+    Часть имеет одинаковое кол-во аргументов.
     Для примера:
     Нам нужен:
     Raycast(Ray ray, out RaycastHit hitInfo)
@@ -219,7 +219,7 @@ void hack_thread() {
     LOGIBNM("RayCastOffset1 указатель: %p", BNM::offsetInLib((void *)RayCastOffset1.GetOffset()));
 
     /**
-	Также можно искать по типам аргументов
+    Также можно искать по типам аргументов
     **/
     auto RayCastOffset2 = Physics.GetMethodByName(OBFUSCATE_BNM("Raycast"), {GetType<Ray>(), GetType<RaycastHit>()});
     LOGIBNM("RayCastOffset2 указатель: %p", BNM::offsetInLib((void *)RayCastOffset2.GetOffset()));
@@ -227,7 +227,7 @@ void hack_thread() {
     //! Пример поиска вложенного класса
     auto HatManager = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("HatManager"));
 
-	// Нельзя создать пространство имён в классе, поэтому в методе можно написать только имя вложенного класса
+    // Нельзя создать пространство имён в классе, поэтому в методе можно написать только имя вложенного класса
     auto HatManager_c = HatManager.GetInnerClass(OBFUSCATE_BNM("<>c"));
     LOGIBNM("HatManager_c указатель: %p", HatManager_c.GetIl2CppClass());
 
@@ -239,7 +239,7 @@ JNIEXPORT jint JNICALL
 JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
     JNIEnv *env;
     vm->GetEnv((void **) &env, JNI_VERSION_1_6);
-	// BNM может работать без HardBypass, но нужно загрузить ваш код до загрузки игры, для обхода защит
+    // BNM может работать без HardBypass, но нужно загрузить ваш код до загрузки игры, для обхода защит
     BNM::HardBypass(env);
     return JNI_VERSION_1_6;
 }
@@ -247,5 +247,5 @@ JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
 #include <thread>
 [[maybe_unused]] __attribute__((constructor))
 void lib_main() {
-	std::thread(hack_thread).detach();
+    std::thread(hack_thread).detach();
 }

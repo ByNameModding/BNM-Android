@@ -195,7 +195,7 @@ namespace BNM {
                 }
             }
 
-			// Очистить список классов
+            // Очистить список классов
             classes.clear(); classes.shrink_to_fit();
 
             if (klass) break;
