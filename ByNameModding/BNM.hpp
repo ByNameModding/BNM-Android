@@ -260,6 +260,8 @@ namespace BNM {
         [[maybe_unused]] LoadClass GetInnerClass(const std::string &name) const; // Получить вложенный класс по имени
         Field<int> GetFieldByName(const std::string &name) const; // Получить поле по имени
 
+        [[maybe_unused]] LoadClass GetParent() const; // Получить родительский класс
+
         [[maybe_unused]] LoadClass GetArrayClass() const; // В класс массива (класс[])
 
         IL2CPP::Il2CppType *GetIl2CppType() const; // В il2cpp-тип
@@ -268,9 +270,13 @@ namespace BNM {
 
         IL2CPP::Il2CppClass *GetIl2CppClass() const; // В il2cpp-класс
 
+        BNM::RuntimeTypeGetter GetRuntimeType() const; // В BNM-тип
+
         // Быстрые операторы
         inline operator IL2CPP::Il2CppType *() const { return GetIl2CppType(); };
         inline operator MonoType *() const { return GetMonoType(); };
+        inline operator IL2CPP::Il2CppClass *() const { return GetIl2CppClass(); };
+        inline operator BNM::RuntimeTypeGetter() const;
 
         void *CreateNewInstance() const; // То же самое, что и new Object() в C#, но без вызова конструктора (.ctor)
 
@@ -368,7 +374,7 @@ namespace BNM {
                 LOGEBNM(OBFUSCATE_BNM("Что-то пошло не так, статическое поле %s не имеет класс."), str().c_str());
                 return makeSafeRet();
             } else if (thread_static) {
-                LOGEBNM(OBFUSCATE_BNM("Получение указателя на статические поля потоков не поддерживается, поле: %s"), str().c_str());
+                LOGEBNM(OBFUSCATE_BNM("Получение указателя на статические поля потоков не поддерживается, поле: %s."), str().c_str());
                 return makeSafeRet();
             }
             if (isStatic) return (T *) ((BNM_PTR) myInfo->parent->static_fields + myInfo->offset);
@@ -757,7 +763,7 @@ namespace BNM {
     struct RuntimeTypeGetter {
         const char *namespaze{}, *name{};
         bool isArray = false;
-        LoadClass loadedClass;
+        LoadClass loadedClass{};
         LoadClass ToLC();
         IL2CPP::Il2CppType *ToIl2CppType();
         IL2CPP::Il2CppClass *ToIl2CppClass();
@@ -778,6 +784,53 @@ namespace BNM {
         operator Method<void>();
     };
 
+    // Структуры для добавления медодов и полей в классы
+    namespace MODIFY_CLASSES {
+
+        // Данные о новых методах
+        struct AddableMethod {
+            AddableMethod() noexcept;
+            IL2CPP::MethodInfo *myInfo{};
+            virtual uint8_t GetArgsCount() = 0;
+            virtual void *GetAddress() = 0;
+            virtual void *GetInvoker() = 0;
+            virtual const char *GetName() = 0;
+            virtual RuntimeMethodGetter GetVirtualMethod() = 0; // TODO: Нужно реализовать
+            virtual RuntimeTypeGetter GetRetType() = 0;
+            virtual std::vector<RuntimeTypeGetter> GetArgTypes() = 0;
+            virtual bool IsStatic() = 0;
+        };
+
+        // Данные о новых полях
+        struct AddableField {
+            AddableField() noexcept;
+            IL2CPP::FieldInfo *myInfo{};
+            BNM_PTR offset{};
+            virtual const char *GetName() = 0;
+            virtual int GetSize() = 0;
+            virtual RuntimeTypeGetter GetType() = 0;
+            virtual bool IsStatic() = 0;
+        };
+
+        struct TargetModifier {
+            RuntimeTypeGetter (*newParentGetter)(){};
+        };
+        
+        // Данные о целевом классе
+        struct TargetClass {
+            TargetClass() noexcept;
+            TargetModifier *targetModifier{};
+            std::vector<AddableMethod *> methods4Add{};
+            std::vector<AddableField *> fields4Add{};
+            void AddField(AddableField *field);
+            void AddMethod(AddableMethod *method);
+            virtual RuntimeTypeGetter GetTargetType() = 0;
+        };
+
+        // Добавить целевой класс в список
+        void AddTargetClass(TargetClass *klass);
+    }
+
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
     // Структуры для создания новых классов
     namespace NEW_CLASSES {
@@ -785,40 +838,47 @@ namespace BNM {
         // Данные о новых методах
         struct NewMethod {
             NewMethod() noexcept;
-            IL2CPP::MethodInfo *thisMethod{};
-            uint8_t argsCount = 0;
-            void *address{}, *invoker{};
-            const char *name{};
-            RuntimeMethodGetter virtualMethod{}; // TODO: Нужно реализовать
-            RuntimeTypeGetter retType{};
-            std::vector<RuntimeTypeGetter> argTypes{};
-            bool isStatic = false;
+            IL2CPP::MethodInfo *myInfo{};
+            virtual uint8_t GetArgsCount() = 0;
+            virtual void *GetAddress() = 0;
+            virtual void *GetInvoker() = 0;
+            virtual const char *GetName() = 0;
+            virtual RuntimeMethodGetter GetVirtualMethod() = 0; // TODO: Нужно реализовать
+            virtual RuntimeTypeGetter GetRetType() = 0;
+            virtual std::vector<RuntimeTypeGetter> GetArgTypes() = 0;
+            virtual bool IsStatic() = 0;
         };
 
         // Данные о новых полях
         struct NewField {
             NewField() noexcept;
-            const char *name{};
-            int offset{}, size{};
-            unsigned int attributes : 16{};
-            RuntimeTypeGetter type{};
-            BNM_PTR cppOffset{};
-            bool isStatic = false;
+            IL2CPP::FieldInfo *myInfo{};
+            int offset = 0;
+            virtual const char *GetName() = 0;
+            virtual int GetOffset() = 0;
+            virtual int GetSize() = 0;
+            virtual unsigned int GetAttributes() = 0;
+            virtual RuntimeTypeGetter GetType() = 0;
+            virtual BNM_PTR GetCppOffset() = 0;
+            virtual bool IsStatic() = 0;
         };
 
         // Данные о новых классах
         struct NewClass {
             NewClass() noexcept;
-            size_t size{};
-            IL2CPP::Il2CppClass *thisClass{};
+            IL2CPP::Il2CppClass *myClass{};
             MonoType *type{};
-            const char *namespaze{}, *name{}, *baseNamespace{}, *baseName{}, *dllName{};
-            std::vector<NewMethod *> methods4Add{};
-            std::vector<NewField *> fields4Add{};
-            std::vector<RuntimeTypeGetter> interfaces{};
             int staticFieldOffset = 0x0;
             BNM_PTR staticFieldsAddress{};
-            void AddNewField(NewField *field, bool isStatic = false);
+            std::vector<NewMethod *> methods4Add{};
+            std::vector<NewField *> fields4Add{};
+            virtual size_t GetSize() = 0;
+            virtual const char *GetName() = 0;
+            virtual const char *GetNamespace() = 0;
+            virtual const char *GetDllName() = 0;
+            virtual RuntimeTypeGetter GetBaseType() = 0;
+            virtual std::vector<RuntimeTypeGetter> GetInterfaces() = 0;
+            void AddNewField(NewField *field);
             void AddNewMethod(NewMethod *method);
         };
 
@@ -1016,20 +1076,111 @@ namespace BNM {
 #define InitResolveFunc(x, y) BNM::InitFunc(x, BNM::getExternMethod(y))
 
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
-#define BNM_NewClassInit(_namespace, _name, _baseNamespace, _baseName, ...) BNM_NewClassWithDllInit("Assembly-CSharp", _namespace, _name, _baseNamespace, _baseName, __VA_ARGS__)
+
+#define BNM_ModClassInit(_cppCls, _getTargetClass) \
+    private: \
+    struct _BNMModClass : BNM::MODIFY_CLASSES::TargetClass { \
+        _BNMModClass() { \
+            BNM::MODIFY_CLASSES::AddTargetClass(this); \
+            targetModifier = new BNM::MODIFY_CLASSES::TargetModifier(); \
+        } \
+        BNM::RuntimeTypeGetter GetTargetType() override _getTargetClass \
+    }; \
+    public: \
+    static inline _BNMModClass BNMModClass = _BNMModClass(); \
+    using ModBNMType = _cppCls
+
+#define BNM_ModAddMethod(_retType, _name, _argsCount, ...) \
+    private: \
+    struct _BNMModMethod_##_name : BNM::MODIFY_CLASSES::AddableMethod { \
+        _BNMModMethod_##_name() { \
+            BNMModClass.AddMethod(this); \
+        } \
+        uint8_t GetArgsCount() override { return _argsCount; } \
+        void *GetAddress() override { auto p = &ModBNMType::_name; return *(void **)&p; } \
+        void *GetInvoker() override { return (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&ModBNMType::_name)>::invoke; } \
+        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
+        BNM::RuntimeMethodGetter GetVirtualMethod() override { return {}; } \
+        BNM::RuntimeTypeGetter GetRetType() override { return _retType; } \
+        std::vector<BNM::RuntimeTypeGetter> GetArgTypes() override { return {__VA_ARGS__}; } \
+        bool IsStatic() override { return false; } \
+    }; \
+    public: \
+    static inline _BNMModMethod_##_name BNMModMethod_##_name = _BNMModMethod_##_name()
+
+#define BNM_ModAddStaticMethod(_retType, _name, _argsCount, ...) \
+    private: \
+    struct _BNMModMethod_##_name : BNM::MODIFY_CLASSES::AddableMethod { \
+        _BNMModMethod_##_name() { \
+            BNMModClass.AddMethod(this); \
+        } \
+        uint8_t GetArgsCount() override { return _argsCount; } \
+        void *GetAddress() override { return (void *)&ModBNMType::_name; } \
+        void *GetInvoker() override { return (void *)&BNM::NEW_CLASSES::GetNewStaticMethodCalls<decltype(&ModBNMType::_name)>::invoke; } \
+        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
+        BNM::RuntimeMethodGetter GetVirtualMethod() override { return {}; } \
+        BNM::RuntimeTypeGetter GetRetType() override { return _retType; } \
+        std::vector<BNM::RuntimeTypeGetter> GetArgTypes() override { return {__VA_ARGS__}; } \
+        bool IsStatic() override { return true; } \
+    }; \
+    public: \
+    static inline _BNMModMethod_##_name BNMModMethod_##_name = _BNMModMethod_##_name()
+
+#define BNM_ModAddField(_name, _type) \
+    private: \
+    struct _BNMModField_##_name : BNM::MODIFY_CLASSES::AddableField { \
+        _BNMModField_##_name() { \
+            BNMModClass.AddField(this); \
+        } \
+        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
+        int GetSize() override { return sizeof(decltype(_name)); } \
+        BNM::RuntimeTypeGetter GetType() override { return _type; } \
+        bool IsStatic() override { return false; } \
+    }; \
+    public: \
+    static inline _BNMModField_##_name BNMModField_##_name = _BNMModField_##_name()
+
+#define BNM_ModAddStaticField(_name, _type) \
+    private: \
+    struct _BNMModField_##_name : BNM::MODIFY_CLASSES::AddableField { \
+        _BNMModField_##_name() { \
+            BNMModClass.AddField(this); \
+        } \
+        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
+        int GetSize() override { return sizeof(decltype(_name)); } \
+        BNM::RuntimeTypeGetter GetType() override { return _type; } \
+        bool IsStatic() override { return true; } \
+    }; \
+    public: \
+    static inline _BNMModField_##_name BNMModField_##_name = _BNMModField_##_name()
+
+#define BNM_ModNewParent(_getParentCode) \
+    private: \
+    struct _BNMModNewParent { \
+        _BNMModNewParent() { \
+            BNMModClass.targetModifier->newParentGetter = GetNewParent; \
+        } \
+        static BNM::RuntimeTypeGetter GetNewParent() _getParentCode \
+    }; \
+    public: \
+    static inline _BNMModNewParent BNMModNewParent = _BNMModNewParent()
+
+#define BNM_NewClassInit(_namespace, _name, _getBaseCode, ...) BNM_NewClassWithDllInit("Assembly-CSharp", _namespace, _name, _getBaseCode, __VA_ARGS__)
 
 #define BNM_NewMethodInit(_retType, _name, _argsCount, ...) \
     private: \
     struct _BNMMethod_##_name : BNM::NEW_CLASSES::NewMethod { \
         _BNMMethod_##_name() { \
-            argsCount = _argsCount; \
-            retType = _retType; \
-            auto p = &NewBNMType::_name; address = *(void **)&p; \
-            invoker = (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&NewBNMType::_name)>::invoke; \
-            argTypes = {__VA_ARGS__}; \
-            name = OBFUSCATE_BNM(#_name); \
             BNMClass.AddNewMethod(this); \
         } \
+        uint8_t GetArgsCount() override { return _argsCount; } \
+        void *GetAddress() override { auto p = &NewBNMType::_name; return *(void **)&p; } \
+        void *GetInvoker() override { return (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&NewBNMType::_name)>::invoke; } \
+        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
+        BNM::RuntimeMethodGetter GetVirtualMethod() override { return {}; } \
+        BNM::RuntimeTypeGetter GetRetType() override { return _retType; } \
+        std::vector<BNM::RuntimeTypeGetter> GetArgTypes() override { return {__VA_ARGS__}; } \
+        bool IsStatic() override { return false; } \
     }; \
     public: \
     static inline _BNMMethod_##_name BNMMethod_##_name = _BNMMethod_##_name()
@@ -1038,78 +1189,85 @@ namespace BNM {
     private: \
     struct _BNMStaticMethod_##_name : BNM::NEW_CLASSES::NewMethod { \
         _BNMStaticMethod_##_name() { \
-            argsCount = _argsCount; \
-            retType = _retType; \
-            address = (void *)&NewBNMType::_name; \
-            invoker = (void *)&BNM::NEW_CLASSES::GetNewStaticMethodCalls<decltype(&NewBNMType::_name)>::invoke; \
-            argTypes = {__VA_ARGS__}; \
-            name = OBFUSCATE_BNM(#_name); \
-            isStatic = true; \
             BNMClass.AddNewMethod(this); \
         } \
+        uint8_t GetArgsCount() override { return _argsCount; } \
+        void *GetAddress() override { return (void *)&NewBNMType::_name; } \
+        void *GetInvoker() override { return (void *)&BNM::NEW_CLASSES::GetNewStaticMethodCalls<decltype(&NewBNMType::_name)>::invoke; } \
+        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
+        BNM::RuntimeMethodGetter GetVirtualMethod() override { return {}; } \
+        BNM::RuntimeTypeGetter GetRetType() override { return _retType; } \
+        std::vector<BNM::RuntimeTypeGetter> GetArgTypes() override { return {__VA_ARGS__}; } \
+        bool IsStatic() override { return true; } \
     }; \
     public: \
     static inline _BNMStaticMethod_##_name BNMStaticMethod_##_name = _BNMStaticMethod_##_name()
+
+#define BNM_NewStaticFieldInit(_name, _type) \
+    private: \
+    struct _BNMStaticField_##_name : BNM::NEW_CLASSES::NewField { \
+        _BNMStaticField_##_name() { \
+            BNMClass.AddNewField(this); \
+        } \
+        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
+        int GetOffset() override { return 0; } \
+        int GetSize() override { return sizeof(decltype(_name)); } \
+        unsigned int GetAttributes() override { return 0x0006 | 0x0010; } \
+        BNM::RuntimeTypeGetter GetType() override { return _type; } \
+        BNM::BNM_PTR GetCppOffset() override { return (size_t)&(_name); } \
+        bool IsStatic() override { return true; } \
+    }; \
+    public: \
+    static inline _BNMStaticField_##_name BNMStaticField_##_name = _BNMStaticField_##_name()
 
 #define BNM_NewFieldInit(_name, _type) \
     private: \
     struct _BNMField_##_name : BNM::NEW_CLASSES::NewField { \
         _BNMField_##_name() { \
-            name = OBFUSCATE_BNM(#_name); \
-            offset = offsetof(NewBNMType, _name); \
-            attributes = 0x0006; \
-            type = _type; \
-            BNMClass.AddNewField(this, false); \
+            BNMClass.AddNewField(this); \
         } \
+        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
+        int GetOffset() override { return offsetof(NewBNMType, _name); } \
+        int GetSize() override { return sizeof(decltype(_name)); } \
+        unsigned int GetAttributes() override { return 0x0006; } \
+        BNM::RuntimeTypeGetter GetType() override { return _type; } \
+        BNM::BNM_PTR GetCppOffset() override { return 0; } \
+        bool IsStatic() override { return false; } \
     }; \
     public: \
     static inline _BNMField_##_name BNMField_##_name = _BNMField_##_name()
-
-#define BNM_NewStaticFieldInit(_name, _type, _cppType) \
-    private: \
-    struct _BNMStaticField_##_name : BNM::NEW_CLASSES::NewField { \
-        _BNMStaticField_##_name() { \
-            name = OBFUSCATE_BNM(#_name); \
-            size = sizeof(_cppType); \
-            cppOffset = (size_t)&(_name); \
-            attributes = 0x0006 | 0x0010; \
-            type = _type; \
-            BNMClass.AddNewField(this, true); \
-        } \
-    }; \
-    public: \
-    static inline _BNMStaticField_##_name BNMStaticField_##_name = _BNMStaticField_##_name()
 
 #define BNM_NewDotCtorInit(_name, _argsCount, ...) \
     private: \
     struct _BNMMethod_##_name : BNM::NEW_CLASSES::NewMethod { \
         _BNMMethod_##_name() { \
-            argsCount = _argsCount; \
-            retType = BNM::GetType<void>(); \
-            auto p = &NewBNMType::_name; address = *(void **)&p; \
-            invoker = (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&NewBNMType::_name)>::invoke; \
-            argTypes = {__VA_ARGS__}; \
-            name = OBFUSCATE_BNM(".ctor"); \
             BNMClass.AddNewMethod(this); \
         } \
+        uint8_t GetArgsCount() override { return _argsCount; } \
+        void *GetAddress() override { auto p = &NewBNMType::_name; return *(void **)&p; } \
+        void *GetInvoker() override { return (void *)&BNM::NEW_CLASSES::GetNewMethodCalls<decltype(&NewBNMType::_name)>::invoke; } \
+        const char *GetName() override { return OBFUSCATE_BNM(".ctor"); } \
+        BNM::RuntimeMethodGetter GetVirtualMethod() override { return {}; } \
+        BNM::RuntimeTypeGetter GetRetType() override { return BNM::GetType<void>(); } \
+        std::vector<BNM::RuntimeTypeGetter> GetArgTypes() override { return {__VA_ARGS__}; } \
+        bool IsStatic() override { return false; } \
     }; \
     public: \
     static inline _BNMMethod_##_name BNMMethod_##_name = _BNMMethod_##_name()
 
 // Добавьте класс в существующую или в новую библиотеку dll. Имя библиотеки dll без '.dll'!
-#define BNM_NewClassWithDllInit(_dllName, _namespace, _name, _baseNamespace, _baseName, ...)\
+#define BNM_NewClassWithDllInit(_dllName, _namespace, _name, _getBaseCode, ...)\
     private: \
     struct _BNMClass : BNM::NEW_CLASSES::NewClass { \
         _BNMClass() { \
-            name = OBFUSCATE_BNM(#_name); \
-            namespaze = OBFUSCATE_BNM(_namespace); \
-            baseName = OBFUSCATE_BNM(_baseName); \
-            baseNamespace = OBFUSCATE_BNM(_baseNamespace); \
-            dllName = OBFUSCATE_BNM(_dllName); \
-            interfaces = {__VA_ARGS__}; \
-            size = sizeof(_name); \
             BNM::NEW_CLASSES::AddNewClass(this); \
         } \
+        size_t GetSize() override { return sizeof(_name); } \
+        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
+        const char *GetNamespace() override { return OBFUSCATE_BNM(_namespace); } \
+        const char *GetDllName() override { return OBFUSCATE_BNM(_dllName); } \
+        BNM::RuntimeTypeGetter GetBaseType() override _getBaseCode \
+        std::vector<BNM::RuntimeTypeGetter> GetInterfaces() override { return {__VA_ARGS__}; } \
     }; \
     public: \
     static inline _BNMClass BNMClass = _BNMClass(); \
