@@ -20,6 +20,9 @@ namespace BNM_Internal {
     // Список со всеми новыми классами, которые BNM должен загрузить
     static std::vector<NEW_CLASSES::NewClass *> *classes4Add{};
 
+    // Список со всеми классами, которые BNM должен изменить
+    static std::vector<MODIFY_CLASSES::TargetClass *> *classes4Mod{};
+
     // Конструктор, который вызывает базовый конструктор (.ctor)
     void DefaultConstructor(IL2CPP::Il2CppObject* instance) {
         LoadClass(instance->klass->parent).GetMethodByName(OBFUSCATE_BNM(".ctor"), 0)[instance]();
@@ -39,7 +42,7 @@ namespace BNM_Internal {
         BNM_PTR bnm = -0x424e4d;
         IL2CPP::Il2CppClass *cls{};
     };
-
+    void ModifyClasses();
     void InitNewClasses();
 #if UNITY_VER <= 174
     // Требуются, потому что в Unity 2017 и ниже в образах (image) и сборках (assembly) они хранятся по номерам
@@ -200,7 +203,7 @@ namespace BNM {
 
             if (klass) break;
         }
-        if (!klass) LOGWBNM(OBFUSCATE_BNM("Класс: [%s]::[%s] - не найден"), namespaze.c_str(), name.c_str());
+        if (!klass) LOGWBNM(OBFUSCATE_BNM("Класс: [%s]::[%s] - не найден."), namespaze.c_str(), name.c_str());
     }
 
     LoadClass::LoadClass(const std::string &namespaze, const std::string &name, const std::string &dllName) {
@@ -218,7 +221,7 @@ namespace BNM {
 
         // Проверить, найден ли образ
         if (!image) {
-            LOGWBNM(OBFUSCATE_BNM("Класс: [%s]::[%s]::[%s] - dll не найден"), dllName.c_str(), namespaze.c_str(), name.c_str());
+            LOGWBNM(OBFUSCATE_BNM("Класс: [%s]::[%s]::[%s] - dll не найден."), dllName.c_str(), namespaze.c_str(), name.c_str());
             klass = nullptr;
             return;
         }
@@ -244,7 +247,7 @@ namespace BNM {
         // Очистить список классов
         classes.clear(); classes.shrink_to_fit();
 
-        if (!klass) LOGWBNM(OBFUSCATE_BNM("Класс: [%s]::[%s]::[%s] - не найден"), dllName.c_str(), namespaze.c_str(), name.c_str());
+        if (!klass) LOGWBNM(OBFUSCATE_BNM("Класс: [%s]::[%s]::[%s] - не найден."), dllName.c_str(), namespaze.c_str(), name.c_str());
     }
 
     [[maybe_unused]] std::vector<LoadClass> LoadClass::GetInnerClasses(bool includeParent) const {
@@ -326,7 +329,7 @@ namespace BNM {
         methods.clear(); methods.shrink_to_fit();
 
         // Предупредить о ненахождении
-        if (!ret) LOGWBNM(OBFUSCATE_BNM("Метод: [%s]::[%s].[%s], %d - не найден"), klass->namespaze, klass->name, name.c_str(), parameters);
+        if (!ret) LOGWBNM(OBFUSCATE_BNM("Метод: [%s]::[%s].[%s], %d - не найден."), klass->namespaze, klass->name, name.c_str(), parameters);
 
         return ret;
     }
@@ -368,7 +371,7 @@ namespace BNM {
         methods.clear(); methods.shrink_to_fit();
 
         // Предупредить о ненахождении
-        if (!ret) LOGWBNM(OBFUSCATE_BNM("Метод: [%s]::[%s].(%s), %d - не найден; использовались имена аргументов"), klass->namespaze, klass->name, name.c_str(), parameters);
+        if (!ret) LOGWBNM(OBFUSCATE_BNM("Метод: [%s]::[%s].(%s), %d - не найден; использовались имена аргументов."), klass->namespaze, klass->name, name.c_str(), parameters);
 
         return ret;
     }
@@ -418,7 +421,7 @@ namespace BNM {
         methods.clear(); methods.shrink_to_fit();
 
         // Предупредить о ненахождении
-        if (!ret) LOGWBNM(OBFUSCATE_BNM("Метод: [%s]::[%s].[%s], %d - не найден; использовались типы аргументов"), klass->namespaze, klass->name, name.c_str(), parameters);
+        if (!ret) LOGWBNM(OBFUSCATE_BNM("Метод: [%s]::[%s].[%s], %d - не найден; использовались типы аргументов."), klass->namespaze, klass->name, name.c_str(), parameters);
 
         return ret;
     }
@@ -429,13 +432,13 @@ namespace BNM {
         auto get = GetMethodByName(OBFUSCATES_BNM("get_") + name);
         auto set = GetMethodByName(OBFUSCATES_BNM("set_") + name);
         if (!get && !set) {
-            LOGWBNM(OBFUSCATE_BNM("Свойство %s.(%s) не найдено"), str().c_str(), name.c_str());
+            LOGWBNM(OBFUSCATE_BNM("Свойство %s.(%s) не найдено."), str().c_str(), name.c_str());
             return {};
         }
         if (!get && warning)
-            LOGWBNM(OBFUSCATE_BNM("Свойство %s.(%s) без получателя"), str().c_str(), name.c_str());
+            LOGWBNM(OBFUSCATE_BNM("Свойство %s.(%s) без получателя."), str().c_str(), name.c_str());
         if (!set && warning)
-            LOGWBNM(OBFUSCATE_BNM("Свойство %s.(%s) без установщика"), str().c_str(), name.c_str());
+            LOGWBNM(OBFUSCATE_BNM("Свойство %s.(%s) без установщика."), str().c_str(), name.c_str());
         return {get, set};
     }
 
@@ -459,7 +462,7 @@ namespace BNM {
         classes.clear(); classes.shrink_to_fit();
 
         // Предупредить о ненахождении
-        if (!ret.klass) LOGWBNM(OBFUSCATE_BNM("Вложенный класс: [%s]::[%s]::[%s] - не найден"), klass->namespaze, klass->name, name.c_str());
+        if (!ret.klass) LOGWBNM(OBFUSCATE_BNM("Вложенный класс: [%s]::[%s]::[%s] - не найден."), klass->namespaze, klass->name, name.c_str());
 
         return ret;
     }
@@ -484,9 +487,16 @@ namespace BNM {
         fields.clear(); fields.shrink_to_fit();
 
         // Предупредить о ненахождении
-        if (!ret.Initialized()) LOGWBNM(OBFUSCATE_BNM("Поле: [%s]::[%s].(%s) - не найдено"), klass->namespaze, klass->name, name.c_str());
+        if (!ret.Initialized()) LOGWBNM(OBFUSCATE_BNM("Поле: [%s]::[%s].(%s) - не найдено."), klass->namespaze, klass->name, name.c_str());
 
         return ret;
+    }
+
+
+    [[maybe_unused]] LoadClass LoadClass::GetParent() const {
+        if (!klass) return {};
+        TryInit(); // Попробовать инициализировать класс
+        return klass->parent;
     }
 
     [[maybe_unused]] LoadClass LoadClass::GetArrayClass() const {
@@ -522,6 +532,13 @@ namespace BNM {
         TryInit(); // Попробовать инициализировать класс
         return klass;
     }
+
+    BNM::RuntimeTypeGetter LoadClass::GetRuntimeType() const {
+        TryInit(); // Попробовать инициализировать класс
+        return {nullptr, nullptr, false, {klass}};
+    }
+
+    LoadClass::operator BNM::RuntimeTypeGetter() const { return GetRuntimeType(); }
 
     void *LoadClass::CreateNewInstance() const {
         if (!klass) return nullptr;
@@ -566,6 +583,7 @@ namespace BNM {
     /*** RuntimeTypeGetter ***/
     LoadClass RuntimeTypeGetter::ToLC() {
         if (!loadedClass.klass) {
+            if (!name) return {};
             loadedClass = LoadClass(namespaze, name);
             if (isArray) loadedClass = LoadClass(loadedClass.GetArrayClass());
         }
@@ -813,32 +831,45 @@ namespace BNM {
         }
     }
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
+    namespace MODIFY_CLASSES {
+
+        TargetClass::TargetClass() noexcept = default;
+        AddableMethod::AddableMethod() noexcept = default;
+        AddableField::AddableField() noexcept = default;
+
+        void TargetClass::AddField(AddableField *field) {
+            fields4Add.push_back(field); // Добавить поле
+        }
+
+        void TargetClass::AddMethod(AddableMethod *method) {
+            methods4Add.push_back(method); // Добавить метод
+        }
+
+        void AddTargetClass(TargetClass *klass) {
+            if (!BNM_Internal::classes4Mod)
+                BNM_Internal::classes4Mod = new std::vector<TargetClass *>();
+            // Добавить класс ко всем целевым классам
+            BNM_Internal::classes4Mod->push_back(klass);
+        }
+    }
+
     namespace NEW_CLASSES {
 
         NewMethod::NewMethod() noexcept = default;
         NewField::NewField() noexcept = default;
         NewClass::NewClass() noexcept = default;
 
-        void NewClass::AddNewField(NewField *field, bool isStatic) {
-            if (!isStatic) fields4Add.push_back(field); // Добавить нестатическое поле
-            else {
-                // Вычислить адрес статического поля
-                // Нужно писать поля в определённом порядке, чтобы это работало нормально
-                // Я без понятия, зачем вам статические поля, но код здесь, и он работает
-                if (staticFieldOffset == 0x0) staticFieldsAddress = field->cppOffset;
-                field->offset = staticFieldOffset;
-                staticFieldOffset += field->size;
-                fields4Add.push_back(field);
-            }
+        void NewClass::AddNewField(NewField *field) {
+            fields4Add.push_back(field); // Добавить поле
         }
 
         void NewClass::AddNewMethod(NewMethod *method) {
             methods4Add.push_back(method); // Добавить метод
         }
 
-        void AddNewClass(NEW_CLASSES::NewClass *klass) {
+        void AddNewClass(NewClass *klass) {
             if (!BNM_Internal::classes4Add)
-                BNM_Internal::classes4Add = new std::vector<NEW_CLASSES::NewClass *>();
+                BNM_Internal::classes4Add = new std::vector<NewClass *>();
             // Добавить класс ко всем созданным классам
             BNM_Internal::classes4Add->push_back(klass);
         }
@@ -867,6 +898,7 @@ namespace BNM {
                 BNM_Internal::InitIl2cppMethods(); // Найти некоторые методы и подменить их
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
                 BNM_Internal::InitNewClasses(); // Создать новые классы и добавить их в il2cpp
+                BNM_Internal::ModifyClasses(); // Изменить существующие классы (ОПАСНО при загрузке извне)
 #endif
                 BNM_Internal::LibLoaded = true; // Установить LibLoaded в значение "истина"
             } else LOGWBNM(OBFUSCATE_BNM("[External::LoadBNM] dl мёртв или неверен, BNM не загружен!"));
@@ -876,6 +908,7 @@ namespace BNM {
             BNM_Internal::InitIl2cppMethods(); // Найти некоторые методы и подменить их
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
             BNM_Internal::InitNewClasses(); // Создать новые классы и добавить их в il2cpp
+            BNM_Internal::ModifyClasses(); // Изменить существующие классы (ОПАСНО при загрузке извне)
 #endif
             BNM_Internal::LibLoaded = true; // Установить LibLoaded в значение "истина"
         }
@@ -925,17 +958,18 @@ namespace BNM_Internal {
         auto newImg = BNM_I2C_NEW(Il2CppImage);
 
         // Создать имя без .dll
-        auto nameLen = strlen(cls->dllName) + 1;
+        auto dllName = cls->GetDllName();
+        auto nameLen = strlen(dllName) + 1;
         newImg->nameNoExt = new char[nameLen];
         memset((void *)newImg->nameNoExt, 0, nameLen);
-        strcpy((char *)newImg->nameNoExt, cls->dllName);
+        strcpy((char *)newImg->nameNoExt, dllName);
 
 
         // Создать имя с .dll
         auto extLen = nameLen + 4;
         newImg->name = new char[extLen];
         memset((void *)newImg->name, 0, extLen);
-        strcpy((char *)newImg->name, cls->dllName);
+        strcpy((char *)newImg->name, dllName);
         strcat((char *)newImg->name, OBFUSCATE_BNM(".dll"));
 
 #if UNITY_VER > 182
@@ -996,7 +1030,7 @@ namespace BNM_Internal {
         // Добавить сборку в список
         Assembly$$GetAllAssemblies()->push_back(newAsm);
 
-        LOGIBNM(OBFUSCATE_BNM("Добавлена новая сборка: [%s]"), cls->dllName);
+        LOGIBNM(OBFUSCATE_BNM("Добавлена новая сборка: [%s]."), dllName);
 
         return newImg;
     }
@@ -1085,10 +1119,247 @@ namespace BNM_Internal {
         return nullptr;
     }
 #endif
+    void ModifyClasses() {
+        if (!classes4Mod) return;
+        for (auto& klass : *classes4Mod) {
+            auto lc = klass->GetTargetType().ToLC();
+            if (!lc) {
+                LOGWBNM("[ModifyClasses] Не удалось добавить %d методов и %d полей к классу.", klass->methods4Add.size(), klass->fields4Add.size());
+                continue;
+            }
+
+            auto cls = lc.GetIl2CppClass();
+            auto newMethodsCount = klass->methods4Add.size();
+            auto newFieldsCount = klass->fields4Add.size();
+
+            // Заменить родителя, если нужно
+            if (klass->targetModifier->newParentGetter)
+                cls->parent = klass->targetModifier->newParentGetter().ToIl2CppClass();
+
+            if (newMethodsCount) {
+                auto oldCount = cls->method_count;
+                auto oldMethods = cls->methods;
+
+                // Создать новый список методов
+                auto newMethods = (IL2CPP::MethodInfo **) calloc(oldCount + newMethodsCount, sizeof(IL2CPP::MethodInfo *));
+
+                // Копировать старые методы, если есть
+                if (oldCount) memcpy(newMethods, oldMethods, oldCount * sizeof(IL2CPP::MethodInfo *));
+
+                // Создать и добавить все методы
+                for (size_t i = 0; i < newMethodsCount; ++i, ++oldCount) {
+                    auto &method = klass->methods4Add[i];
+
+                    // Создать новый MethodInfo
+                    method->myInfo = BNM_I2C_NEW(MethodInfo);
+
+                    // Установить адрес метода
+                    method->myInfo->methodPointer = (IL2CPP::Il2CppMethodPointer)method->GetAddress();
+
+                    // Установить адрес инициатора вызова метода
+                    method->myInfo->invoker_method = (IL2CPP::InvokerMethod)method->GetInvoker();
+
+                    // Установить кол-во аргументов
+                    method->myInfo->parameters_count = method->GetArgsCount();
+
+                    // Создать имя метода
+                    auto name = method->GetName();
+                    auto len = strlen(name) + 1;
+                    method->myInfo->name = new char[len];
+                    memset((void *)method->myInfo->name, 0, len);
+                    strcpy((char *)method->myInfo->name, name);
+
+                    // Установить флаги метода
+                    method->myInfo->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
+                    if (method->IsStatic()) method->myInfo->flags |= 0x0010; // |= STATIC
+
+                    // BNM не поддерживает generic-методы
+                    method->myInfo->is_generic = false;
+
+                    // Установить возвращяемый тип
+                    method->myInfo->return_type = method->GetRetType().ToIl2CppType();
+
+                    // Создать аргументы
+                    auto argsCount = method->GetArgsCount();
+                    if (argsCount) {
+                        auto types = method->GetArgTypes();
+#if UNITY_VER < 212
+                        // Создать новый массив аргументов
+                        method->myInfo->parameters = (IL2CPP::ParameterInfo *)calloc(argsCount, sizeof(IL2CPP::ParameterInfo));
+
+                        // Получить первый аргумент
+                        auto newParam = (IL2CPP::ParameterInfo *)method->myInfo->parameters;
+
+                        // Создать аргументы
+                        for (int p = 0; p < argsCount; ++p) {
+
+                            // Получить длину нового имени
+                            len = (OBFUSCATES_BNM("аргумент") + std::to_string(p)).size();
+
+                            // Создать имя
+                            newParam->name = new char[len + 1];
+                            memset((void *)newParam->name, 0, len + 1);
+                            strcat((char *)newParam->name, OBFUSCATE_BNM("аргумент")); // Первод чтобы был
+                            strcpy((char *)newParam->name, std::to_string(p).c_str());
+
+                            // Установить номер аргумента
+                            newParam->position = p;
+
+                            // Попытаться установить тип аргумента
+                            if (!types.empty() && p < types.size()) {
+                                newParam->parameter_type = types[p].ToIl2CppType();
+                                newParam->token = newParam->parameter_type->attrs | p;
+                            } else {
+                                newParam->parameter_type = nullptr;
+                                newParam->token = p;
+                            }
+                            // Следующий!
+                            ++newParam;
+                        }
+#else
+                        // Создать новый маcсив типов аргументов
+                        auto **params = new IL2CPP::Il2CppType*[argsCount];
+
+                        // Установить маcсив
+                        method->myInfo->parameters = (const IL2CPP::Il2CppType **)params;
+
+                        // Создать аргуметны
+                        for (int p = 0; p < argsCount; ++p) {
+
+                            // Создать тип
+                            auto newParam = BNM_I2C_NEW(Il2CppType);
+
+                            // Копировать, если можно
+                            if (p < types.size())
+                                memcpy(newParam, types[p].ToIl2CppType(), sizeof(IL2CPP::Il2CppType));
+
+                            // Установить
+                            params[p] = newParam;
+                        }
+#endif
+                    }
+#if UNITY_VER >= 212
+                    else {
+                        // Мы не можен без лишнего кода установить имена аргументов, потому что они перемещены в метаданные
+                        method->myInfo->methodMetadataHandle = nullptr;
+                    }
+#endif
+                    newMethods[oldCount] = method->myInfo;
+                    LOGDBNM(OBFUSCATE_BNM("[ModifyClasses] Добвален %sметод %s %d к %s."), method->IsStatic() ? OBFUSCATE_BNM("статический ") : OBFUSCATE_BNM(""), name, argsCount, lc.str().c_str());
+                }
+
+                // Очистить methods4Add
+                klass->methods4Add.clear(); klass->methods4Add.shrink_to_fit();
+
+                // Заменить список методов
+                cls->methods = (const IL2CPP::MethodInfo **)newMethods;
+
+                // Увеличить кол-во методов
+                cls->method_count += newMethodsCount;
+            }
+
+            if (newFieldsCount) {
+                // Данные для статических полей
+                int newStaticFieldsSize = 0;
+
+                auto oldCount = cls->field_count;
+
+                // Создать новый список полей
+                auto newFields = (IL2CPP::FieldInfo *)calloc(oldCount + newFieldsCount, sizeof(IL2CPP::FieldInfo));
+
+                // Копировать старые поля, если есть
+                if (oldCount) memcpy(newFields, cls->fields, oldCount * sizeof(IL2CPP::FieldInfo));
+
+                // Адрес новых полей
+                auto currentAddress = (int) cls->instance_size;
+
+                // Получить первое поле
+                IL2CPP::FieldInfo *newField = newFields + oldCount;
+                for (auto &field : klass->fields4Add) {
+                    // Создать имя
+                    auto name = field->GetName();
+                    auto len = strlen(name);
+                    newField->name = new char[len];
+                    memset((void *)newField->name, 0, len);
+                    strcpy((char *)newField->name, name);
+
+                    // Копировать тип
+                    newField->type = BNM_I2C_NEW(Il2CppType, *field->GetType().ToIl2CppType());
+
+                    // Добавить флаги видимости
+                    ((IL2CPP::Il2CppType*)newField->type)->attrs |= 0x0006; // PUBLIC
+
+                    // Создать знак (token)
+                    newField->token = newField->type->attrs | 0x0006;
+
+                    // Установить новый класс
+                    newField->parent = cls;
+
+                    if (field->IsStatic()) {
+                        // Установить адрес
+                        field->offset = newField->offset = newStaticFieldsSize;
+
+                        // Получить адрес следующего статического поля
+                        newStaticFieldsSize += field->GetSize();
+                    } else {
+                        // Установить адрес
+                        field->offset = newField->offset = currentAddress;
+
+                        // Получить адрес следующего поля
+                        currentAddress += field->GetSize();
+                    }
+
+                    // Установить информацию
+                    field->myInfo = newField;
+
+                    // Следующий!
+                    newField++;
+                    LOGDBNM(OBFUSCATE_BNM("[ModifyClasses] Добвалено %sполе %s к %s."), field->IsStatic() ? OBFUSCATE_BNM("статическое ") : OBFUSCATE_BNM(""), name, lc.str().c_str());
+                }
+
+                // Очистить fields4Add
+                klass->fields4Add.clear(); klass->fields4Add.shrink_to_fit();
+
+                // Заменить список полей
+                cls->fields = newFields;
+
+                // Увеличить кол-во полей
+                cls->field_count += newFieldsCount;
+
+                // Увеличить размер класса
+                cls->instance_size = (uint) currentAddress;
+
+                if (newStaticFieldsSize) {
+                    auto oldSize = cls->static_fields_size;
+
+                    // Создать новые данные статических полей
+                    void *newStaticFields = malloc(oldSize + newStaticFieldsSize);
+
+                    // Копировать старые данные статических полей, если есть
+                    if (oldSize) memcpy(cls->static_fields, newStaticFields, oldSize);
+
+                    // Увеличить размер данных статических полей
+                    cls->static_fields_size += newStaticFieldsSize;
+
+                    // Заменить данные статических полей
+                    cls->static_fields = newStaticFields;
+                }
+            }
+            LOGIBNM(OBFUSCATE_BNM("[ModifyClasses] Класс %s успешно изменён."), lc.str().c_str());
+        }
+
+        // Очистить classes4Mod
+        classes4Mod->clear(); classes4Mod->shrink_to_fit();
+        delete classes4Mod;
+        classes4Mod = nullptr;
+    }
     void InitNewClasses() {
         if (!classes4Add) return;
         for (auto& klass : *classes4Add) {
             IL2CPP::Il2CppImage *curImg = nullptr;
+
+            auto className = klass->GetName();
+            auto classNamespace = klass->GetNamespace();
 
             // Проверка, существует ли уже класс в il2cpp
             {
@@ -1099,9 +1370,10 @@ namespace BNM_Internal {
                 auto assemblies = BNM_Internal::Assembly$$GetAllAssemblies();
 
                 // Попробовать найти образ
+                auto dllName = klass->GetDllName();
                 for (auto assembly : *assemblies) {
                     auto image = il2cpp_assembly_get_image(assembly);
-                    if (!strcmp(klass->dllName, image->nameNoExt)) {
+                    if (!strcmp(dllName, image->nameNoExt)) {
                         curImg = image;
                         break;
                     }
@@ -1122,7 +1394,7 @@ namespace BNM_Internal {
                         BNM_Internal::Class$$Init(cls);
 
                         // Проверить, существует ли новый класс уже
-                        if (!strcmp(cls->name, klass->name) && !strcmp(cls->namespaze, klass->namespaze)) {
+                        if (!strcmp(cls->name, className) && !strcmp(cls->namespaze, classNamespace)) {
                             existLS = cls;
                             break;
                         }
@@ -1137,15 +1409,16 @@ namespace BNM_Internal {
                 if (existLS) {
                     LOGWBNM(OBFUSCATE_BNM("Класс %s уже существует, он не может быть добавлен в il2cpp! Пожалуйста, проверьте код."), existLS.str().c_str());
                     // На всякий
-                    klass->thisClass = existLS.klass;
+                    klass->myClass = existLS.klass;
                     klass->type = existLS;
                     continue;
                 }
             }
 
 
-            // Создавать типы для новых классов
+            // Создать типы для новых классов
             auto typeByVal = BNM_I2C_NEW(Il2CppType);
+            memset(typeByVal, 0, sizeof(IL2CPP::Il2CppType));
             typeByVal->type = IL2CPP::Il2CppTypeEnum::IL2CPP_TYPE_CLASS;
             typeByVal->attrs = 0x1; // Public
             typeByVal->pinned = 0;
@@ -1153,6 +1426,7 @@ namespace BNM_Internal {
             typeByVal->num_mods = 0;
 
             auto typeThis = BNM_I2C_NEW(Il2CppType);
+            memset(typeThis, 0, sizeof(IL2CPP::Il2CppType));
             typeThis->type = IL2CPP::Il2CppTypeEnum::IL2CPP_TYPE_CLASS;
             typeThis->attrs = 0x1; // Public
             typeThis->pinned = 0;
@@ -1165,7 +1439,7 @@ namespace BNM_Internal {
             typeThis->data.dummy = (void *)bnmTypeData; // Для il2cpp::vm::Class::FromIl2CppType
 
             // Получить родительский класс
-            IL2CPP::Il2CppClass *parent = LoadClass(klass->baseNamespace, klass->baseName).GetIl2CppClass();
+            IL2CPP::Il2CppClass *parent = klass->GetBaseType().ToIl2CppClass();
             if (!parent) parent = GetType<IL2CPP::Il2CppObject *>().ToIl2CppClass();
 
             // Требуется для интерфейсов, но они еще не полностью реализованы
@@ -1184,7 +1458,7 @@ namespace BNM_Internal {
                 // Проверить, нужно ли добавлять обычный конструктор в класс
                 // Обычный конструктор вызывается в il2cpp::vm::Runtime::ObjectInitException
                 bool needDefaultConstructor = std::none_of(klass->methods4Add.begin(), klass->methods4Add.end(), [](NEW_CLASSES::NewMethod *met) {
-                    return !strcmp(met->name, OBFUSCATE_BNM(".ctor")) && met->argsCount == 0;
+                    return !strcmp(met->GetName(), OBFUSCATE_BNM(".ctor")) && met->GetArgsCount() == 0;
                 });
 
                 // Создать маcсив методов
@@ -1194,44 +1468,47 @@ namespace BNM_Internal {
                 for (int i = 0; i < klass->methods4Add.size(); ++i) {
                     auto &method = klass->methods4Add[i];
                     // Создать новый MethodInfo
-                    method->thisMethod = BNM_I2C_NEW(MethodInfo);
+                    method->myInfo = BNM_I2C_NEW(MethodInfo);
 
                     // Установить адрес метода
-                    method->thisMethod->methodPointer = (IL2CPP::Il2CppMethodPointer)method->address;
+                    method->myInfo->methodPointer = (IL2CPP::Il2CppMethodPointer)method->GetAddress();
 
                     // Установить адрес инициатора вызова метода
-                    method->thisMethod->invoker_method = (IL2CPP::InvokerMethod)method->invoker;
+                    method->myInfo->invoker_method = (IL2CPP::InvokerMethod)method->GetInvoker();
 
                     // Установить кол-во аргументов
-                    method->thisMethod->parameters_count = method->argsCount;
+                    method->myInfo->parameters_count = method->GetArgsCount();
 
                     // Создать имя метода
-                    auto len = strlen(method->name) + 1;
-                    method->thisMethod->name = new char[len];
-                    memset((void *)method->thisMethod->name, 0, len);
-                    strcpy((char *)method->thisMethod->name, method->name);
+                    auto name = method->GetName();
+                    auto len = strlen(name) + 1;
+                    method->myInfo->name = new char[len];
+                    memset((void *)method->myInfo->name, 0, len);
+                    strcpy((char *)method->myInfo->name, name);
 
                     // Установить флаги метода
-                    method->thisMethod->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
-                    if (method->isStatic) method->thisMethod->flags |= 0x0010; // |= STATIC
+                    method->myInfo->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
+                    if (method->IsStatic()) method->myInfo->flags |= 0x0010; // |= STATIC
 
                     // BNM не поддерживает generic-методы
-                    method->thisMethod->is_generic = false;
+                    method->myInfo->is_generic = false;
 
                     // Установить возвращяемый тип
-                    method->thisMethod->return_type = method->retType.ToIl2CppType();
+                    method->myInfo->return_type = method->GetRetType().ToIl2CppType();
 
                     // Создать аргументы
-                    if (method->argsCount) {
+                    auto argsCount = method->GetArgsCount();
+                    if (argsCount) {
+                        auto types = method->GetArgTypes();
 #if UNITY_VER < 212
                         // Создать новый массив аргументов
-                        method->thisMethod->parameters = (IL2CPP::ParameterInfo *)calloc(method->argsCount, sizeof(IL2CPP::ParameterInfo));
+                        method->myInfo->parameters = (IL2CPP::ParameterInfo *)calloc(argsCount, sizeof(IL2CPP::ParameterInfo));
 
                         // Получить первый аргумент
-                        auto newParam = (IL2CPP::ParameterInfo *)method->thisMethod->parameters;
+                        auto newParam = (IL2CPP::ParameterInfo *)method->myInfo->parameters;
 
                         // Создать аргументы
-                        for (int p = 0; p < method->argsCount; ++p) {
+                        for (int p = 0; p < argsCount; ++p) {
 
                             // Получить длину нового имени
                             len = (OBFUSCATES_BNM("аргумент") + std::to_string(p)).size();
@@ -1246,8 +1523,8 @@ namespace BNM_Internal {
                             newParam->position = p;
 
                             // Попытаться установить тип аргумента
-                            if (!method->argTypes.empty() && p < method->argTypes.size()) {
-                                newParam->parameter_type = method->argTypes[p].ToIl2CppType();
+                            if (!types.empty() && p < types.size()) {
+                                newParam->parameter_type = types[p].ToIl2CppType();
                                 newParam->token = newParam->parameter_type->attrs | p;
                             } else {
                                 newParam->parameter_type = nullptr;
@@ -1258,33 +1535,34 @@ namespace BNM_Internal {
                         }
 #else
                         // Создать новый маcсив типов аргументов
-                        auto **params = new IL2CPP::Il2CppType*[method->argsCount];
+                        auto **params = new IL2CPP::Il2CppType*[argsCount];
 
                         // Установить маcсив
-                        method->thisMethod->parameters = (const IL2CPP::Il2CppType **)params;
+                        method->myInfo->parameters = (const IL2CPP::Il2CppType **)params;
 
                         // Создать аргуметны
-                        for (int p = 0; p < method->argsCount; ++p) {
+                        for (int p = 0; p < argsCount; ++p) {
 
                             // Создать тип
                             auto newParam = BNM_I2C_NEW(Il2CppType);
 
                             // Копировать, если можно
-                            if (p < method->argTypes.size())
-                                memcpy(newParam, method->argTypes[p].ToIl2CppType(), sizeof(IL2CPP::Il2CppType));
+                            if (p < types.size())
+                                memcpy(newParam, types[p].ToIl2CppType(), sizeof(IL2CPP::Il2CppType));
 
                             // Установить
                             params[p] = newParam;
                         }
 #endif
+                        types.clear(); types.shrink_to_fit();
                     }
 #if UNITY_VER >= 212
                     else {
                         // Мы не можен без лишнего кода установить имена аргументов, потому что они перемещены в метаданные
-                        method->thisMethod->methodMetadataHandle = nullptr;
+                        method->myInfo->methodMetadataHandle = nullptr;
                     }
 #endif
-                    methods[i] = method->thisMethod;
+                    methods[i] = method->myInfo;
                 }
                 // Создать обычный конструктор
                 if (needDefaultConstructor) {
@@ -1311,59 +1589,83 @@ namespace BNM_Internal {
 #endif
 
             // Создать новый класс
-            klass->thisClass = (IL2CPP::Il2CppClass *)malloc(sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
+            klass->myClass = (IL2CPP::Il2CppClass *)malloc(sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
+            memset(klass->myClass, 0, sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
 
             // Установить методы, если они существуют
             if (!klass->methods4Add.empty()) {
                 // Установить новый созданный класс
                 for (int i = 0; i < klass->methods4Add.size(); ++i)
-                    ((IL2CPP::MethodInfo *)methods[i])->kls = klass->thisClass;
+                    ((IL2CPP::MethodInfo *)methods[i])->kls = klass->myClass;
 
                 // Установить кол-во методов
-                klass->thisClass->method_count = klass->methods4Add.size();
+                klass->myClass->method_count = klass->methods4Add.size();
 
                 // Установить массив методов
-                klass->thisClass->methods = methods;
+                klass->myClass->methods = methods;
 
                 // Очистить methods4Add
                 klass->methods4Add.clear(); klass->methods4Add.shrink_to_fit();
             } else {
-                klass->thisClass->method_count = 0;
-                klass->thisClass->methods = nullptr;
+                klass->myClass->method_count = 0;
+                klass->myClass->methods = nullptr;
             }
             // Установить родителя
-            klass->thisClass->parent = parent;
+            klass->myClass->parent = parent;
 
             // Создать поля
-            klass->thisClass->field_count = klass->fields4Add.size();
-            if (klass->thisClass->field_count > 0) {
+            klass->myClass->field_count = klass->fields4Add.size();
+            if (klass->myClass->field_count > 0) {
                 // Создать список полей
-                auto fields = (IL2CPP::FieldInfo *)calloc(klass->thisClass->field_count, sizeof(IL2CPP::FieldInfo));
+                auto fields = (IL2CPP::FieldInfo *)calloc(klass->myClass->field_count, sizeof(IL2CPP::FieldInfo));
 
                 // Получить первое поле
                 IL2CPP::FieldInfo *newField = fields;
                 if (!klass->fields4Add.empty()) {
+
+                    // Сортировка для получения правильного порядка статичексих полей
+                    std::sort(klass->fields4Add.begin(), klass->fields4Add.end(), [](NEW_CLASSES::NewField *&lhs, NEW_CLASSES::NewField *&rhs){
+                        return lhs->GetCppOffset() < rhs->GetCppOffset();
+                    });
+
                     for (auto &field : klass->fields4Add) {
                         // Создать имя
-                        auto len = strlen(field->name);
+                        auto name = field->GetName();
+                        auto len = strlen(name);
                         newField->name = new char[len];
                         memset((void *)newField->name, 0, len);
-                        strcpy((char *)newField->name, field->name);
+                        strcpy((char *)newField->name, name);
 
                         // Копировать тип
-                        newField->type = BNM_I2C_NEW(Il2CppType, *field->type.ToIl2CppType());
+                        newField->type = BNM_I2C_NEW(Il2CppType, *field->GetType().ToIl2CppType());
 
                         // Добавить флаги видимости
-                        ((IL2CPP::Il2CppType*)newField->type)->attrs |= field->attributes; // PUBLIC и STATIC, если ститическое
+                        ((IL2CPP::Il2CppType*)newField->type)->attrs |= field->GetAttributes(); // PUBLIC и STATIC, если ститическое
 
                         // Создать знак (token)
-                        newField->token = newField->type->attrs | field->attributes;
+                        newField->token = newField->type->attrs;
 
                         // Установить новый класс
-                        newField->parent = klass->thisClass;
+                        newField->parent = klass->myClass;
 
-                        // Установить адрес
-                        newField->offset = field->offset;
+                        if (!field->IsStatic()) {
+                            // Установить адрес
+                            newField->offset = field->GetOffset();
+                        } else {
+                            auto cppOffset = field->GetCppOffset();
+                            
+                            // Установить staticFieldsAddress, если не установлен
+                            if (!klass->staticFieldsAddress) klass->staticFieldsAddress = cppOffset;
+                            
+                            // Установить адрес поля
+                            newField->offset = klass->staticFieldOffset;
+                            
+                            // Получить следующий адрес
+                            klass->staticFieldOffset += field->GetSize();
+                        }
+
+                        // Установить информацию
+                        field->myInfo = newField;
 
                         // Следующий!
                         newField++;
@@ -1372,148 +1674,148 @@ namespace BNM_Internal {
                     klass->fields4Add.clear(); klass->fields4Add.shrink_to_fit();
 
                     // Установить staticFieldsAddress
-                    klass->thisClass->static_fields = (void *)klass->staticFieldsAddress;
+                    klass->myClass->static_fields = (void *)klass->staticFieldsAddress;
 
-                    // Установить staticFieldsSize
-                    klass->thisClass->static_fields_size = klass->staticFieldOffset;
+                    // Установить staticFieldOffset
+                    klass->myClass->static_fields_size = klass->staticFieldOffset;
                 }
-                klass->thisClass->fields = fields;
+                klass->myClass->fields = fields;
             } else {
-                klass->thisClass->static_fields_size = 0;
-                klass->thisClass->static_fields = nullptr;
-                klass->thisClass->fields = nullptr;
+                klass->myClass->static_fields_size = 0;
+                klass->myClass->static_fields = nullptr;
+                klass->myClass->fields = nullptr;
             }
 
             // Создать иерархию типов
-            klass->thisClass->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
-            klass->thisClass->typeHierarchy = (IL2CPP::Il2CppClass **)calloc(klass->thisClass->typeHierarchyDepth, sizeof(IL2CPP::Il2CppClass *));
-            memcpy(klass->thisClass->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
-            klass->thisClass->typeHierarchy[klass->thisClass->typeHierarchyDepth - 1] = klass->thisClass;
+            klass->myClass->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
+            klass->myClass->typeHierarchy = (IL2CPP::Il2CppClass **)calloc(klass->myClass->typeHierarchyDepth, sizeof(IL2CPP::Il2CppClass *));
+            memcpy(klass->myClass->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
+            klass->myClass->typeHierarchy[klass->myClass->typeHierarchyDepth - 1] = klass->myClass;
 
             // Установить образ
-            klass->thisClass->image = curImg;
+            klass->myClass->image = curImg;
 
             // Создать имя
-            auto len = strlen(klass->name) + 1;
-            klass->thisClass->name = new char[len];
-            memset((void *)klass->thisClass->name, 0, len);
-            strcpy((char *)klass->thisClass->name, klass->name);
+            auto len = strlen(className) + 1;
+            klass->myClass->name = new char[len];
+            memset((void *)klass->myClass->name, 0, len);
+            strcpy((char *)klass->myClass->name, className);
 
             // Создать имя пространства имён
-            len = strlen(klass->namespaze) + 1;
-            klass->thisClass->namespaze = new char[len];
-            memset((void *)klass->thisClass->namespaze, 0, len);
-            strcpy((char *)klass->thisClass->namespaze, klass->namespaze);
+            len = strlen(classNamespace) + 1;
+            klass->myClass->namespaze = new char[len];
+            memset((void *)klass->myClass->namespaze, 0, len);
+            strcpy((char *)klass->myClass->namespaze, classNamespace);
 
             // Установить типы
-            klass->thisClass->byval_arg = typeSymbol typeByVal;
-            klass->thisClass->this_arg = typeSymbol typeThis;
+            klass->myClass->byval_arg = typeSymbol typeByVal;
+            klass->myClass->this_arg = typeSymbol typeThis;
 #undef kls
 #undef typeSymbol
             // Это для внутренних классов, но BNM не может создавать внутренние классы
-            klass->thisClass->declaringType = nullptr;
+            klass->myClass->declaringType = nullptr;
 
             // Копировать флаги родителя и убрать ABSTRACT флаг, если существует
-            klass->thisClass->flags = klass->thisClass->parent->flags & ~0x00000080; // TYPE_ATTRIBUTE_ABSTRACT
+            klass->myClass->flags = klass->myClass->parent->flags & ~0x00000080; // TYPE_ATTRIBUTE_ABSTRACT
 
             // Установить классы
-            klass->thisClass->element_class = klass->thisClass;
-            klass->thisClass->castClass = klass->thisClass;
+            klass->myClass->element_class = klass->myClass;
+            klass->myClass->castClass = klass->myClass;
 #if UNITY_VER > 174
-            klass->thisClass->klass = klass->thisClass;
+            klass->myClass->klass = klass->myClass;
 #endif
             // Инициализировать размеры
-            klass->thisClass->native_size = -1;
-            klass->thisClass->element_size = 0;
-            klass->thisClass->actualSize = klass->size;
-            klass->thisClass->instance_size = klass->size;
+            klass->myClass->native_size = -1;
+            klass->myClass->element_size = 0;
+            klass->myClass->instance_size = klass->myClass->actualSize = klass->GetSize();
 
             // Установить виртуальную таблицу
-            klass->thisClass->vtable_count = newVTable.size();
-            for (int i = 0; i < newVTable.size(); ++i) klass->thisClass->vtable[i] = newVTable[i];
+            klass->myClass->vtable_count = newVTable.size();
+            for (int i = 0; i < newVTable.size(); ++i) klass->myClass->vtable[i] = newVTable[i];
             newVTable.clear(); newVTable.shrink_to_fit();
 
             // Установить адреса интерфейсов
-            klass->thisClass->interface_offsets_count = newInterOffsets.size();
-            klass->thisClass->interfaceOffsets = (IL2CPP::Il2CppRuntimeInterfaceOffsetPair *)(calloc(newInterOffsets.size(), sizeof(IL2CPP::Il2CppRuntimeInterfaceOffsetPair)));
-            for (int i = 0; i < newInterOffsets.size(); ++i) klass->thisClass->interfaceOffsets[i] = newInterOffsets[i];
+            klass->myClass->interface_offsets_count = newInterOffsets.size();
+            klass->myClass->interfaceOffsets = (IL2CPP::Il2CppRuntimeInterfaceOffsetPair *)(calloc(newInterOffsets.size(), sizeof(IL2CPP::Il2CppRuntimeInterfaceOffsetPair)));
+            for (int i = 0; i < newInterOffsets.size(); ++i) klass->myClass->interfaceOffsets[i] = newInterOffsets[i];
             newInterOffsets.clear(); newInterOffsets.shrink_to_fit();
 
             // Добавить интерфейсы
-            if (!klass->interfaces.empty()) {
-                klass->thisClass->interfaces_count = klass->interfaces.size();
-                klass->thisClass->implementedInterfaces = (IL2CPP::Il2CppClass **)calloc(klass->interfaces.size(), sizeof(IL2CPP::Il2CppClass *));
-                for (int i = 0; i < klass->interfaces.size(); ++i) klass->thisClass->implementedInterfaces[i] = klass->interfaces[i].ToIl2CppClass();
-                klass->interfaces.clear(); klass->interfaces.shrink_to_fit();
+            auto interfaces = klass->GetInterfaces();
+            if (!interfaces.empty()) {
+                klass->myClass->interfaces_count = interfaces.size();
+                klass->myClass->implementedInterfaces = (IL2CPP::Il2CppClass **)calloc(interfaces.size(), sizeof(IL2CPP::Il2CppClass *));
+                for (int i = 0; i < interfaces.size(); ++i) klass->myClass->implementedInterfaces[i] = interfaces[i].ToIl2CppClass();
+                interfaces.clear(); interfaces.shrink_to_fit();
             } else {
-                klass->thisClass->interfaces_count = 0;
-                klass->thisClass->implementedInterfaces = nullptr;
+                klass->myClass->interfaces_count = 0;
+                klass->myClass->implementedInterfaces = nullptr;
             }
 
             // Запретить il2cpp вызывать LivenessState::TraverseGCDescriptor для класса
-            klass->thisClass->gc_desc = nullptr;
+            klass->myClass->gc_desc = nullptr;
 
             // BNM не поддерживает создание generic классов
-            klass->thisClass->generic_class = nullptr;
-            klass->thisClass->genericRecursionDepth = 1;
+            klass->myClass->generic_class = nullptr;
+            klass->myClass->genericRecursionDepth = 1;
 
             // Остальная инициализация
-            klass->thisClass->initialized = 1;
+            klass->myClass->initialized = 1;
 #if UNITY_VER > 182
-            klass->thisClass->initialized_and_no_error = 1;
-            klass->thisClass->initializationExceptionGCHandle = 0;
+            klass->myClass->initialized_and_no_error = 1;
+            klass->myClass->initializationExceptionGCHandle = 0;
 #if UNITY_VER < 212
-            klass->thisClass->has_initialization_error = 0;
+            klass->myClass->has_initialization_error = 0;
 #endif
-            klass->thisClass->naturalAligment = 0;
+            klass->myClass->naturalAligment = 0;
 #endif
-            klass->thisClass->init_pending = 0;
+            klass->myClass->init_pending = 0;
 #if UNITY_VER < 202
             // Отсутствует поддержка generic
-            klass->thisClass->genericContainerIndex = -1;
+            klass->myClass->genericContainerIndex = -1;
 #else
             // Отсутствует поддержка generic
-            klass->thisClass->genericContainerHandle = nullptr;
-            klass->thisClass->typeMetadataHandle = nullptr;
+            klass->myClass->genericContainerHandle = nullptr;
+            klass->myClass->typeMetadataHandle = nullptr;
 #endif
 #if UNITY_VER < 211
-            klass->thisClass->valuetype = 1;
+            klass->myClass->valuetype = 1;
 #endif
             // Остальные переменные, которые необходимо установить
-            klass->thisClass->interopData = nullptr;
-            klass->thisClass->nestedTypes = nullptr;
-            klass->thisClass->properties = nullptr;
-            klass->thisClass->rgctx_data = nullptr;
-            klass->thisClass->has_references = 0;
-            klass->thisClass->has_finalize = 0;
-            klass->thisClass->size_inited = klass->thisClass->is_vtable_initialized = 1;
-            klass->thisClass->has_cctor = 0;
-            klass->thisClass->enumtype = 0;
-            klass->thisClass->minimumAlignment = 8;
-            klass->thisClass->is_generic = 0;
-            klass->thisClass->rank = 0;
-            klass->thisClass->nested_type_count = 0;
-            klass->thisClass->thread_static_fields_offset = 0;
-            klass->thisClass->thread_static_fields_size = -1;
-            klass->thisClass->cctor_started = 0;
+            klass->myClass->interopData = nullptr;
+            klass->myClass->nestedTypes = nullptr;
+            klass->myClass->properties = nullptr;
+            klass->myClass->rgctx_data = nullptr;
+            klass->myClass->has_references = 0;
+            klass->myClass->has_finalize = 0;
+            klass->myClass->size_inited = klass->myClass->is_vtable_initialized = 1;
+            klass->myClass->has_cctor = 0;
+            klass->myClass->enumtype = 0;
+            klass->myClass->minimumAlignment = 8;
+            klass->myClass->is_generic = 0;
+            klass->myClass->rank = 0;
+            klass->myClass->nested_type_count = 0;
+            klass->myClass->thread_static_fields_offset = 0;
+            klass->myClass->thread_static_fields_size = -1;
+            klass->myClass->cctor_started = 0;
 #if UNITY_VER >= 203
-            klass->thisClass->size_init_pending = 0;
+            klass->myClass->size_init_pending = 0;
 #endif
 #if UNITY_VER < 212
-            klass->thisClass->cctor_finished = 0;
+            klass->myClass->cctor_finished = 0;
 #endif
-            klass->thisClass->cctor_thread = 0;
+            klass->myClass->cctor_thread = 0;
 
             // Установить класс в bnmTypeData для получения его из типа
-            bnmTypeData->cls = klass->thisClass;
+            bnmTypeData->cls = klass->myClass;
 
             // Добавить класс к списку созданых классов
-            BNMClassesMap.addClass(curImg, klass->thisClass);
+            BNMClassesMap.addClass(curImg, klass->myClass);
 
             // Получить С#-тип
-            klass->type = LoadClass(klass->thisClass);
+            klass->type = LoadClass(klass->myClass);
 
-            LOGIBNM(OBFUSCATE_BNM("[InitNewClasses] Добавлен новый класс (%p) [%s]::[%s], родитель которого - [%s]::[%s], в [%s]"), klass->thisClass, klass->thisClass->namespaze, klass->thisClass->name, parent->namespaze, parent->name, klass->thisClass->image->name);
+            LOGIBNM(OBFUSCATE_BNM("[InitNewClasses] Добавлен новый класс (%p) [%s]::[%s], родитель которого - [%s]::[%s], в [%s]."), klass->myClass, klass->myClass->namespaze, klass->myClass->name, parent->namespaze, parent->name, klass->myClass->image->name);
         }
         // Очистить classes4Add
         classes4Add->clear(); classes4Add->shrink_to_fit();
@@ -1573,7 +1875,7 @@ namespace BNM_Internal {
             // il2cpp::vm::Array::NewSpecific ->
             // il2cpp::vm::Class::Init
             Class$$Init = (decltype(Class$$Init))  HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_array_new_specific")), count), count);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::Init в библиотеке: %p"), offsetInLib((void *)Class$$Init));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::Init в библиотеке: %p."), offsetInLib((void *)Class$$Init));
         }
 
 
@@ -1609,7 +1911,7 @@ namespace BNM_Internal {
 #else
             old_Image$$GetTypes = (decltype(old_Image$$GetTypes)) Image$$GetTypes_t;
 #endif
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Image::GetTypes в библиотеке: %p"), offsetInLib((void *)Image$$GetTypes_t));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Image::GetTypes в библиотеке: %p."), offsetInLib((void *)Image$$GetTypes_t));
         } else if (HasImageGetCls) {
             LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] в коде есть il2cpp_image_get_class. BNM будет использовать его."));
         }
@@ -1622,7 +1924,7 @@ namespace BNM_Internal {
             // il2cpp::vm::Class::FromIl2CppType
             auto from_type_adr = HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_class_from_type")), count);
             HOOK(from_type_adr, Class$$FromIl2CppType, old_Class$$FromIl2CppType);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromIl2CppType в библиотеке: %p"), offsetInLib((void *)from_type_adr));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromIl2CppType в библиотеке: %p."), offsetInLib((void *)from_type_adr));
         }
 
 
@@ -1633,7 +1935,7 @@ namespace BNM_Internal {
             // il2cpp::vm::Image::ClassFromName
             auto from_name_adr = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_class_from_name")), count), count);
             HOOK(from_name_adr, Class$$FromName, old_Class$$FromName);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromName в библиотеке: %p"), offsetInLib((void *)from_name_adr));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromName в библиотеке: %p."), offsetInLib((void *)from_name_adr));
         }
 #if UNITY_VER <= 174
 
@@ -1645,7 +1947,7 @@ namespace BNM_Internal {
             // il2cpp::vm::MetadataCache::GetImageFromIndex
             auto GetImageFromIndexOffset = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR)BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_assembly_get_image")), count), count);
             HOOK(GetImageFromIndexOffset, new_GetImageFromIndex, old_GetImageFromIndex);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::MetadataCache::GetImageFromIndex в библиотеке: %p"), offsetInLib((void *)GetImageFromIndexOffset));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::MetadataCache::GetImageFromIndex в библиотеке: %p."), offsetInLib((void *)GetImageFromIndexOffset));
         }
 
         //! il2cpp::vm::Assembly::Load ЗАМЕНИТЬ
@@ -1656,7 +1958,7 @@ namespace BNM_Internal {
             // il2cpp::vm::Assembly::Load
             BNM_PTR AssemblyLoadOffset = HexUtils::FindNextJump((BNM_PTR)BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
             HOOK(AssemblyLoadOffset, Assembly$$Load, old_AssemblyLoad);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::Load в библиотеке: %p"), offsetInLib((void *)AssemblyLoadOffset));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::Load в библиотеке: %p."), offsetInLib((void *)AssemblyLoadOffset));
         }
 
 #endif
@@ -1682,7 +1984,7 @@ namespace BNM_Internal {
                 // il2cpp::vm::Assembly::GetAllAssemblies
                 BNM_PTR GetAssembliesAdr = HexUtils::FindNextJump(getAssembly.GetOffset(), count);
                 Assembly$$GetAllAssemblies = (AssemblyVector *(*)())(HexUtils::FindNextJump(GetAssembliesAdr, sCount));
-                LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies через AppDomain в библиотеке: %p"), offsetInLib((void *)Assembly$$GetAllAssemblies));
+                LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies через AppDomain в библиотеке: %p."), offsetInLib((void *)Assembly$$GetAllAssemblies));
             } else {
 #endif
             // Путь:
@@ -1690,7 +1992,7 @@ namespace BNM_Internal {
             // il2cpp::vm::Assembly::GetAllAssemblies
             auto adr = (BNM_PTR) BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_domain_get_assemblies"));
             Assembly$$GetAllAssemblies = (AssemblyVector *(*)())(HexUtils::FindNextJump(adr, count));
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies через domain в библиотеке: %p"), offsetInLib((void *)Assembly$$GetAllAssemblies));
+            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies через domain в библиотеке: %p."), offsetInLib((void *)Assembly$$GetAllAssemblies));
 #ifdef BNM_USE_APPDOMAIN
             }
 #endif
@@ -1702,6 +2004,7 @@ namespace BNM_Internal {
         InitIl2cppMethods(); // Найти некоторые методы и подменить их
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
         InitNewClasses();  // Создать новые классы и добавить их в il2cpp
+        ModifyClasses(); // Изменить существующие классы
 #endif
         LibLoaded = true; // Установить LibLoaded в значение "истина"
     }

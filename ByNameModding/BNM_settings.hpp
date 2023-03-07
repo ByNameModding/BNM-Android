@@ -37,12 +37,12 @@
 
 #endif
 
-//! Добавте ваш обфускатор строк
+//! Добавте ваш шифровщик строк
 #define OBFUSCATE_BNM(str) str // const char *
 #define OBFUSCATES_BNM(str) std::string(str) // std::string
 #define BNMTAG OBFUSCATE_BNM("ByNameModding")
 
-//! Добавте вашу утилиту для хуков
+//! Добавте вашу утилиту для подметы методов
 //! Substrate MSHook with And64InlineHook 
 //!!!!!!!! Они могут не работать !!!!!!!!
 /* 
@@ -96,23 +96,23 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 #ifdef BNM_INFO
 #define LOGIBNM(...) ((void)__android_log_print(4,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGIBNM(...)
+#define LOGIBNM(...) ((void)0)
 #endif
 
 #ifdef BNM_DEBUG
 #define LOGDBNM(...) ((void)__android_log_print(3,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGDBNM(...)
+#define LOGDBNM(...) ((void)0)
 #endif
 
 #ifdef BNM_ERROR
 #define LOGEBNM(...) ((void)__android_log_print(6,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGEBNM(...)
+#define LOGEBNM(...) ((void)0)
 #endif
 
 #ifdef BNM_WARNING
 #define LOGWBNM(...) ((void)__android_log_print(5,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGWBNM(...)
+#define LOGWBNM(...) ((void)0)
 #endif

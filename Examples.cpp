@@ -98,8 +98,11 @@ void Update(void *instance) {
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
 namespace BNM {
     class BNM_ExampleClass : public BNM::UnityEngine::Object {  // Behaviour и MonoBehaviour не содержат полей, поэтому пишем UnityEngine.Object
-    // BNM_NewClassInit(имя пространства имен, класс, имя пространства имен родителя, имя родителя);
-    BNM_NewClassInit("BNM", BNM_ExampleClass, "UnityEngine", "MonoBehaviour");
+    // BNM_NewClassInit(имя пространства имен, класс, код получения родителя);
+    BNM_NewClassInit("BNM", BNM_ExampleClass, {
+        // Код для получения родителя
+        return BNM::LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("MonoBehaviour"));
+    });
         void FixedUpdate();
         void Update();
         void Awake();
@@ -119,8 +122,12 @@ namespace BNM {
     BNM_NewStaticMethodInit(BNM::GetType<void>(), MethodWithGameArgs, 1, BNM::GetType(OBFUSCATE_BNM(""), OBFUSCATE_BNM("PhotonPlayer")));
     };
     class BNM_DllExampleClass : public BNM::IL2CPP::Il2CppObject { // Il2CppObject, потому что System.Object, при пустых данных о родителе автоматически выбирается System.Object
-    // BNM_NewClassWithDllInit(имя dll БЕЗ `.dll`, имя пространства имен, класс, имя пространства имен родителя, имя родителя);
-    BNM_NewClassWithDllInit("mscorlib", "BNM", BNM_DllExampleClass, "", "");
+    // BNM_NewClassWithDllInit(имя dll БЕЗ `.dll`, имя пространства имен, класс, код получения родителя);
+    BNM_NewClassWithDllInit("mscorlib", "BNM", BNM_DllExampleClass, { 
+        // Код для получения родителя
+        // Можно вернуть скобки, и тогда родителем автоматически будет установлен System.Object
+        return {}; 
+    });
         void Start() {
             LOGIBNM(OBFUSCATE_BNM("BNM::BNM_DllExampleClass::Start вызван!"));
         }
@@ -168,6 +175,66 @@ void FPS$$ctor(void *instance) {
     old_FPS$$ctor(instance);
     // Делать что-либо
 }
+
+namespace ClassModify {
+    // Например, есть класс:
+    /*
+    public class SeceretDataClass : SecretMonoBehaviour {
+        string myBankCardNumber;
+        string myBankCardCVC;
+        string myBankLogin;
+        string myBankPassword;
+    }
+    */
+    // Получить из него данные не выходит, но можно его изменить
+    class SeceretDataClass {
+    BNM_ModClassInit(SeceretDataClass, {
+        // Код для получения класса
+        return BNM::LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("SeceretDataClass"));
+    });
+
+        static void* StaticDataField;
+        void* DataField;
+        static void StaticMethod(void *p) {}
+        void Start() {
+            // Получить строку из поля myBankPassword
+            LOGIBNM("SeceretDataClass myBankPassword: %s",
+            BNM::LoadClass((BNM::IL2CPP::Il2CppObject *)this)
+                .GetFieldByName("myBankPassword")
+                    .cast<monoString *>()[(void *)this]()
+                            ->str().c_str()
+            );
+        }
+        void Update();
+        
+    // Добавить метод Start
+    BNM_ModAddMethod(BNM::GetType<void>(), Start, 0);
+        
+    // Добавить метод Update
+    BNM_ModAddMethod(BNM::GetType<void>(), Update, 0);
+        
+    // Добавить метод StaticMethod
+    BNM_ModAddStaticMethod(BNM::GetType<void>(), StaticMethod, 1, BNM::GetType<void*>());
+        
+    // Добавить поле DataField
+    BNM_ModAddField(DataField, BNM::GetType<void*>());
+        
+    // Добавить статическое поле StaticDataField_Static из статического поля
+    BNM_ModAddStaticField(StaticDataField, BNM::GetType<void*>());
+        
+    // Заменить родителя
+    BNM_ModNewParent({
+        // Код для получения нового родителя
+        return BNM::LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("MonoBehaviour"));
+    });
+    };
+
+    void SeceretDataClass::Update() {
+        LOGIBNM("[SeceretDataClass, 0x%X] Адрес DataField: 0x%X", (BNM::BNM_PTR)this, BNMModField_DataField.offset);
+    }
+}
+
+
 void hack_thread() {
     using namespace BNM; // Чтобы не писать BNM:: в этом методе
     do {
