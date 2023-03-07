@@ -6,6 +6,7 @@ Requires c++14 minimum.
 ### What you can do with BNM?
 + Finding everything by names (classes, methods, fields ane etc.)
 + Adding your own classes to game that work even with AssetBundles!
++ Change game classes by addeding fields and methods.
 + Use basic c# structs like string (monoString), array (monoArray), dictionary (monoDictionary) that fully work.
 
 ### New classes

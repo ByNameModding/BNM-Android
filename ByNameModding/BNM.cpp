@@ -20,6 +20,9 @@ namespace BNM_Internal {
     // Vector with all new classes that BNM need add at runtime
     static std::vector<NEW_CLASSES::NewClass *> *classes4Add{};
 
+    // Vector with all classes that BNM need modify at runtime
+    static std::vector<MODIFY_CLASSES::TargetClass *> *classes4Mod{};
+
     // Dummy .ctor that just calling base .ctor
     void DefaultConstructor(IL2CPP::Il2CppObject* instance) {
         LoadClass(instance->klass->parent).GetMethodByName(OBFUSCATE_BNM(".ctor"), 0)[instance]();
@@ -39,7 +42,7 @@ namespace BNM_Internal {
         BNM_PTR bnm = -0x424e4d;
         IL2CPP::Il2CppClass *cls{};
     };
-
+    void ModifyClasses();
     void InitNewClasses();
 #if UNITY_VER <= 174
     // Need hook `Get image from index` and `load assembly`, because in unity 2017 and lower image and assembly are stored by indexes
@@ -485,6 +488,13 @@ namespace BNM {
         return ret;
     }
 
+
+    [[maybe_unused]] LoadClass LoadClass::GetParent() const {
+        if (!klass) return {};
+        TryInit(); // Попробовать инициализировать класс
+        return klass->parent;
+    }
+
     [[maybe_unused]] LoadClass LoadClass::GetArrayClass() const {
         if (!klass) return {};
         TryInit(); // Try init klass in it not initialized
@@ -518,6 +528,13 @@ namespace BNM {
         TryInit(); // Try init klass in it not initialized
         return klass;
     }
+
+    BNM::RuntimeTypeGetter LoadClass::GetRuntimeType() const {
+        TryInit(); // Try init klass in it not initialized
+        return {nullptr, nullptr, false, {klass}};
+    }
+
+    LoadClass::operator BNM::RuntimeTypeGetter() const { return GetRuntimeType(); }
 
     void *LoadClass::CreateNewInstance() const {
         if (!klass) return nullptr;
@@ -562,6 +579,7 @@ namespace BNM {
     /*** RuntimeTypeGetter ***/
     LoadClass RuntimeTypeGetter::ToLC() {
         if (!loadedClass.klass) {
+            if (!name) return {};
             loadedClass = LoadClass(namespaze, name);
             if (isArray) loadedClass = LoadClass(loadedClass.GetArrayClass());
         }
@@ -809,33 +827,44 @@ namespace BNM {
         }
     }
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
+    namespace MODIFY_CLASSES {
+
+        TargetClass::TargetClass() noexcept = default;
+        AddableMethod::AddableMethod() noexcept = default;
+        AddableField::AddableField() noexcept = default;
+
+        void TargetClass::AddField(AddableField *field) {
+            fields4Add.push_back(field); // Add field
+        }
+
+        void TargetClass::AddMethod(AddableMethod *method) {
+            methods4Add.push_back(method); // Add method
+        }
+
+        void AddTargetClass(TargetClass *klass) {
+            if (!BNM_Internal::classes4Mod)
+                BNM_Internal::classes4Mod = new std::vector<TargetClass *>();
+            BNM_Internal::classes4Mod->push_back(klass);
+        }
+    }
+
     namespace NEW_CLASSES {
 
         NewMethod::NewMethod() noexcept = default;
         NewField::NewField() noexcept = default;
         NewClass::NewClass() noexcept = default;
 
-        void NewClass::AddNewField(NewField *field, bool isStatic) {
-            if (!isStatic) fields4Add.push_back(field); // Just add non static
-            else {
-                // Calculate static field offset
-                // Need specific field define order to make this work normally
-                // Idk for what you can use static fields
-                // But code is here and it work
-                if (staticFieldOffset == 0x0) staticFieldsAddress = field->cppOffset;
-                field->offset = staticFieldOffset;
-                staticFieldOffset += field->size;
-                fields4Add.push_back(field);
-            }
+        void NewClass::AddNewField(NewField *field) {
+            fields4Add.push_back(field); // Add field
         }
 
         void NewClass::AddNewMethod(NewMethod *method) {
-            methods4Add.push_back(method); // Just add method
+            methods4Add.push_back(method); // Add method
         }
 
-        void AddNewClass(NEW_CLASSES::NewClass *klass) {
+        void AddNewClass(NewClass *klass) {
             if (!BNM_Internal::classes4Add)
-                BNM_Internal::classes4Add = new std::vector<NEW_CLASSES::NewClass *>();
+                BNM_Internal::classes4Add = new std::vector<NewClass *>();
             // Just add class to all new classes list
             BNM_Internal::classes4Add->push_back(klass);
         }
@@ -864,6 +893,7 @@ namespace BNM {
                 BNM_Internal::InitIl2cppMethods(); // Get some methods and hook them
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
                 BNM_Internal::InitNewClasses(); // Make new classes and add them to il2cpp
+                BNM_Internal::ModifyClasses(); // Modify classes (DANGER)
 #endif
                 BNM_Internal::LibLoaded = true; // Set LibLoaded to true
             } else LOGWBNM(OBFUSCATE_BNM("[External::LoadBNM] dl is null or wrong, can't load BNM"));
@@ -873,6 +903,7 @@ namespace BNM {
             BNM_Internal::InitIl2cppMethods(); // Get some methods and hook them
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
             BNM_Internal::InitNewClasses(); // Make new classes and add them to il2cpp
+            BNM_Internal::ModifyClasses(); // Modify classes (DANGER)
 #endif
             BNM_Internal::LibLoaded = true; // Set LibLoaded to true
         }
@@ -922,17 +953,18 @@ namespace BNM_Internal {
         auto newImg = BNM_I2C_NEW(Il2CppImage);
 
         // Make name without .dll
-        auto nameLen = strlen(cls->dllName) + 1;
+        auto dllName = cls->GetDllName();
+        auto nameLen = strlen(dllName) + 1;
         newImg->nameNoExt = new char[nameLen];
         memset((void *)newImg->nameNoExt, 0, nameLen);
-        strcpy((char *)newImg->nameNoExt, cls->dllName);
+        strcpy((char *)newImg->nameNoExt, dllName);
 
 
         // Make name with .dll
         auto extLen = nameLen + 4;
         newImg->name = new char[extLen];
         memset((void *)newImg->name, 0, extLen);
-        strcpy((char *)newImg->name, cls->dllName);
+        strcpy((char *)newImg->name, dllName);
         strcat((char *)newImg->name, OBFUSCATE_BNM(".dll"));
 
 #if UNITY_VER > 182
@@ -1082,11 +1114,248 @@ namespace BNM_Internal {
         return nullptr;
     }
 #endif
+    void ModifyClasses() {
+        if (!classes4Mod) return;
+        for (auto& klass : *classes4Mod) {
+            auto lc = klass->GetTargetType().ToLC();
+            if (!lc) {
+                LOGWBNM("[ModifyClasses] Can't add %d methods and %d fields to class", klass->methods4Add.size(), klass->fields4Add.size());
+                continue;
+            }
+
+            auto cls = lc.GetIl2CppClass();
+            auto newMethodsCount = klass->methods4Add.size();
+            auto newFieldsCount = klass->fields4Add.size();
+
+            // Change parent
+            if (klass->targetModifier->newParentGetter)
+                cls->parent = klass->targetModifier->newParentGetter().ToIl2CppClass();
+
+            if (newMethodsCount) {
+                auto oldCount = cls->method_count;
+                auto oldMethods = cls->methods;
+
+                // New methods list
+                auto newMethods = (IL2CPP::MethodInfo **) calloc(oldCount + newMethodsCount, sizeof(IL2CPP::MethodInfo *));
+
+                // Copy old methods
+                if (oldCount) memcpy(newMethods, oldMethods, oldCount * sizeof(IL2CPP::MethodInfo *));
+
+                // Create and add methods
+                for (size_t i = 0; i < newMethodsCount; ++i, ++oldCount) {
+                    auto &method = klass->methods4Add[i];
+
+                    // Create new MethodInfo
+                    method->myInfo = BNM_I2C_NEW(MethodInfo);
+
+                    // Set method address
+                    method->myInfo->methodPointer = (IL2CPP::Il2CppMethodPointer)method->GetAddress();
+
+                    // Set invoker method address
+                    method->myInfo->invoker_method = (IL2CPP::InvokerMethod)method->GetInvoker();
+
+                    // Set parameters count
+                    method->myInfo->parameters_count = method->GetArgsCount();
+
+                    // Create method name
+                    auto name = method->GetName();
+                    auto len = strlen(name) + 1;
+                    method->myInfo->name = new char[len];
+                    memset((void *)method->myInfo->name, 0, len);
+                    strcpy((char *)method->myInfo->name, name);
+
+                    // Set method flags
+                    method->myInfo->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
+                    if (method->IsStatic()) method->myInfo->flags |= 0x0010; // |= STATIC
+
+                    // BNM don't support generic methods
+                    method->myInfo->is_generic = false;
+
+                    // Set return type
+                    method->myInfo->return_type = method->GetRetType().ToIl2CppType();
+
+                    // Generate parameters
+                    auto argsCount = method->GetArgsCount();
+                    if (argsCount) {
+                        auto types = method->GetArgTypes();
+#if UNITY_VER < 212
+                        // Create new parameters array and set
+                        method->myInfo->parameters = (IL2CPP::ParameterInfo *)calloc(argsCount, sizeof(IL2CPP::ParameterInfo));
+
+                        // Get first parameter
+                        auto newParam = (IL2CPP::ParameterInfo *)method->myInfo->parameters;
+
+                        // Generate parameters
+                        for (int p = 0; p < argsCount; ++p) {
+
+                            // Get len of new name
+                            len = (OBFUSCATES_BNM("аргумент") + std::to_string(p)).size();
+
+                            // Create name
+                            newParam->name = new char[len + 1];
+                            memset((void *)newParam->name, 0, len + 1);
+                            strcat((char *)newParam->name, OBFUSCATE_BNM("аргумент")); // Первод чтобы был
+                            strcpy((char *)newParam->name, std::to_string(p).c_str());
+
+                            // Set parameter index
+                            newParam->position = p;
+
+                            // Try set parameter type
+                            if (!types.empty() && p < types.size()) {
+                                newParam->parameter_type = types[p].ToIl2CppType();
+                                newParam->token = newParam->parameter_type->attrs | p;
+                            } else {
+                                newParam->parameter_type = nullptr;
+                                newParam->token = p;
+                            }
+                            // Next parameter
+                            ++newParam;
+                        }
+#else
+                        // Create new parameters array
+                        auto **params = new IL2CPP::Il2CppType*[argsCount];
+
+                        // Set parameters
+                        method->myInfo->parameters = (const IL2CPP::Il2CppType **)params;
+
+                        // Generate parameters
+                        for (int p = 0; p < argsCount; ++p) {
+
+                            // Create type
+                            auto newParam = BNM_I2C_NEW(Il2CppType);
+
+                            // Copy if can
+                            if (p < types.size())
+                                memcpy(newParam, types[p].ToIl2CppType(), sizeof(IL2CPP::Il2CppType));
+
+                            // Set
+                            params[p] = newParam;
+                        }
+#endif
+                    }
+#if UNITY_VER >= 212
+                    else {
+                        // We can't normally without hooks set args name, because names moved to metadata
+                        method->myInfo->methodMetadataHandle = nullptr;
+                    }
+#endif
+                    newMethods[oldCount] = method->myInfo;
+                    LOGDBNM(OBFUSCATE_BNM("[ModifyClasses] Added %smethod %s %d to %s"), method->IsStatic() ? OBFUSCATE_BNM("static ") : OBFUSCATE_BNM(""), name, argsCount, lc.str().c_str());
+                }
+
+                // Clear methods4Add
+                klass->methods4Add.clear(); klass->methods4Add.shrink_to_fit();
+
+                // Change methods list
+                cls->methods = (const IL2CPP::MethodInfo **)newMethods;
+
+                // Change methods count
+                cls->method_count += newMethodsCount;
+            }
+
+            if (newFieldsCount) {
+                // Data for static
+                int newStaticFieldsSize = 0;
+
+                auto oldCount = cls->field_count;
+
+                // New fields list
+                auto newFields = (IL2CPP::FieldInfo *)calloc(oldCount + newFieldsCount, sizeof(IL2CPP::FieldInfo));
+
+                // Copy old fields
+                if (oldCount) memcpy(newFields, cls->fields, oldCount * sizeof(IL2CPP::FieldInfo));
+
+                // New fields offset
+                auto currentAddress = (int) cls->instance_size;
+
+                // Get first field
+                IL2CPP::FieldInfo *newField = newFields + oldCount;
+                for (auto &field : klass->fields4Add) {
+                    // Create name
+                    auto name = field->GetName();
+                    auto len = strlen(name);
+                    newField->name = new char[len];
+                    memset((void *)newField->name, 0, len);
+                    strcpy((char *)newField->name, name);
+
+                    // Copy type
+                    newField->type = BNM_I2C_NEW(Il2CppType, *field->GetType().ToIl2CppType());
+
+                    // Add visibility flags
+                    ((IL2CPP::Il2CppType*)newField->type)->attrs |= 0x0006; // PUBLIC
+
+                    // Make token
+                    newField->token = newField->type->attrs | 0x0006;
+
+                    // Set new generated class
+                    newField->parent = cls;
+
+                    if (field->IsStatic()) {
+                        // Set offset
+                        field->offset = newField->offset = newStaticFieldsSize;
+
+                        // Get next offset
+                        newStaticFieldsSize += field->GetSize();
+                    } else {
+                        // Set offset
+                        field->offset = newField->offset = currentAddress;
+
+                        // Get next offset
+                        currentAddress += field->GetSize();
+                    }
+
+                    // Set info
+                    field->myInfo = newField;
+
+                    // Next field
+                    newField++;
+                    LOGDBNM(OBFUSCATE_BNM("[ModifyClasses] Added %sfield %s to %s"), field->IsStatic() ? OBFUSCATE_BNM("static ") : OBFUSCATE_BNM(""), name, lc.str().c_str());
+                }
+
+                // Clear fields4Add
+                klass->fields4Add.clear(); klass->fields4Add.shrink_to_fit();
+
+                // Change fields list
+                cls->fields = newFields;
+
+                // Change fields count
+                cls->field_count += newFieldsCount;
+
+                // Change class size
+                cls->instance_size = (uint) currentAddress;
+
+                if (newStaticFieldsSize) {
+                    auto oldSize = cls->static_fields_size;
+
+                    // Create new static data
+                    void *newStaticFields = malloc(oldSize + newStaticFieldsSize);
+
+                    // Copy old data
+                    if (oldSize) memcpy(cls->static_fields, newStaticFields, oldSize);
+
+                    // Change data size
+                    cls->static_fields_size += newStaticFieldsSize;
+
+                    // Change data
+                    cls->static_fields = newStaticFields;
+                }
+            }
+            LOGIBNM(OBFUSCATE_BNM("[ModifyClasses] Class %s successfully changed"), lc.str().c_str());
+        }
+
+        // Очистить classes4Mod
+        classes4Mod->clear(); classes4Mod->shrink_to_fit();
+        delete classes4Mod;
+        classes4Mod = nullptr;
+    }
     void InitNewClasses() {
         if (!classes4Add) return;
         for (auto& klass : *classes4Add) {
             IL2CPP::Il2CppImage *curImg = nullptr;
 
+            auto className = klass->GetName();
+            auto classNamespace = klass->GetNamespace();
+            
             // Check is class already exist in il2cpp
             {
                 LoadClass existLS;
@@ -1096,9 +1365,10 @@ namespace BNM_Internal {
                 auto assemblies = BNM_Internal::Assembly$$GetAllAssemblies();
 
                 // Try find image
+                auto dllName = klass->GetDllName();
                 for (auto assembly : *assemblies) {
                     auto image = il2cpp_assembly_get_image(assembly);
-                    if (!strcmp(klass->dllName, image->nameNoExt)) {
+                    if (!strcmp(dllName, image->nameNoExt)) {
                         curImg = image;
                         break;
                     }
@@ -1119,7 +1389,7 @@ namespace BNM_Internal {
                         BNM_Internal::Class$$Init(cls);
 
                         // Check is new class already exist
-                        if (!strcmp(cls->name, klass->name) && !strcmp(cls->namespaze, klass->namespaze)) {
+                        if (!strcmp(cls->name, className) && !strcmp(cls->namespaze, classNamespace)) {
                             existLS = cls;
                             break;
                         }
@@ -1134,7 +1404,7 @@ namespace BNM_Internal {
                 if (existLS) {
                     LOGWBNM(OBFUSCATE_BNM("%s already exist, it can't be added it to il2cpp! Please check code."), existLS.str().c_str());
                     // Just in case
-                    klass->thisClass = existLS.klass;
+                    klass->myClass = existLS.klass;
                     klass->type = existLS;
                     continue;
                 }
@@ -1143,6 +1413,7 @@ namespace BNM_Internal {
 
             // Make types for new classes
             auto typeByVal = BNM_I2C_NEW(Il2CppType);
+            memset(typeByVal, 0, sizeof(IL2CPP::Il2CppType));
             typeByVal->type = IL2CPP::Il2CppTypeEnum::IL2CPP_TYPE_CLASS;
             typeByVal->attrs = 0x1; // Public
             typeByVal->pinned = 0;
@@ -1150,6 +1421,7 @@ namespace BNM_Internal {
             typeByVal->num_mods = 0;
 
             auto typeThis = BNM_I2C_NEW(Il2CppType);
+            memset(typeThis, 0, sizeof(IL2CPP::Il2CppType));
             typeThis->type = IL2CPP::Il2CppTypeEnum::IL2CPP_TYPE_CLASS;
             typeThis->attrs = 0x1; // Public
             typeThis->pinned = 0;
@@ -1162,7 +1434,7 @@ namespace BNM_Internal {
             typeThis->data.dummy = (void *)bnmTypeData; // For il2cpp::vm::Class::FromIl2CppType
 
             // Get parent class
-            IL2CPP::Il2CppClass *parent = LoadClass(klass->baseNamespace, klass->baseName).GetIl2CppClass();
+            IL2CPP::Il2CppClass *parent = klass->GetBaseType().ToIl2CppClass();
             if (!parent) parent = GetType<IL2CPP::Il2CppObject *>().ToIl2CppClass();
 
             // Need for interfaces, but them not fully implemented yet
@@ -1181,7 +1453,7 @@ namespace BNM_Internal {
                 // Check is need add empty, default .ctor to class
                 // Default constructor is calling by il2cpp::vm::Runtime::ObjectInitException
                 bool needDefaultConstructor = std::none_of(klass->methods4Add.begin(), klass->methods4Add.end(), [](NEW_CLASSES::NewMethod *met) {
-                    return !strcmp(met->name, OBFUSCATE_BNM(".ctor")) && met->argsCount == 0;
+                    return !strcmp(met->GetName(), OBFUSCATE_BNM(".ctor")) && met->GetArgsCount() == 0;
                 });
 
                 // Create methods array
@@ -1191,44 +1463,47 @@ namespace BNM_Internal {
                 for (int i = 0; i < klass->methods4Add.size(); ++i) {
                     auto &method = klass->methods4Add[i];
                     // Create new MethodInfo
-                    method->thisMethod = BNM_I2C_NEW(MethodInfo);
+                    method->myInfo = BNM_I2C_NEW(MethodInfo);
 
                     // Set method address
-                    method->thisMethod->methodPointer = (IL2CPP::Il2CppMethodPointer)method->address;
+                    method->myInfo->methodPointer = (IL2CPP::Il2CppMethodPointer)method->GetAddress();
 
                     // Set invoker method address
-                    method->thisMethod->invoker_method = (IL2CPP::InvokerMethod)method->invoker;
+                    method->myInfo->invoker_method = (IL2CPP::InvokerMethod)method->GetInvoker();
 
                     // Set parameters count
-                    method->thisMethod->parameters_count = method->argsCount;
+                    method->myInfo->parameters_count = method->GetArgsCount();
 
                     // Create method name
-                    auto len = strlen(method->name) + 1;
-                    method->thisMethod->name = new char[len];
-                    memset((void *)method->thisMethod->name, 0, len);
-                    strcpy((char *)method->thisMethod->name, method->name);
+                    auto name = method->GetName();
+                    auto len = strlen(name) + 1;
+                    method->myInfo->name = new char[len];
+                    memset((void *)method->myInfo->name, 0, len);
+                    strcpy((char *)method->myInfo->name, name);
 
                     // Set method flags
-                    method->thisMethod->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
-                    if (method->isStatic) method->thisMethod->flags |= 0x0010; // |= STATIC
+                    method->myInfo->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
+                    if (method->IsStatic()) method->myInfo->flags |= 0x0010; // |= STATIC
 
                     // BNM don't support generic methods
-                    method->thisMethod->is_generic = false;
+                    method->myInfo->is_generic = false;
 
                     // Set return type
-                    method->thisMethod->return_type = method->retType.ToIl2CppType();
+                    method->myInfo->return_type = method->GetRetType().ToIl2CppType();
 
                     // Generate parameters
-                    if (method->argsCount) {
+                    auto argsCount = method->GetArgsCount();
+                    if (argsCount) {
+                        auto types = method->GetArgTypes();
 #if UNITY_VER < 212
                         // Create new parameters array and set
-                        method->thisMethod->parameters = (IL2CPP::ParameterInfo *)calloc(method->argsCount, sizeof(IL2CPP::ParameterInfo));
+                        method->myInfo->parameters = (IL2CPP::ParameterInfo *)calloc(argsCount, sizeof(IL2CPP::ParameterInfo));
 
                         // Get first parameter
-                        auto newParam = (IL2CPP::ParameterInfo *)method->thisMethod->parameters;
+                        auto newParam = (IL2CPP::ParameterInfo *)method->myInfo->parameters;
 
                         // Generate parameters
-                        for (int p = 0; p < method->argsCount; ++p) {
+                        for (int p = 0; p < argsCount; ++p) {
 
                             // Get len of new name
                             len = (OBFUSCATES_BNM("arg") + std::to_string(p)).size();
@@ -1243,8 +1518,8 @@ namespace BNM_Internal {
                             newParam->position = p;
 
                             // Try set parameter type
-                            if (!method->argTypes.empty() && p < method->argTypes.size()) {
-                                newParam->parameter_type = method->argTypes[p].ToIl2CppType();
+                            if (!types.empty() && p < types.size()) {
+                                newParam->parameter_type = types[p].ToIl2CppType();
                                 newParam->token = newParam->parameter_type->attrs | p;
                             } else {
                                 newParam->parameter_type = nullptr;
@@ -1255,32 +1530,34 @@ namespace BNM_Internal {
                         }
 #else
                         // Create new parameters array
-                        auto **params = new IL2CPP::Il2CppType*[method->argsCount];
+                        auto **params = new IL2CPP::Il2CppType*[argsCount];
+						
                         // Set parameters
-                        method->thisMethod->parameters = (const IL2CPP::Il2CppType **)params;
+                        method->myInfo->parameters = (const IL2CPP::Il2CppType **)params;
 
                         // Generate parameters
-                        for (int p = 0; p < method->argsCount; ++p) {
+                        for (int p = 0; p < argsCount; ++p) {
 
                             // Create type
                             auto newParam = BNM_I2C_NEW(Il2CppType);
 
                             // Copy if can
-                            if (p < method->argTypes.size())
-                                memcpy(newParam, method->argTypes[p].ToIl2CppType(), sizeof(IL2CPP::Il2CppType));
+                            if (p < types.size())
+                                memcpy(newParam, types[p].ToIl2CppType(), sizeof(IL2CPP::Il2CppType));
 
                             // Set
                             params[p] = newParam;
                         }
 #endif
+                        types.clear(); types.shrink_to_fit();
                     }
 #if UNITY_VER >= 212
                     else {
                         // We can't normally without hooks set args name, because names moved to metadata
-                        method->thisMethod->methodMetadataHandle = nullptr;
+                        method->myInfo->methodMetadataHandle = nullptr;
                     }
 #endif
-                    methods[i] = method->thisMethod;
+                    methods[i] = method->myInfo;
                 }
                 // Make dummy default constructor
                 if (needDefaultConstructor) {
@@ -1307,59 +1584,82 @@ namespace BNM_Internal {
 #endif
 
             // Create new class
-            klass->thisClass = (IL2CPP::Il2CppClass *)malloc(sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
+            klass->myClass = (IL2CPP::Il2CppClass *)malloc(sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
+            memset(klass->myClass, 0, sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
 
             // Set methods if them exists
             if (!klass->methods4Add.empty()) {
                 // Set new generated class
                 for (int i = 0; i < klass->methods4Add.size(); ++i)
-                    ((IL2CPP::MethodInfo *)methods[i])->kls = klass->thisClass;
+                    ((IL2CPP::MethodInfo *)methods[i])->kls = klass->myClass;
 
                 // Set method count
-                klass->thisClass->method_count = klass->methods4Add.size();
+                klass->myClass->method_count = klass->methods4Add.size();
 
                 // Set method array
-                klass->thisClass->methods = methods;
+                klass->myClass->methods = methods;
 
                 // Clear methods4Add array
                 klass->methods4Add.clear(); klass->methods4Add.shrink_to_fit();
             } else {
-                klass->thisClass->method_count = 0;
-                klass->thisClass->methods = nullptr;
+                klass->myClass->method_count = 0;
+                klass->myClass->methods = nullptr;
             }
             // Set parent
-            klass->thisClass->parent = parent;
+            klass->myClass->parent = parent;
 
             // Generate fields
-            klass->thisClass->field_count = klass->fields4Add.size();
-            if (klass->thisClass->field_count > 0) {
+            klass->myClass->field_count = klass->fields4Add.size();
+            if (klass->myClass->field_count > 0) {
                 // Create fields array
-                auto fields = (IL2CPP::FieldInfo *)calloc(klass->thisClass->field_count, sizeof(IL2CPP::FieldInfo));
+                auto fields = (IL2CPP::FieldInfo *)calloc(klass->myClass->field_count, sizeof(IL2CPP::FieldInfo));
 
                 // Get first field
                 IL2CPP::FieldInfo *newField = fields;
                 if (!klass->fields4Add.empty()) {
+
+                    std::sort(klass->fields4Add.begin(), klass->fields4Add.end(), [](NEW_CLASSES::NewField *&lhs, NEW_CLASSES::NewField *&rhs){
+                        return lhs->GetCppOffset() < rhs->GetCppOffset();
+                    });
+
                     for (auto &field : klass->fields4Add) {
                         // Create name
-                        auto len = strlen(field->name);
+                        auto name = field->GetName();
+                        auto len = strlen(name);
                         newField->name = new char[len];
                         memset((void *)newField->name, 0, len);
-                        strcpy((char *)newField->name, field->name);
+                        strcpy((char *)newField->name, name);
 
                         // Copy type
-                        newField->type = BNM_I2C_NEW(Il2CppType, *field->type.ToIl2CppType());
+                        newField->type = BNM_I2C_NEW(Il2CppType, *field->GetType().ToIl2CppType());
 
                         // Add visibility flags
-                        ((IL2CPP::Il2CppType*)newField->type)->attrs |= field->attributes; // PUBLIC and STATIC if static
+                        ((IL2CPP::Il2CppType*)newField->type)->attrs |= field->GetAttributes(); // PUBLIC и STATIC, если ститическое
 
                         // Make token
-                        newField->token = newField->type->attrs | field->attributes;
+                        newField->token = newField->type->attrs;
 
                         // Set new generated class
-                        newField->parent = klass->thisClass;
+                        newField->parent = klass->myClass;
 
-                        // Set offset
-                        newField->offset = field->offset;
+                        if (!field->IsStatic()) {
+                            // Set offset
+                            newField->offset = field->GetOffset();
+						} else {
+                            auto cppOffset = field->GetCppOffset();
+                            
+                            // Set staticFieldsAddress if need
+                            if (!klass->staticFieldsAddress) klass->staticFieldsAddress = cppOffset;
+                            
+                            // Set offset
+                            newField->offset = klass->staticFieldOffset;
+                            
+                            // Get next offset
+                            klass->staticFieldOffset += field->GetSize();
+                        }
+
+                        // Set info
+                        field->myInfo = newField;
 
                         // Next field
                         newField++;
@@ -1368,148 +1668,148 @@ namespace BNM_Internal {
                     klass->fields4Add.clear(); klass->fields4Add.shrink_to_fit();
 
                     // Set staticFieldsAddress
-                    klass->thisClass->static_fields = (void *)klass->staticFieldsAddress;
+                    klass->myClass->static_fields = (void *)klass->staticFieldsAddress;
 
                     // Set staticFieldsSize
-                    klass->thisClass->static_fields_size = klass->staticFieldOffset;
+                    klass->myClass->static_fields_size = klass->staticFieldOffset;
                 }
-                klass->thisClass->fields = fields;
+                klass->myClass->fields = fields;
             } else {
-                klass->thisClass->static_fields_size = 0;
-                klass->thisClass->static_fields = nullptr;
-                klass->thisClass->fields = nullptr;
+                klass->myClass->static_fields_size = 0;
+                klass->myClass->static_fields = nullptr;
+                klass->myClass->fields = nullptr;
             }
 
             // Make type hierarchy
-            klass->thisClass->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
-            klass->thisClass->typeHierarchy = (IL2CPP::Il2CppClass **)calloc(klass->thisClass->typeHierarchyDepth, sizeof(IL2CPP::Il2CppClass *));
-            memcpy(klass->thisClass->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
-            klass->thisClass->typeHierarchy[klass->thisClass->typeHierarchyDepth - 1] = klass->thisClass;
+            klass->myClass->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
+            klass->myClass->typeHierarchy = (IL2CPP::Il2CppClass **)calloc(klass->myClass->typeHierarchyDepth, sizeof(IL2CPP::Il2CppClass *));
+            memcpy(klass->myClass->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
+            klass->myClass->typeHierarchy[klass->myClass->typeHierarchyDepth - 1] = klass->myClass;
 
             // Set image
-            klass->thisClass->image = curImg;
+            klass->myClass->image = curImg;
 
             // Create name
-            auto len = strlen(klass->name) + 1;
-            klass->thisClass->name = new char[len];
-            memset((void *)klass->thisClass->name, 0, len);
-            strcpy((char *)klass->thisClass->name, klass->name);
+            auto len = strlen(className) + 1;
+            klass->myClass->name = new char[len];
+            memset((void *)klass->myClass->name, 0, len);
+            strcpy((char *)klass->myClass->name, className);
 
             // Create namespace
-            len = strlen(klass->namespaze) + 1;
-            klass->thisClass->namespaze = new char[len];
-            memset((void *)klass->thisClass->namespaze, 0, len);
-            strcpy((char *)klass->thisClass->namespaze, klass->namespaze);
+            len = strlen(classNamespace) + 1;
+            klass->myClass->namespaze = new char[len];
+            memset((void *)klass->myClass->namespaze, 0, len);
+            strcpy((char *)klass->myClass->namespaze, classNamespace);
 
             // Set types
-            klass->thisClass->byval_arg = typeSymbol typeByVal;
-            klass->thisClass->this_arg = typeSymbol typeThis;
+            klass->myClass->byval_arg = typeSymbol typeByVal;
+            klass->myClass->this_arg = typeSymbol typeThis;
 #undef kls
 #undef typeSymbol
             // This is for inner classes, but BNM can't create inner classes
-            klass->thisClass->declaringType = nullptr;
+            klass->myClass->declaringType = nullptr;
 
             // Copy parent flags and remove ABSTRACT flag is exists
-            klass->thisClass->flags = klass->thisClass->parent->flags & ~0x00000080; // TYPE_ATTRIBUTE_ABSTRACT
+            klass->myClass->flags = klass->myClass->parent->flags & ~0x00000080; // TYPE_ATTRIBUTE_ABSTRACT
 
             // Set classes
-            klass->thisClass->element_class = klass->thisClass;
-            klass->thisClass->castClass = klass->thisClass;
+            klass->myClass->element_class = klass->myClass;
+            klass->myClass->castClass = klass->myClass;
 #if UNITY_VER > 174
-            klass->thisClass->klass = klass->thisClass;
+            klass->myClass->klass = klass->myClass;
 #endif
             // Init sizes
-            klass->thisClass->native_size = -1;
-            klass->thisClass->element_size = 0;
-            klass->thisClass->actualSize = klass->size;
-            klass->thisClass->instance_size = klass->size;
+            klass->myClass->native_size = -1;
+            klass->myClass->element_size = 0;
+            klass->myClass->instance_size = klass->myClass->actualSize = klass->GetSize();
 
             // Set vtable
-            klass->thisClass->vtable_count = newVTable.size();
-            for (int i = 0; i < newVTable.size(); ++i) klass->thisClass->vtable[i] = newVTable[i];
+            klass->myClass->vtable_count = newVTable.size();
+            for (int i = 0; i < newVTable.size(); ++i) klass->myClass->vtable[i] = newVTable[i];
             newVTable.clear(); newVTable.shrink_to_fit();
 
             // Set interface offsets
-            klass->thisClass->interface_offsets_count = newInterOffsets.size();
-            klass->thisClass->interfaceOffsets = (IL2CPP::Il2CppRuntimeInterfaceOffsetPair *)(calloc(newInterOffsets.size(), sizeof(IL2CPP::Il2CppRuntimeInterfaceOffsetPair)));
-            for (int i = 0; i < newInterOffsets.size(); ++i) klass->thisClass->interfaceOffsets[i] = newInterOffsets[i];
+            klass->myClass->interface_offsets_count = newInterOffsets.size();
+            klass->myClass->interfaceOffsets = (IL2CPP::Il2CppRuntimeInterfaceOffsetPair *)(calloc(newInterOffsets.size(), sizeof(IL2CPP::Il2CppRuntimeInterfaceOffsetPair)));
+            for (int i = 0; i < newInterOffsets.size(); ++i) klass->myClass->interfaceOffsets[i] = newInterOffsets[i];
             newInterOffsets.clear(); newInterOffsets.shrink_to_fit();
 
             // Set interfaces
-            if (!klass->interfaces.empty()) {
-                klass->thisClass->interfaces_count = klass->interfaces.size();
-                klass->thisClass->implementedInterfaces = (IL2CPP::Il2CppClass **)calloc(klass->interfaces.size(), sizeof(IL2CPP::Il2CppClass *));
-                for (int i = 0; i < klass->interfaces.size(); ++i) klass->thisClass->implementedInterfaces[i] = klass->interfaces[i].ToIl2CppClass();
-                klass->interfaces.clear(); klass->interfaces.shrink_to_fit();
+            auto interfaces = klass->GetInterfaces();
+            if (!interfaces.empty()) {
+                klass->myClass->interfaces_count = interfaces.size();
+                klass->myClass->implementedInterfaces = (IL2CPP::Il2CppClass **)calloc(interfaces.size(), sizeof(IL2CPP::Il2CppClass *));
+                for (int i = 0; i < interfaces.size(); ++i) klass->myClass->implementedInterfaces[i] = interfaces[i].ToIl2CppClass();
+                interfaces.clear(); interfaces.shrink_to_fit();
             } else {
-                klass->thisClass->interfaces_count = 0;
-                klass->thisClass->implementedInterfaces = nullptr;
+                klass->myClass->interfaces_count = 0;
+                klass->myClass->implementedInterfaces = nullptr;
             }
 
             // Prevent il2cpp from calling LivenessState::TraverseGCDescriptor for class
-            klass->thisClass->gc_desc = nullptr;
+            klass->myClass->gc_desc = nullptr;
 
             // BNM don't support generic classes creating
-            klass->thisClass->generic_class = nullptr;
-            klass->thisClass->genericRecursionDepth = 1;
+            klass->myClass->generic_class = nullptr;
+            klass->myClass->genericRecursionDepth = 1;
 
             // Different initialization
-            klass->thisClass->initialized = 1;
+            klass->myClass->initialized = 1;
 #if UNITY_VER > 182
-            klass->thisClass->initialized_and_no_error = 1;
-            klass->thisClass->initializationExceptionGCHandle = 0;
+            klass->myClass->initialized_and_no_error = 1;
+            klass->myClass->initializationExceptionGCHandle = 0;
 #if UNITY_VER < 212
-            klass->thisClass->has_initialization_error = 0;
+            klass->myClass->has_initialization_error = 0;
 #endif
-            klass->thisClass->naturalAligment = 0;
+            klass->myClass->naturalAligment = 0;
 #endif
-            klass->thisClass->init_pending = 0;
+            klass->myClass->init_pending = 0;
 #if UNITY_VER < 202
             // No generic
-            klass->thisClass->genericContainerIndex = -1;
+            klass->myClass->genericContainerIndex = -1;
 #else
             // No generic
-            klass->thisClass->genericContainerHandle = nullptr;
-            klass->thisClass->typeMetadataHandle = nullptr;
+            klass->myClass->genericContainerHandle = nullptr;
+            klass->myClass->typeMetadataHandle = nullptr;
 #endif
 #if UNITY_VER < 211
-            klass->thisClass->valuetype = 1; // I can set to 0, but there are some other places where it using in il2cpp
+            klass->myClass->valuetype = 1; // I can set to 0, but there are some other places where it using in il2cpp
 #endif
             // Some other variables that need set
-            klass->thisClass->interopData = nullptr;
-            klass->thisClass->nestedTypes = nullptr;
-            klass->thisClass->properties = nullptr;
-            klass->thisClass->rgctx_data = nullptr;
-            klass->thisClass->has_references = 0;
-            klass->thisClass->has_finalize = 0;
-            klass->thisClass->size_inited = klass->thisClass->is_vtable_initialized = 1;
-            klass->thisClass->has_cctor = 0;
-            klass->thisClass->enumtype = 0;
-            klass->thisClass->minimumAlignment = 8;
-            klass->thisClass->is_generic = 0;
-            klass->thisClass->rank = 0;
-            klass->thisClass->nested_type_count = 0;
-            klass->thisClass->thread_static_fields_offset = 0;
-            klass->thisClass->thread_static_fields_size = -1;
-            klass->thisClass->cctor_started = 0;
+            klass->myClass->interopData = nullptr;
+            klass->myClass->nestedTypes = nullptr;
+            klass->myClass->properties = nullptr;
+            klass->myClass->rgctx_data = nullptr;
+            klass->myClass->has_references = 0;
+            klass->myClass->has_finalize = 0;
+            klass->myClass->size_inited = klass->myClass->is_vtable_initialized = 1;
+            klass->myClass->has_cctor = 0;
+            klass->myClass->enumtype = 0;
+            klass->myClass->minimumAlignment = 8;
+            klass->myClass->is_generic = 0;
+            klass->myClass->rank = 0;
+            klass->myClass->nested_type_count = 0;
+            klass->myClass->thread_static_fields_offset = 0;
+            klass->myClass->thread_static_fields_size = -1;
+            klass->myClass->cctor_started = 0;
 #if UNITY_VER >= 203
-            klass->thisClass->size_init_pending = 0;
+            klass->myClass->size_init_pending = 0;
 #endif
 #if UNITY_VER < 212
-            klass->thisClass->cctor_finished = 0;
+            klass->myClass->cctor_finished = 0;
 #endif
-            klass->thisClass->cctor_thread = 0;
+            klass->myClass->cctor_thread = 0;
 
             // Set bnmTypeData class for getting this class from type
-            bnmTypeData->cls = klass->thisClass;
+            bnmTypeData->cls = klass->myClass;
 
             // Add class to generated classes map
-            BNMClassesMap.addClass(curImg, klass->thisClass);
+            BNMClassesMap.addClass(curImg, klass->myClass);
 
             // Get mono type
-            klass->type = LoadClass(klass->thisClass);
+            klass->type = LoadClass(klass->myClass);
 
-            LOGIBNM(OBFUSCATE_BNM("[InitNewClasses] Added new class (%p): [%s]::[%s] parent is [%s]::[%s] to [%s]"), klass->thisClass, klass->thisClass->namespaze, klass->thisClass->name, parent->namespaze, parent->name, klass->thisClass->image->name);
+            LOGIBNM(OBFUSCATE_BNM("[InitNewClasses] Added new class (%p): [%s]::[%s] parent is [%s]::[%s] to [%s]"), klass->myClass, klass->myClass->namespaze, klass->myClass->name, parent->namespaze, parent->name, klass->myClass->image->name);
         }
         // Clear and free classes4Add
         classes4Add->clear(); classes4Add->shrink_to_fit();
@@ -1698,6 +1998,7 @@ namespace BNM_Internal {
         InitIl2cppMethods(); // Get some methods and hook them
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
         InitNewClasses();  // Make new classes and add them to il2cpp
+        ModifyClasses(); // Modify classes
 #endif
         LibLoaded = true; // Set LibLoaded to true
     }

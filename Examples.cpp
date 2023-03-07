@@ -94,8 +94,11 @@ void Update(void *instance) {
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
 namespace BNM {
     class BNM_ExampleClass : public BNM::UnityEngine::Object {  // Behaviour, MonoBehaviour don't contain fields, therefore, you can use UnityEngine.Object
-    // BNM_NewClassInit(namespace, class, parent class namespace, parent class name);
-    BNM_NewClassInit("BNM", BNM_ExampleClass, "UnityEngine", "MonoBehaviour");
+    // BNM_NewClassInit(namespace, class, get parent class code);
+    BNM_NewClassInit("BNM", BNM_ExampleClass, {
+        // Code for getting parent class
+        return BNM::LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("MonoBehaviour"));
+    });
         void FixedUpdate();
         void Update();
         void Awake();
@@ -116,7 +119,7 @@ namespace BNM {
     };
     class BNM_DllExampleClass : public BNM::IL2CPP::Il2CppObject { // Il2CppObject - due System.Object, null parent class namespace and parent class name = System.Object
     // BNM_NewClassWithDllInit(dll, namespace, class, parent class namespace (maybe ""), parent class name (maybe ""));
-    BNM_NewClassWithDllInit("mscorlib", "BNM", BNM_DllExampleClass, "", "");
+    BNM_NewClassWithDllInit("mscorlib", "BNM", BNM_DllExampleClass, { return {}; });
         void Start() {
             LOGIBNM(OBFUSCATE_BNM("BNM::BNM_DllExampleClass::Start called!"));
         }
@@ -163,6 +166,60 @@ void (*old_FPS$$ctor)(void*);
 void FPS$$ctor(void *instance) {
     old_FPS$$ctor(instance);
     // Do sth
+}
+namespace ClassModify {
+    /*
+    public class SeceretDataClass : SecretMonoBehaviour {
+        string myBankCardNumber;
+        string myBankCardCVC;
+        string myBankLogin;
+        string myBankPassword;
+    }
+    */
+    class SeceretDataClass {
+    BNM_ModClassInit(SeceretDataClass, {
+        return BNM::LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("SeceretDataClass"));
+    });
+
+        static void* StaticDataField;
+        void* DataField;
+        static void StaticMethod(void *p) {}
+        void Start() {
+            // Get data of myBankPassword
+            LOGIBNM("SeceretDataClass myBankPassword: %s",
+            BNM::LoadClass((BNM::IL2CPP::Il2CppObject *)this)
+                .GetFieldByName("myBankPassword")
+                    .cast<monoString *>()[(void *)this]()
+                            ->str().c_str()
+            );
+        }
+        void Update();
+        
+    // Add method Start
+    BNM_ModAddMethod(BNM::GetType<void>(), Start, 0);
+        
+    // Add method Update
+    BNM_ModAddMethod(BNM::GetType<void>(), Update, 0);
+        
+    // Add static method StaticMethod
+    BNM_ModAddStaticMethod(BNM::GetType<void>(), StaticMethod, 1, BNM::GetType<void*>());
+        
+    // Add field DataField
+    BNM_ModAddField(DataField, BNM::GetType<void*>());
+        
+    // Add static field StaticDataField_Static
+    BNM_ModAddStaticField(StaticDataField, BNM::GetType<void*>());
+        
+    // Change parent
+    BNM_ModNewParent({
+        // Code for getting new parent
+        return BNM::LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("MonoBehaviour"));
+    });
+    };
+
+    void SeceretDataClass::Update() {
+        LOGIBNM("[SeceretDataClass, 0x%X] Offset of DataField: 0x%X", (BNM::BNM_PTR)this, BNMModField_DataField.offset);
+    }
 }
 void hack_thread() {
     using namespace BNM; // You can use namespace in methods
