@@ -1,29 +1,29 @@
 ## ByNameModding
-#### [English](https://github.com/ByNameModding/BNM-Android/tree/master) | Русский
-ByNameModding - это библиотека для моддинга Unity-игр по именам классов, методов, полей. Данная редакция ориентирована на работу на Android с il2cpp. Библиотека включает в себя все, что вам нужно для моддинга игр на Unity.<br>
-Требуется минимум С++14.
+#### English | [Русский](https://github.com/ByNameModding/BNM-Android/tree/RU-master)
+ByNameModding is a library for modding il2cpp games by classes, methods, field names on Android. This edition is focused on working on Android with il2cpp. It includes everything you need for modding unity games.<br>
+Requires c++14 minimum.
 
-### Что можно делать с BNM?
-1. Искать всё по именам (классы, методы, поля и т. д.).
-2. Добавлять в игру ваши собственные классы, которые работают даже с AssetBundles!
-3. Изменять классы игры, добавляя в них поля и методы.
-4. Использовать обычные структуры С#, например, строки (monoString) или словари (monoDictionary), которые полностью работают.
+### What you can do with BNM?
++ Finding everything by names (classes, methods, fields ane etc.)
++ Adding your own classes to game that work even with AssetBundles!
++ Change game classes by addeding fields and methods.
++ Use basic c# structs like string (monoString), array (monoArray), dictionary (monoDictionary) that fully work.
 
-### Новые классы
-BNM может добавить ваши собственные классы в игру, для этого требуется С++17 и выше.<br>
-Если вы наследуете свой класс от MonoBehaviour (или другой любой класс с событиями), будут работать такие методы, как `Update`.<br>
-И это полностью совместимо с AssetBundles!<br>
-Для пакетов данных нужно добавить свой класс в библиотеки dll, перечисленные в ScriptingAssemblies.json.<br>
-По умолчанию BNM добавляет классы к `Assembly-CSharp.dll`, который всегда есть в этом списке.<br>
-Если вы хотите использовать свой dll с пакетами данных, добавьте dll в этот файл. Но это будет работать только в том случае, если вы используете BNM внутренне.<br>
+### New classes
+BNM can add your own class to game, it requires c++17 and above.<br>
+If you nest your class from MonoBehaviour (or other class with events) methods like `Update` will work.<br>
+And it fully computable with AssetBundles!<br>
+For bundles need add your class to dlls that listed in ScriptingAssemblies.json.<br>
+Basically BNM add classes to `Assembly-CSharp.dll` that always in this list.<br>
+If you want to use your own dll with bundles, add it to this file, but this will work only if you use BNM internally.<br>
 
-### Можно ли использовать BNM извне?
-Да, но это не проверялось. Чтобы сделать это, смотрите `BNM::External::LoadBNM`.
+### Can I use BNM externally?
+Yes, you can, but this is not tested. To do that see `BNM::External::LoadBNM`
 
-## Начало работы:
-+ сначала клонируйте репозиторий и добавьте его в свой проект;
-+ установите версию С++ на 14 или выше;
-+ добавьте [BNM.cpp](ByNameModding/BNM.cpp) в Android.mk или CMakeLists.txt:<br>
+## Getting Started
++ First clone the repo and add it to your project.
++ Set c++ version to 14 or higher
++ Add [BNM.cpp](ByNameModding/BNM.cpp) to Android.mk or CMakeLists.txt.<br>
     Android.mk
     ```mk
     LOCAL_SRC_FILES += ByNameModding/BNM.cpp
@@ -32,13 +32,13 @@ BNM может добавить ваши собственные классы в 
     ```cmake
     add_library("Your lib name" SHARED ByNameModding/BNM.cpp "...other cpp files")
     ```
-+ измените `UNITY_VER`, добавьте свой шифровщик строк и ПО для подмены методов, раскомментируйте `BNM_DOTNET35`, если игра использует .NET 3.5 в [BNM_settings.hpp](ByNameModding/BNM_settings.hpp);
-+ смотрите [Examples.cpp](Examples.cpp) или добавьте его в свой проект, чтобы понять, как работать с BNM.
++ Change `UNITY_VER`, include your string obfuscator and hooking software, uncomment `BNM_DOTNET35` if the game uses .NET 3.5 in [BNM_settings.hpp](ByNameModding/BNM_settings.hpp)
++ Done! See [Examples.cpp](Examples.cpp) or add it to your project to understand how to work with BNM.
 
-## Поддерживаемые версии Unity: 2017.x - 2022.1.x
+## Supported Unity versions: 2017.x - 2022.1.x
 
-## Зависимости
-[UTF8-CPP](https://github.com/nemtrif/utfcpp) используется в il2cpp и в BNM тоже.
-### ПО для подмены методов на Android:
-[Dobby](https://github.com/jmpews/Dobby) - рекомендуется<br>
-[Substrate](https://github.com/jbro129/Unity-Substrate-Hook-Android/tree/master/C%2B%2B/Substrate) с [And64InlineHook](https://github.com/Rprop/And64InlineHook) - может не сработать.
+## Dependencies
+[UTF8-CPP](https://github.com/nemtrif/utfcpp) used by il2cpp and by BNM too.
+### Android hookinng software for example:
+[Dobby](https://github.com/jmpews/Dobby) - recomended<br>
+[Substrate](https://github.com/jbro129/Unity-Substrate-Hook-Android/tree/master/C%2B%2B/Substrate) with [And64InlineHook](https://github.com/Rprop/And64InlineHook) - may don't work
