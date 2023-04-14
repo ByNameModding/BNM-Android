@@ -74,9 +74,11 @@ void Update(void *instance) {
         if (!setName) {
             PlayerName[myPlayer]; //! Same as PlayerName.setInstance(myPlayer); but less code
             LOGIBNM(OBFUSCATE_BNM("myPlayer old name is %s"), PlayerName()->c_str());
+
             PlayerName = BNM::CreateMonoString(OBFUSCATE_BNM("ByNameModding_Player"));
             //! Less safety but work
             // PlayerName = monoString::Create(OBFUSCATE_BNM("ByNameModding_Player"));
+
             LOGIBNM(OBFUSCATE_BNM("myPlayer new name is %s"), PlayerName()->c_str());
             setName = true;
         }
@@ -150,7 +152,7 @@ void BNM::BNM_ExampleClass::Update() {
     Frames++;
     if (Frames == 11) Frames = 0;
 }
-void *MyGameObject = nullptr;
+[[maybe_unused]] void *MyGameObject = nullptr;
 //! Create new object
 BNM::LoadClass GameObject;
 BNM::Method AddComponent;
@@ -167,6 +169,7 @@ void FPS$$ctor(void *instance) {
     old_FPS$$ctor(instance);
     // Do sth
 }
+
 namespace ClassModify {
     /*
     public class SeceretDataClass : SecretMonoBehaviour {
@@ -183,7 +186,7 @@ namespace ClassModify {
 
         static void* StaticDataField;
         void* DataField;
-        static void StaticMethod(void *p) {}
+        static void StaticMethod([[maybe_unused]] void *p) {}
         void Start() {
             // Get data of myBankPassword
             LOGIBNM("SeceretDataClass myBankPassword: %s",
@@ -221,12 +224,17 @@ namespace ClassModify {
         LOGIBNM("[SeceretDataClass, 0x%X] Offset of DataField: 0x%X", (BNM::BNM_PTR)this, BNMModField_DataField.offset);
     }
 }
+
+
 void hack_thread() {
     using namespace BNM; // You can use namespace in methods
-    do {
+
+    /*do { // Need only for std::thread
         usleep(1);
-    } while (!Il2cppLoaded());
-    AttachIl2Cpp(); // Stabilization
+    } while (!Il2cppLoaded());*/
+
+    // Preferably for std::thread, but not necessarily
+    // AttachIl2Cpp(); // Stabilization
 
     //! Create GameObject and add new class to it and get your own update and other methods
     //! New classes work with AssetBundles too!
@@ -284,7 +292,8 @@ void hack_thread() {
     auto HatManager_c = HatManager.GetInnerClass(OBFUSCATE_BNM("<>c"));
     LOGIBNM("HatManager_c ptr: %p", HatManager_c.GetIl2CppClass());
 
-    DetachIl2Cpp(); // Stabilization
+    // Preferably for std::thread, but not necessarily
+    // DetachIl2Cpp(); // Stabilization
 }
 
 // BNM::HardBypass example
@@ -299,5 +308,9 @@ JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
 #include <thread>
 [[maybe_unused]] __attribute__((constructor))
 void lib_main() {
-    std::thread(hack_thread).detach();
+    // Starting immediately after il2cpp is loaded from its thread
+    BNM::AddOnLoadedEvent(hack_thread);
+
+    // You can use std::thread
+    // std::thread(hack_thread).detach();
 }

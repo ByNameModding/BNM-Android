@@ -77,12 +77,14 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 
 // #define BNM_DOTNET35
 
-
 // If you need hide dl calls or use custom dl for external BNM initialization
 #define BNM_dlopen dlopen
 #define BNM_dlsym dlsym
 #define BNM_dlclose dlclose
 #define BNM_dladdr dladdr
+
+#include <thread>
+#define BNM_thread std::thread
 
 // Disabling BNM automatic loading when your lib loaded
 // Define it when you using BNM::HardBypass to speed up loading or when you externally loading BNM
@@ -93,31 +95,28 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 // #define BNM_USE_APPDOMAIN // Use System.AppDomain to find il2cpp::vm::Assembly::GetAllAssemblies
 /********** USER AREA **************/
 
-
-#ifdef _WIN32
-#define _CRT_SECURE_NO_WARNINGS // If you want try port for windows
-#endif
+#include <android/log.h>
 
 #ifdef BNM_INFO
 #define LOGIBNM(...) ((void)__android_log_print(4,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGIBNM(...)
+#define LOGIBNM(...) ((void)0)
 #endif
 
 #ifdef BNM_DEBUG
 #define LOGDBNM(...) ((void)__android_log_print(3,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGDBNM(...)
+#define LOGDBNM(...) ((void)0)
 #endif
 
 #ifdef BNM_ERROR
 #define LOGEBNM(...) ((void)__android_log_print(6,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGEBNM(...)
+#define LOGEBNM(...) ((void)0)
 #endif
 
 #ifdef BNM_WARNING
 #define LOGWBNM(...) ((void)__android_log_print(5,  BNMTAG, __VA_ARGS__))
 #else
-#define LOGWBNM(...)
+#define LOGWBNM(...) ((void)0)
 #endif
