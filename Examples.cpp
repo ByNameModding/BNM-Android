@@ -76,11 +76,11 @@ void Update(void *instance) {
         if (!setName) {
             PlayerName[myPlayer]; //! То же самое, что и PlayerName.setInstance(myPlayer); 
             LOGIBNM(OBFUSCATE_BNM("Старое имя myPlayer: %s"), PlayerName()->c_str());
-            
+
             PlayerName = BNM::CreateMonoString(OBFUSCATE_BNM("ByNameModding_Игрок"));
             //! Опаснее, но работает
             // PlayerName = monoString::Create(OBFUSCATE_BNM("ByNameModding_Игрок"));
-            
+
             LOGIBNM(OBFUSCATE_BNM("Новое имя myPlayer: %s"), PlayerName()->c_str());
             setName = true;
         }
@@ -158,7 +158,7 @@ void BNM::BNM_ExampleClass::Update() {
     Frames++;
     if (Frames == 11) Frames = 0;
 }
-void *MyGameObject = nullptr;
+[[maybe_unused]] void *MyGameObject = nullptr;
 //! Создать новый объект
 BNM::LoadClass GameObject;
 BNM::Method AddComponent;
@@ -195,7 +195,7 @@ namespace ClassModify {
 
         static void* StaticDataField;
         void* DataField;
-        static void StaticMethod(void *p) {}
+        static void StaticMethod([[maybe_unused]] void *p) {}
         void Start() {
             // Получить строку из поля myBankPassword
             LOGIBNM("SeceretDataClass myBankPassword: %s",
@@ -237,10 +237,13 @@ namespace ClassModify {
 
 void hack_thread() {
     using namespace BNM; // Чтобы не писать BNM:: в этом методе
-    do {
+
+    /*do { // Нужно только для std::thread
         usleep(1);
-    } while (!Il2cppLoaded());
-    AttachIl2Cpp(); // Стабилизация
+    } while (!Il2cppLoaded());*/
+
+    // Желательно для std::thread, но не обязательно
+    // AttachIl2Cpp(); // Стабилизация
 
     //! Создать GameObject и добавить новый класс к нему, и тем самым получить личный Update и остальные методы.
     //! Новые классы работают с AssetBundles!
@@ -298,7 +301,8 @@ void hack_thread() {
     auto HatManager_c = HatManager.GetInnerClass(OBFUSCATE_BNM("<>c"));
     LOGIBNM("HatManager_c указатель: %p", HatManager_c.GetIl2CppClass());
 
-    DetachIl2Cpp(); // Стабилизация
+    // Желательно для std::thread, но не обязательно
+    // DetachIl2Cpp(); // Стабилизация
 }
 
 // Пример использования BNM::HardBypass
@@ -314,5 +318,9 @@ JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
 #include <thread>
 [[maybe_unused]] __attribute__((constructor))
 void lib_main() {
-    std::thread(hack_thread).detach();
+    // Запуск сразу после того как il2cpp загрузится из его потока
+    BNM::AddOnLoadedEvent(hack_thread);
+
+    // Можно использовать std::thread
+    // std::thread(hack_thread).detach();
 }

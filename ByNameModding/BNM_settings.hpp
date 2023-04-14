@@ -83,6 +83,9 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 #define BNM_dlclose dlclose
 #define BNM_dladdr dladdr
 
+#include <thread>
+#define BNM_thread std::thread
+
 // Отключение автоматической загрузки BNM при загрузке вашей библиотеки
 // Раскоментируйте его, когда вы используете BNM::HardBypass для ускорения скорсти загрузки или когда вы загружаете BNM извне
 // #define BNM_DISABLE_AUTO_LOAD
@@ -92,6 +95,7 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 // #define BNM_USE_APPDOMAIN // Использовать System.AppDomain для получения il2cpp::vm::Assembly::GetAllAssemblies
 /********** ОБЛАСТЬ ПОЛЬЗОВАТЕЛЯ **************/
 
+#include <android/log.h>
 
 #ifdef BNM_INFO
 #define LOGIBNM(...) ((void)__android_log_print(4,  BNMTAG, __VA_ARGS__))

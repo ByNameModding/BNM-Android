@@ -1,3 +1,6 @@
+#include <list>
+#include <codecvt>
+#include <shared_mutex>
 #include "BNM.hpp"
 #include "BNM_data/utf8.h"
 
@@ -12,16 +15,22 @@ namespace BNM_Internal {
     static const char *LibAbsolutePath{};
     static BNM_PTR LibAbsoluteAddress{};
     static bool HasImageGetCls = false;
+    static std::shared_mutex classesFindAccess{}, findClasses{};
+    static std::mutex addClass{}, modClass{};
+    static std::list<void(*)()> onIl2CppLoaded{};
+
+    std::list<void(*)()> &GetEvents() { return onIl2CppLoaded; }
+
 
     // Методы для новых классов и для обычного режима
     AssemblyVector *(*Assembly$$GetAllAssemblies)(){};
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
 
     // Список со всеми новыми классами, которые BNM должен загрузить
-    static std::vector<NEW_CLASSES::NewClass *> *classes4Add{};
+    static std::vector<NEW_CLASSES::NewClass *> *classes4Add = nullptr;
 
     // Список со всеми классами, которые BNM должен изменить
-    static std::vector<MODIFY_CLASSES::TargetClass *> *classes4Mod{};
+    static std::vector<MODIFY_CLASSES::TargetClass *> *classes4Mod = nullptr;
 
     // Конструктор, который вызывает базовый конструктор (.ctor)
     void DefaultConstructor(IL2CPP::Il2CppObject* instance) {
@@ -87,26 +96,27 @@ namespace BNM_Internal {
         return utf16String;
     }
 }
+
+// Безопасно конвертировать std::string в const char *
+char *str2char(const std::string &str) {
+    size_t size = str.end() - str.begin();
+    if (str.c_str()[size]) {
+        auto c = (char *)malloc(size);
+        std::copy(str.begin(), str.end(), c);
+        c[size] = 0;
+        return c;
+    }
+    return (char *)str.c_str();
+}
+
 namespace BNM {
     // Получить/Установить внутренние данные
     bool Il2cppLoaded() { return BNM_Internal::LibLoaded; }
 
-    // Безопасно конвертировать std::string в const char *
-    char *str2char(const std::string &str) {
-        size_t size = str.end() - str.begin();
-        if (str.c_str()[size]) {
-            auto c = (char *)malloc(size);
-            std::copy(str.begin(), str.end(), c);
-            c[size] = 0;
-            return c;
-        }
-        return (char *)str.c_str();
-    }
-
     namespace MONO_STRUCTS {
         std::string monoString::get_string() {
             if (!this) return OBFUSCATE_BNM("ОШИБКА: monoString мёртв");
-            if (!isAllocated(chars)) return OBFUSCATE_BNM("ОШИБКА: символы строки мертвы");
+            if (!IsAllocated(chars)) return OBFUSCATE_BNM("ОШИБКА: символы строки мертвы");
             if (!length) return OBFUSCATE_BNM("");
             return BNM_Internal::Utf16ToUtf8(chars, length);
         }
@@ -117,14 +127,14 @@ namespace BNM {
 
         std::string monoString::get_string_old() {
             if (!this) return OBFUSCATE_BNM("ОШИБКА: monoString мёртв");
-            if (!isAllocated(chars)) return OBFUSCATE_BNM("ОШИБКА: символы строки мертвы");
+            if (!IsAllocated(chars)) return OBFUSCATE_BNM("ОШИБКА: символы строки мертвы");
             if (!length) return OBFUSCATE_BNM("");
             return std::wstring_convert<std::codecvt_utf8<IL2CPP::Il2CppChar>, IL2CPP::Il2CppChar>().to_bytes((IL2CPP::Il2CppChar *)chars);
         }
         [[maybe_unused]] std::string monoString::strO() { return get_string_old(); }
 
         [[maybe_unused]] unsigned int monoString::getHash() {
-            if (!this || !isAllocated(chars)) return 0;
+            if (!this || !IsAllocated(chars)) return 0;
             IL2CPP::Il2CppChar *p = chars;
             unsigned int h = 0;
             for (int i = 0; i < length; ++i)
@@ -583,9 +593,12 @@ namespace BNM {
     /*** RuntimeTypeGetter ***/
     LoadClass RuntimeTypeGetter::ToLC() {
         if (!loadedClass.klass) {
-            if (!name) return {};
+            if (!name) {
+                namespaze = OBFUSCATE("System");
+                name = OBFUSCATE("Object");
+            }
             loadedClass = LoadClass(namespaze, name);
-            if (isArray) loadedClass = LoadClass(loadedClass.GetArrayClass());
+            if (isArray) loadedClass = loadedClass.GetArrayClass();
         }
         return loadedClass;
     }
@@ -649,7 +662,7 @@ namespace BNM {
     }
     [[maybe_unused]] monoString *CreateMonoString(const std::string &str) { return CreateMonoString(str2char(str)); }
 
-    void *getExternMethod(const std::string &str) {
+    void *GetExternMethod(const std::string &str) {
         DO_API(void *, il2cpp_resolve_icall, (const char *));
         auto c_str = str2char(str);
         auto ret = il2cpp_resolve_icall(c_str);
@@ -837,14 +850,6 @@ namespace BNM {
         AddableMethod::AddableMethod() noexcept = default;
         AddableField::AddableField() noexcept = default;
 
-        void TargetClass::AddField(AddableField *field) {
-            fields4Add.push_back(field); // Добавить поле
-        }
-
-        void TargetClass::AddMethod(AddableMethod *method) {
-            methods4Add.push_back(method); // Добавить метод
-        }
-
         void AddTargetClass(TargetClass *klass) {
             if (!BNM_Internal::classes4Mod)
                 BNM_Internal::classes4Mod = new std::vector<TargetClass *>();
@@ -858,14 +863,6 @@ namespace BNM {
         NewMethod::NewMethod() noexcept = default;
         NewField::NewField() noexcept = default;
         NewClass::NewClass() noexcept = default;
-
-        void NewClass::AddNewField(NewField *field) {
-            fields4Add.push_back(field); // Добавить поле
-        }
-
-        void NewClass::AddNewMethod(NewMethod *method) {
-            methods4Add.push_back(method); // Добавить метод
-        }
 
         void AddNewClass(NewClass *klass) {
             if (!BNM_Internal::classes4Add)
@@ -913,6 +910,14 @@ namespace BNM {
             BNM_Internal::LibLoaded = true; // Установить LibLoaded в значение "истина"
         }
     }
+    
+    void AddOnLoadedEvent(void (*event)()) {
+        if (event) BNM_Internal::onIl2CppLoaded.push_back(event);
+    }
+    
+    void ClearOnLoadedEvents() {
+        BNM_Internal::onIl2CppLoaded.clear();
+    }
 }
 namespace BNM_Internal {
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
@@ -923,14 +928,17 @@ namespace BNM_Internal {
             return addClass((BNM_PTR)image, cls);
         }
         void addClass(BNM_PTR image, IL2CPP::Il2CppClass *cls) {
+            std::shared_lock lock(classesFindAccess);
             map[image].emplace_back(cls);
         }
 
         // Перебрать все классы, добавленные к образу
         void forEachByImage(IL2CPP::Il2CppImage *image, const std::function<bool(IL2CPP::Il2CppClass *)> &func) {
+            std::shared_lock lock(classesFindAccess);
             return forEachByImage((BNM_PTR)image, func);
         }
         void forEachByImage(BNM_PTR image, const std::function<bool(IL2CPP::Il2CppClass *)> &func) {
+            std::shared_lock lock(classesFindAccess);
             if (map[image].empty()) return;
             for (auto &item: map[image]) {
                 if (func(item))
@@ -940,6 +948,7 @@ namespace BNM_Internal {
 
         // Перебрать все образы с их классами
         void forEach(const std::function<bool(IL2CPP::Il2CppImage *, std::vector<IL2CPP::Il2CppClass *>)> &func) {
+            std::shared_lock lock(classesFindAccess);
             for (auto [img, classes] : map) {
                 if (func((IL2CPP::Il2CppImage *)img, classes))
                     break;
@@ -960,14 +969,14 @@ namespace BNM_Internal {
         // Создать имя без .dll
         auto dllName = cls->GetDllName();
         auto nameLen = strlen(dllName) + 1;
-        newImg->nameNoExt = new char[nameLen];
+        newImg->nameNoExt = (char *) malloc(sizeof(char) * nameLen);
         memset((void *)newImg->nameNoExt, 0, nameLen);
         strcpy((char *)newImg->nameNoExt, dllName);
 
 
         // Создать имя с .dll
         auto extLen = nameLen + 4;
-        newImg->name = new char[extLen];
+        newImg->name = (char *) malloc(sizeof(char) * extLen);
         memset((void *)newImg->name, 0, extLen);
         strcpy((char *)newImg->name, dllName);
         strcat((char *)newImg->name, OBFUSCATE_BNM(".dll"));
@@ -1120,21 +1129,26 @@ namespace BNM_Internal {
     }
 #endif
     void ModifyClasses() {
-        if (!classes4Mod) return;
+        std::lock_guard lock(modClass);
+        if (classes4Mod == nullptr) return;
         for (auto& klass : *classes4Mod) {
             auto lc = klass->GetTargetType().ToLC();
+            auto fields4Add = klass->GetFields();
+            auto methods4Add = klass->GetMethods();
+
             if (!lc) {
-                LOGWBNM("[ModifyClasses] Не удалось добавить %d методов и %d полей к классу.", klass->methods4Add.size(), klass->fields4Add.size());
+                LOGWBNM("[ModifyClasses] Не удалось добавить %d методов и %d полей к классу.", methods4Add.size(), fields4Add.size());
                 continue;
             }
 
             auto cls = lc.GetIl2CppClass();
-            auto newMethodsCount = klass->methods4Add.size();
-            auto newFieldsCount = klass->fields4Add.size();
+            auto newMethodsCount = methods4Add.size();
+            auto newFieldsCount = fields4Add.size();
+            auto targetModifier = klass->GetTargetModifier();
 
             // Заменить родителя, если нужно
-            if (klass->targetModifier->newParentGetter)
-                cls->parent = klass->targetModifier->newParentGetter().ToIl2CppClass();
+            if (targetModifier.newParentGetter)
+                cls->parent = targetModifier.newParentGetter().ToIl2CppClass();
 
             if (newMethodsCount) {
                 auto oldCount = cls->method_count;
@@ -1148,7 +1162,7 @@ namespace BNM_Internal {
 
                 // Создать и добавить все методы
                 for (size_t i = 0; i < newMethodsCount; ++i, ++oldCount) {
-                    auto &method = klass->methods4Add[i];
+                    auto &method = methods4Add[i];
 
                     // Создать новый MethodInfo
                     method->myInfo = BNM_I2C_NEW(MethodInfo);
@@ -1165,7 +1179,7 @@ namespace BNM_Internal {
                     // Создать имя метода
                     auto name = method->GetName();
                     auto len = strlen(name) + 1;
-                    method->myInfo->name = new char[len];
+                    method->myInfo->name = (char *) malloc(sizeof(char) * len);
                     memset((void *)method->myInfo->name, 0, len);
                     strcpy((char *)method->myInfo->name, name);
 
@@ -1197,7 +1211,7 @@ namespace BNM_Internal {
                             len = (OBFUSCATES_BNM("аргумент") + std::to_string(p)).size();
 
                             // Создать имя
-                            newParam->name = new char[len + 1];
+                            newParam->name = (char *) malloc(sizeof(char) * len + 1);
                             memset((void *)newParam->name, 0, len + 1);
                             strcat((char *)newParam->name, OBFUSCATE_BNM("аргумент")); // Первод чтобы был
                             strcpy((char *)newParam->name, std::to_string(p).c_str());
@@ -1249,7 +1263,7 @@ namespace BNM_Internal {
                 }
 
                 // Очистить methods4Add
-                klass->methods4Add.clear(); klass->methods4Add.shrink_to_fit();
+                methods4Add.clear(); methods4Add.shrink_to_fit();
 
                 // Заменить список методов
                 cls->methods = (const IL2CPP::MethodInfo **)newMethods;
@@ -1275,11 +1289,11 @@ namespace BNM_Internal {
 
                 // Получить первое поле
                 IL2CPP::FieldInfo *newField = newFields + oldCount;
-                for (auto &field : klass->fields4Add) {
+                for (auto &field : fields4Add) {
                     // Создать имя
                     auto name = field->GetName();
                     auto len = strlen(name);
-                    newField->name = new char[len];
+                    newField->name = (char *) malloc(sizeof(char) * len);
                     memset((void *)newField->name, 0, len);
                     strcpy((char *)newField->name, name);
 
@@ -1318,7 +1332,7 @@ namespace BNM_Internal {
                 }
 
                 // Очистить fields4Add
-                klass->fields4Add.clear(); klass->fields4Add.shrink_to_fit();
+                fields4Add.clear(); fields4Add.shrink_to_fit();
 
                 // Заменить список полей
                 cls->fields = newFields;
@@ -1353,7 +1367,9 @@ namespace BNM_Internal {
         delete classes4Mod;
         classes4Mod = nullptr;
     }
+
     void InitNewClasses() {
+        std::lock_guard lock(addClass);
         if (!classes4Add) return;
         for (auto& klass : *classes4Add) {
             IL2CPP::Il2CppImage *curImg = nullptr;
@@ -1415,7 +1431,6 @@ namespace BNM_Internal {
                 }
             }
 
-
             // Создать типы для новых классов
             auto typeByVal = BNM_I2C_NEW(Il2CppType);
             memset(typeByVal, 0, sizeof(IL2CPP::Il2CppType));
@@ -1454,19 +1469,20 @@ namespace BNM_Internal {
 
             // Создать все новые методы
             const IL2CPP::MethodInfo **methods = nullptr;
-            if (!klass->methods4Add.empty()) {
+            auto methods4Add = klass->GetMethods();
+            if (!methods4Add.empty()) {
                 // Проверить, нужно ли добавлять обычный конструктор в класс
                 // Обычный конструктор вызывается в il2cpp::vm::Runtime::ObjectInitException
-                bool needDefaultConstructor = std::none_of(klass->methods4Add.begin(), klass->methods4Add.end(), [](NEW_CLASSES::NewMethod *met) {
+                bool needDefaultConstructor = std::none_of(methods4Add.begin(), methods4Add.end(), [](NEW_CLASSES::NewMethod *met) {
                     return !strcmp(met->GetName(), OBFUSCATE_BNM(".ctor")) && met->GetArgsCount() == 0;
                 });
 
                 // Создать маcсив методов
-                methods = (const IL2CPP::MethodInfo **) calloc(klass->methods4Add.size() + needDefaultConstructor, sizeof(IL2CPP::MethodInfo *));
+                methods = (const IL2CPP::MethodInfo **) calloc(methods4Add.size() + needDefaultConstructor, sizeof(IL2CPP::MethodInfo *));
 
                 // Создать все методы
-                for (int i = 0; i < klass->methods4Add.size(); ++i) {
-                    auto &method = klass->methods4Add[i];
+                for (int i = 0; i < methods4Add.size(); ++i) {
+                    auto &method = methods4Add[i];
                     // Создать новый MethodInfo
                     method->myInfo = BNM_I2C_NEW(MethodInfo);
 
@@ -1482,7 +1498,7 @@ namespace BNM_Internal {
                     // Создать имя метода
                     auto name = method->GetName();
                     auto len = strlen(name) + 1;
-                    method->myInfo->name = new char[len];
+                    method->myInfo->name = (char *) malloc(sizeof(char) * len);
                     memset((void *)method->myInfo->name, 0, len);
                     strcpy((char *)method->myInfo->name, name);
 
@@ -1514,7 +1530,7 @@ namespace BNM_Internal {
                             len = (OBFUSCATES_BNM("аргумент") + std::to_string(p)).size();
 
                             // Создать имя
-                            newParam->name = new char[len + 1];
+                            newParam->name = (char *) malloc(sizeof(char) * len + 1);
                             memset((void *)newParam->name, 0, len + 1);
                             strcat((char *)newParam->name, OBFUSCATE_BNM("аргумент")); // Первод чтобы был
                             strcpy((char *)newParam->name, std::to_string(p).c_str());
@@ -1567,7 +1583,7 @@ namespace BNM_Internal {
                 // Создать обычный конструктор
                 if (needDefaultConstructor) {
                     auto method = BNM_I2C_NEW(MethodInfo);
-                    method->name = new char[6];
+                    method->name = (char *) malloc(sizeof(char) * 6);
                     memset((void *)method->name, 0, 6);
                     strcpy((char *)method->name, OBFUSCATE_BNM(".ctor"));
                     method->parameters_count = 0;
@@ -1577,7 +1593,7 @@ namespace BNM_Internal {
                     method->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
                     method->methodPointer = (IL2CPP::Il2CppMethodPointer) DefaultConstructor;
                     method->invoker_method = (IL2CPP::InvokerMethod) DefaultConstructorInvoke;
-                    methods[klass->methods4Add.size()] = method;
+                    methods[methods4Add.size()] = method;
                 }
             }
 #if UNITY_VER > 174
@@ -1593,19 +1609,19 @@ namespace BNM_Internal {
             memset(klass->myClass, 0, sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
 
             // Установить методы, если они существуют
-            if (!klass->methods4Add.empty()) {
+            if (!methods4Add.empty()) {
                 // Установить новый созданный класс
-                for (int i = 0; i < klass->methods4Add.size(); ++i)
+                for (int i = 0; i < methods4Add.size(); ++i)
                     ((IL2CPP::MethodInfo *)methods[i])->kls = klass->myClass;
 
                 // Установить кол-во методов
-                klass->myClass->method_count = klass->methods4Add.size();
+                klass->myClass->method_count = methods4Add.size();
 
                 // Установить массив методов
                 klass->myClass->methods = methods;
 
                 // Очистить methods4Add
-                klass->methods4Add.clear(); klass->methods4Add.shrink_to_fit();
+                methods4Add.clear(); methods4Add.shrink_to_fit();
             } else {
                 klass->myClass->method_count = 0;
                 klass->myClass->methods = nullptr;
@@ -1613,26 +1629,27 @@ namespace BNM_Internal {
             // Установить родителя
             klass->myClass->parent = parent;
 
+            auto fields4Add = klass->GetFields();
             // Создать поля
-            klass->myClass->field_count = klass->fields4Add.size();
+            klass->myClass->field_count = fields4Add.size();
             if (klass->myClass->field_count > 0) {
                 // Создать список полей
                 auto fields = (IL2CPP::FieldInfo *)calloc(klass->myClass->field_count, sizeof(IL2CPP::FieldInfo));
 
                 // Получить первое поле
                 IL2CPP::FieldInfo *newField = fields;
-                if (!klass->fields4Add.empty()) {
+                if (!fields4Add.empty()) {
 
                     // Сортировка для получения правильного порядка статичексих полей
-                    std::sort(klass->fields4Add.begin(), klass->fields4Add.end(), [](NEW_CLASSES::NewField *&lhs, NEW_CLASSES::NewField *&rhs){
+                    std::sort(fields4Add.begin(), fields4Add.end(), [](NEW_CLASSES::NewField *&lhs, NEW_CLASSES::NewField *&rhs){
                         return lhs->GetCppOffset() < rhs->GetCppOffset();
                     });
 
-                    for (auto &field : klass->fields4Add) {
+                    for (auto &field : fields4Add) {
                         // Создать имя
                         auto name = field->GetName();
                         auto len = strlen(name);
-                        newField->name = new char[len];
+                        newField->name = (char *) malloc(sizeof(char) * len);
                         memset((void *)newField->name, 0, len);
                         strcpy((char *)newField->name, name);
 
@@ -1640,7 +1657,7 @@ namespace BNM_Internal {
                         newField->type = BNM_I2C_NEW(Il2CppType, *field->GetType().ToIl2CppType());
 
                         // Добавить флаги видимости
-                        ((IL2CPP::Il2CppType*)newField->type)->attrs |= field->GetAttributes(); // PUBLIC и STATIC, если ститическое
+                        ((IL2CPP::Il2CppType*)newField->type)->attrs |= field->GetAttributes(); // PUBLIC (и STATIC, если ститическое)
 
                         // Создать знак (token)
                         newField->token = newField->type->attrs;
@@ -1653,13 +1670,13 @@ namespace BNM_Internal {
                             newField->offset = field->GetOffset();
                         } else {
                             auto cppOffset = field->GetCppOffset();
-                            
+
                             // Установить staticFieldsAddress, если не установлен
                             if (!klass->staticFieldsAddress) klass->staticFieldsAddress = cppOffset;
-                            
+
                             // Установить адрес поля
                             newField->offset = klass->staticFieldOffset;
-                            
+
                             // Получить следующий адрес
                             klass->staticFieldOffset += field->GetSize();
                         }
@@ -1671,7 +1688,7 @@ namespace BNM_Internal {
                         newField++;
                     }
                     // Очистить fields4Add
-                    klass->fields4Add.clear(); klass->fields4Add.shrink_to_fit();
+                    fields4Add.clear(); fields4Add.shrink_to_fit();
 
                     // Установить staticFieldsAddress
                     klass->myClass->static_fields = (void *)klass->staticFieldsAddress;
@@ -1697,13 +1714,13 @@ namespace BNM_Internal {
 
             // Создать имя
             auto len = strlen(className) + 1;
-            klass->myClass->name = new char[len];
+            klass->myClass->name = (char *) malloc(sizeof(char) * len);
             memset((void *)klass->myClass->name, 0, len);
             strcpy((char *)klass->myClass->name, className);
 
             // Создать имя пространства имён
             len = strlen(classNamespace) + 1;
-            klass->myClass->namespaze = new char[len];
+            klass->myClass->namespaze = (char *) malloc(sizeof(char) * len);
             memset((void *)klass->myClass->namespaze, 0, len);
             strcpy((char *)klass->myClass->namespaze, classNamespace);
 
@@ -1824,9 +1841,11 @@ namespace BNM_Internal {
     }
 #endif
     void Image$$GetTypes(IL2CPP::Il2CppImage *image, bool, ClassVector *target) {
-        // Проверьте образ и цель (target)
+        std::shared_lock lock(findClasses);
+        
+        // Проверить образ и цель (target)
         if (!image || !target) return;
-
+        
         // Получить не BNM-классы
         if (image->nameToClassHashTable != (decltype(image->nameToClassHashTable))-0x424e4d) {
             if (HasImageGetCls) {
@@ -1896,7 +1915,7 @@ namespace BNM_Internal {
 #if UNITY_VER >= 211
                     = count;
 #elif UNITY_VER > 174
-                    = count + 1;
+            = count + 1;
 #else
             = count + 2;
 #endif
@@ -2001,24 +2020,30 @@ namespace BNM_Internal {
     void BNM_il2cpp_init(const char *domain_name) {
         old_BNM_il2cpp_init(domain_name);
 
+
         InitIl2cppMethods(); // Найти некоторые методы и подменить их
 #if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
-        InitNewClasses();  // Создать новые классы и добавить их в il2cpp
+        InitNewClasses(); // Создать новые классы и добавить их в il2cpp
         ModifyClasses(); // Изменить существующие классы
 #endif
         LibLoaded = true; // Установить LibLoaded в значение "истина"
+
+        // Вызвать все события после загрузки il2cpp
+        auto events = GetEvents();
+        for (auto event : events) if (event) event();
+        events.clear();
     }
+
 #ifndef BNM_DISABLE_AUTO_LOAD
     [[maybe_unused]] __attribute__((constructor))
     void PrepareBNM() {
-
         // Попробовать получить libil2cpp.so во время загрузки библиотеки
         auto lib = BNM_dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
         if (InitDlLib(lib)) return;
         else BNM_dlclose(lib);
 
         // Попробовать получить libil2cpp.so на фоне
-        std::thread([]() {
+        BNM_thread loader([]() {
             do {
                 if (hardBypass) break;
                 auto lib = BNM_dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
@@ -2040,7 +2065,7 @@ namespace BNM_Internal {
             // Информация о библиотеке
             if (!path) {
                 auto l = strlen(info.dli_fname) + 1;
-                auto s = new char[l];
+                auto s = (char *) malloc(sizeof(char) * l);
                 memset((void *)s, 0, l);
                 strcpy(s, info.dli_fname);
                 LibAbsolutePath = s;

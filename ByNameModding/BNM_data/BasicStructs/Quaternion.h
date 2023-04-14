@@ -1,6 +1,7 @@
 #pragma once
 #define SMALL_FLOAT 0.0000000001
-#define Deg2Rad (2.f * M_PI / 360.f)
+#define PI 3.14159265358979323846264338327950288419716939937510
+#define Deg2Rad (2.f * PI / 360.f)
 #define Rad2Deg (1.f / Deg2Rad)
 #include <string>
 #include "Vector3.h"
@@ -187,44 +188,33 @@ Quaternion Quaternion::FromEuler(float roll, float pitch, float yaw, bool fromDe
         pitch *= Deg2Rad;
         yaw *= Deg2Rad;
     }
-    double cr = cos((double)roll * 0.5);
-    double sr = sin((double)roll * 0.5);
-    double cp = cos((double)pitch * 0.5);
-    double sp = sin((double)pitch * 0.5);
-    double cy = cos((double)yaw * 0.5);
-    double sy = sin((double)yaw * 0.5);
-
+    auto cr = cosf(roll * 0.5);
+    auto sr = sinf(roll * 0.5);
+    auto cp = cosf(pitch * 0.5);
+    auto sp = sinf(pitch * 0.5);
+    auto cy = cosf(yaw * 0.5);
+    auto sy = sinf(yaw * 0.5);
     Quaternion q;
-    q.w = cr * cp * cy + sr * sp * sy;
-    q.x = sr * cp * cy - cr * sp * sy;
-    q.y = cr * sp * cy + sr * cp * sy;
-    q.z = cr * cp * sy - sr * sp * cy;
+    q.x = cy * sp * sr + cp * cr * sy;
+    q.y = cy * cr * sp - cp * sy * sr;
+    q.z = cy * cp * sr - cr * sy * sp;
+    q.w = sy * sp * sr + cy * cp * cr;
 
     return q;
 }
 Vector3 Quaternion::ToEuler(Quaternion q, bool toDeg) {
-    auto singularity_test = q.y * q.z - q.x * q.w;
-    auto Z1 = 2.0f * (q.x * q.y + q.z * q.w);
-    auto Z2 = q.y * q.y - q.z * q.z - q.x * q.x + q.w * q.w;
-    auto X1 = -1.0f;
-    auto X2 = 2.0f * singularity_test;
-    float Y1 = 0, Y2 = 0;
-    bool n = false;
-    const float SINGULARITY_CUTOFF = 0.499999f;
-    if (abs(singularity_test) < SINGULARITY_CUTOFF) {
-        Y1 = 2.0f * (q.x * q.z + q.y * q.w);
-        Y2 = q.z * q.z - q.x * q.x - q.y * q.y + q.w * q.w;
-    } else {
-        float a, b, c, e;
-        a = q.x * q.y + q.z * q.w;
-        b = -(q.y * q.z) + q.x * q.w;
-        c = q.x * q.y - q.z * q.w;
-        e = q.y * q.z + q.x * q.w;
-        Y1 = a * e + b * c;
-        Y2 = b * e - a * c;
-        n = true;
-    }
-    Vector3 v {X1 * asinf(std::clamp(X2, -1.f, 1.f)), atan2f(Y1, Y2), n ? 0 : atan2f(Z1, Z2)};
+    float sqw = q.w * q.w;
+    float sqx = q.x * q.x;
+    float sqy = q.y * q.y;
+    float sqz = q.z * q.z;
+    float unit = (sqx + sqy + sqz + sqw) * 0.4995f;
+    float test = q.x * q.w - q.y * q.z;
+    Vector3 v;
+    if (test > unit) return {2 * atan2f(q.y, q.x), M_PI_2, 0};
+    if (test < -unit) return {-2 * atan2f(q.y, q.x), -M_PI_2, 0};
+    v.Rot.Unity.pitch = atan2f(2 * q.w * q.y + 2 * q.z * q.x, 1 - 2 * (q.x * q.x + q.y * q.y));
+    v.Rot.Unity.roll = asinf(2 * (q.w * q.x - q.y * q.z));
+    v.Rot.Unity.yaw = atan2f(2 * q.w * q.z + 2 * q.x * q.y, 1 - 2 * (q.z * q.z + q.x * q.x));
     if (toDeg) v *= Rad2Deg;
     return v;
 }

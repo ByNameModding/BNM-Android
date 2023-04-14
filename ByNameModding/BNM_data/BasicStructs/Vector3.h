@@ -14,11 +14,11 @@ struct Vector3 {
             } UE4;
             struct {
                 // Z axis
-                float yaw{};
-                // X axis
                 float roll{};
-                // Y axis
+                // X axis
                 float pitch{};
+                // Y axis
+                float yaw{};
             } Unity;
         } Rot;
         float data[3];
