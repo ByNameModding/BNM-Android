@@ -801,7 +801,6 @@ namespace BNM {
             virtual const char *GetName() = 0;
             virtual int GetSize() = 0;
             virtual RuntimeTypeGetter GetType() = 0;
-            virtual bool IsStatic() = 0;
         };
 
         struct TargetModifier {
@@ -849,7 +848,6 @@ namespace BNM {
             virtual unsigned int GetAttributes() = 0;
             virtual RuntimeTypeGetter GetType() = 0;
             virtual BNM_PTR GetCppOffset() = 0;
-            virtual bool IsStatic() = 0;
         };
 
         // Данные о новых классах
@@ -857,8 +855,6 @@ namespace BNM {
             NewClass() noexcept;
             IL2CPP::Il2CppClass *myClass{};
             MonoType *type{};
-            int staticFieldOffset = 0x0;
-            BNM_PTR staticFieldsAddress{};
             virtual size_t GetSize() = 0;
             virtual const char *GetName() = 0;
             virtual const char *GetNamespace() = 0;
@@ -1136,21 +1132,6 @@ namespace BNM {
         const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
         int GetSize() override { return sizeof(decltype(_name)); } \
         BNM::RuntimeTypeGetter GetType() override { return _type; } \
-        bool IsStatic() override { return false; } \
-    }; \
-    public: \
-    static inline _BNMModField_##_name BNMModField_##_name = _BNMModField_##_name()
-
-#define BNM_ModAddStaticField(_name, _type) \
-    private: \
-    struct _BNMModField_##_name : BNM::MODIFY_CLASSES::AddableField { \
-        _BNMModField_##_name() noexcept { \
-            BNMModClass.AddField(this); \
-        } \
-        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
-        int GetSize() override { return sizeof(decltype(_name)); } \
-        BNM::RuntimeTypeGetter GetType() override { return _type; } \
-        bool IsStatic() override { return true; } \
     }; \
     public: \
     static inline _BNMModField_##_name BNMModField_##_name = _BNMModField_##_name()
@@ -1216,27 +1197,9 @@ namespace BNM {
         unsigned int GetAttributes() override { return 0x0006; } \
         BNM::RuntimeTypeGetter GetType() override { return _type; } \
         BNM::BNM_PTR GetCppOffset() override { return 0; } \
-        bool IsStatic() override { return false; } \
     }; \
     public: \
     static inline _BNMField_##_name BNMField_##_name = _BNMField_##_name()
-
-#define BNM_NewStaticFieldInit(_name, _type) \
-    private: \
-    struct _BNMStaticField_##_name : BNM::NEW_CLASSES::NewField { \
-        _BNMStaticField_##_name() noexcept { \
-            BNMClass.AddNewField(this); \
-        } \
-        const char *GetName() override { return OBFUSCATE_BNM(#_name); } \
-        int GetOffset() override { return 0; } \
-        int GetSize() override { return sizeof(decltype(_name)); } \
-        unsigned int GetAttributes() override { return 0x0006 | 0x0010; } \
-        BNM::RuntimeTypeGetter GetType() override { return _type; } \
-        BNM::BNM_PTR GetCppOffset() override { return (BNM_PTR)&(_name); } \
-        bool IsStatic() override { return true; } \
-    }; \
-    public: \
-    static inline _BNMStaticField_##_name BNMStaticField_##_name = _BNMStaticField_##_name()
 
 #define BNM_NewDotCtorInit(_name, _argsCount, ...) \
     private: \

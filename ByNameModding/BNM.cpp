@@ -1309,26 +1309,18 @@ namespace BNM_Internal {
                     // Установить новый класс
                     newField->parent = cls;
 
-                    if (field->IsStatic()) {
-                        // Установить адрес
-                        field->offset = newField->offset = newStaticFieldsSize;
+                    // Установить адрес
+                    field->offset = newField->offset = currentAddress;
 
-                        // Получить адрес следующего статического поля
-                        newStaticFieldsSize += field->GetSize();
-                    } else {
-                        // Установить адрес
-                        field->offset = newField->offset = currentAddress;
-
-                        // Получить адрес следующего поля
-                        currentAddress += field->GetSize();
-                    }
+                    // Получить адрес следующего поля
+                    currentAddress += field->GetSize();
 
                     // Установить информацию
                     field->myInfo = newField;
 
                     // Следующий!
                     newField++;
-                    LOGDBNM(OBFUSCATE_BNM("[ModifyClasses] Добвалено %sполе %s к %s."), field->IsStatic() ? OBFUSCATE_BNM("статическое ") : OBFUSCATE_BNM(""), name, lc.str().c_str());
+                    LOGDBNM(OBFUSCATE_BNM("[ModifyClasses] Добвалено поле %s к %s."), name, lc.str().c_str());
                 }
 
                 // Очистить fields4Add
@@ -1639,12 +1631,6 @@ namespace BNM_Internal {
                 // Получить первое поле
                 IL2CPP::FieldInfo *newField = fields;
                 if (!fields4Add.empty()) {
-
-                    // Сортировка для получения правильного порядка статичексих полей
-                    std::sort(fields4Add.begin(), fields4Add.end(), [](NEW_CLASSES::NewField *&lhs, NEW_CLASSES::NewField *&rhs){
-                        return lhs->GetCppOffset() < rhs->GetCppOffset();
-                    });
-
                     for (auto &field : fields4Add) {
                         // Создать имя
                         auto name = field->GetName();
@@ -1665,21 +1651,8 @@ namespace BNM_Internal {
                         // Установить новый класс
                         newField->parent = klass->myClass;
 
-                        if (!field->IsStatic()) {
-                            // Установить адрес
-                            newField->offset = field->GetOffset();
-                        } else {
-                            auto cppOffset = field->GetCppOffset();
-
-                            // Установить staticFieldsAddress, если не установлен
-                            if (!klass->staticFieldsAddress) klass->staticFieldsAddress = cppOffset;
-
-                            // Установить адрес поля
-                            newField->offset = klass->staticFieldOffset;
-
-                            // Получить следующий адрес
-                            klass->staticFieldOffset += field->GetSize();
-                        }
+                        // Установить адрес
+                        newField->offset = field->GetOffset();
 
                         // Установить информацию
                         field->myInfo = newField;
@@ -1689,12 +1662,6 @@ namespace BNM_Internal {
                     }
                     // Очистить fields4Add
                     fields4Add.clear(); fields4Add.shrink_to_fit();
-
-                    // Установить staticFieldsAddress
-                    klass->myClass->static_fields = (void *)klass->staticFieldsAddress;
-
-                    // Установить staticFieldOffset
-                    klass->myClass->static_fields_size = klass->staticFieldOffset;
                 }
                 klass->myClass->fields = fields;
             } else {
