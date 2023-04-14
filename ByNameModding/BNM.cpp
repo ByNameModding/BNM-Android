@@ -1287,7 +1287,7 @@ namespace BNM_Internal {
                 for (auto &field : fields4Add) {
                     // Create name
                     auto name = field->GetName();
-                    auto len = strlen(name);
+                    auto len = strlen(name) + 1;
                     newField->name = (char *) malloc(sizeof(char) * len);
                     memset((void *)newField->name, 0, len);
                     strcpy((char *)newField->name, name);
@@ -1629,7 +1629,7 @@ namespace BNM_Internal {
                     for (auto &field : fields4Add) {
                         // Create name
                         auto name = field->GetName();
-                        auto len = strlen(name);
+                        auto len = strlen(name) + 1;
                         newField->name = (char *) malloc(sizeof(char) * len);
                         memset((void *)newField->name, 0, len);
                         strcpy((char *)newField->name, name);
