@@ -1304,26 +1304,18 @@ namespace BNM_Internal {
                     // Set new generated class
                     newField->parent = cls;
 
-                    if (field->IsStatic()) {
-                        // Set offset
-                        field->offset = newField->offset = newStaticFieldsSize;
+                    // Set offset
+                    field->offset = newField->offset = currentAddress;
 
-                        // Get next offset
-                        newStaticFieldsSize += field->GetSize();
-                    } else {
-                        // Set offset
-                        field->offset = newField->offset = currentAddress;
-
-                        // Get next offset
-                        currentAddress += field->GetSize();
-                    }
+                    // Get next offset
+                    currentAddress += field->GetSize();
 
                     // Set info
                     field->myInfo = newField;
 
                     // Next field
                     newField++;
-                    LOGDBNM(OBFUSCATE_BNM("[ModifyClasses] Added %sfield %s to %s"), field->IsStatic() ? OBFUSCATE_BNM("static ") : OBFUSCATE_BNM(""), name, lc.str().c_str());
+                    LOGDBNM(OBFUSCATE_BNM("[ModifyClasses] Added field %s to %s"), name, lc.str().c_str());
                 }
 
                 // Clear fields4Add
@@ -1634,11 +1626,6 @@ namespace BNM_Internal {
                 // Get first field
                 IL2CPP::FieldInfo *newField = fields;
                 if (!fields4Add.empty()) {
-
-                    std::sort(fields4Add.begin(), fields4Add.end(), [](NEW_CLASSES::NewField *&lhs, NEW_CLASSES::NewField *&rhs){
-                        return lhs->GetCppOffset() < rhs->GetCppOffset();
-                    });
-
                     for (auto &field : fields4Add) {
                         // Create name
                         auto name = field->GetName();
@@ -1659,21 +1646,8 @@ namespace BNM_Internal {
                         // Set new generated class
                         newField->parent = klass->myClass;
 
-                        if (!field->IsStatic()) {
-                            // Set offset
-                            newField->offset = field->GetOffset();
-						} else {
-                            auto cppOffset = field->GetCppOffset();
-                            
-                            // Set staticFieldsAddress if need
-                            if (!klass->staticFieldsAddress) klass->staticFieldsAddress = cppOffset;
-                            
-                            // Set offset
-                            newField->offset = klass->staticFieldOffset;
-                            
-                            // Get next offset
-                            klass->staticFieldOffset += field->GetSize();
-                        }
+                        // Set offset
+                        newField->offset = field->GetOffset();
 
                         // Set info
                         field->myInfo = newField;
@@ -1683,12 +1657,6 @@ namespace BNM_Internal {
                     }
                     // Clear fields4Add array
                     fields4Add.clear(); fields4Add.shrink_to_fit();
-
-                    // Set staticFieldsAddress
-                    klass->myClass->static_fields = (void *)klass->staticFieldsAddress;
-
-                    // Set staticFieldsSize
-                    klass->myClass->static_fields_size = klass->staticFieldOffset;
                 }
                 klass->myClass->fields = fields;
             } else {
