@@ -14,9 +14,11 @@
 //#define UNITY_VER 211 // 2021.1.x (Нужно установить UNITY_PATCH_VER на 24 если x (2021.1.x) равен или больше 24)
 //#define UNITY_VER 212 // 2021.2.x
 //#define UNITY_VER 213 // 2021.3.x
-//#define UNITY_VER 221 // 2022.1.x // TODO: Разобратся с 2022.2.0+
+//#define UNITY_VER 221 // 2022.1.x
+//#define UNITY_VER 222 // 2022.2.x - 2022.3.x
+//#define UNITY_VER 231 // 2023.1.x+
 
-#define UNITY_PATCH_VER 11 // Для особых случаёв 
+#define UNITY_PATCH_VER 11 // Для особых случаев
 
 // Включить устаревшие методы (если есть)
 // #define BNM_DEPRECATED
@@ -26,7 +28,7 @@
 //! Отладочный журнал
 #define BNM_DEBUG
 
-//! Информационый журнал
+//! Информационный журнал
 #define BNM_INFO
 
 //! Журнал ошибок
@@ -37,12 +39,12 @@
 
 #endif
 
-//! Добавте ваш шифровщик строк
+//! Добавьте ваш шифровщик строк
 #define OBFUSCATE_BNM(str) str // const char *
 #define OBFUSCATES_BNM(str) std::string(str) // std::string
 #define BNMTAG OBFUSCATE_BNM("ByNameModding")
 
-//! Добавте вашу утилиту для подметы методов
+//! Добавьте вашу утилиту для подмены методов
 //! Substrate MSHook with And64InlineHook 
 //!!!!!!!! Они могут не работать !!!!!!!!
 /* 
@@ -52,7 +54,8 @@
 #elif defined(__aarch64__) // arm64-v8a
 #include <And64InlineHook/And64InlineHook.hpp>
 #endif
-auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
+template<typename PTR_T, typename NEW_T, typename OLD_T>
+inline void HOOK(PTR_T ptr, NEW_T newMethod, OLD_T&& oldBytes) {
     if (ptr != 0){
 #if defined(__aarch64__)
         A64HookFunction((void *)ptr, (void *) newMethod, (void **) &oldBytes);
@@ -65,15 +68,17 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 //! DobbyHook
 //!!!!!!!! Рекомендуется !!!!!!!!
 #include <dobby.h>
-auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
+
+template<typename PTR_T, typename NEW_T, typename OLD_T>
+inline void HOOK(PTR_T ptr, NEW_T newMethod, OLD_T&& oldBytes) {
     if (((void *)ptr) != nullptr)
         DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
-};
+}
 
 // Для System.Collections.Generic.Dictionary (monoDictionary)
 
 // Если игра использует .NET 3.5 раскоментируйте этот define
-// .NET 3.5 усторел, но часть старых игр используют его
+// .NET 3.5 устарел, но часть старых игр используют его
 
 // #define BNM_DOTNET35
 
@@ -87,12 +92,16 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 #define BNM_thread std::thread
 
 // Отключение автоматической загрузки BNM при загрузке вашей библиотеки
-// Раскоментируйте его, когда вы используете BNM::HardBypass для ускорения скорсти загрузки или когда вы загружаете BNM извне
+// Раскоментируйте его, когда вы используете BNM::HardBypass для увелечения скорости загрузки или когда вы загружаете BNM извне
 // #define BNM_DISABLE_AUTO_LOAD
 #define BNM_DISABLE_NEW_CLASSES 0
 
 // Может привести к сбоям игры на arm64
 // #define BNM_USE_APPDOMAIN // Использовать System.AppDomain для получения il2cpp::vm::Assembly::GetAllAssemblies
+
+// Включить заполнение нулями новых il2cpp объектов
+// #define BNM_IL2CPP_ZERO_PTR
+
 /********** ОБЛАСТЬ ПОЛЬЗОВАТЕЛЯ **************/
 
 #include <android/log.h>

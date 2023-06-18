@@ -6,3 +6,6 @@
 #include "BasicStructs/Rect.h"
 #include "BasicStructs/Vector2.h"
 #include "BasicStructs/Vector3.h"
+#include "BasicStructs/Vector4.h"
+#include "BasicStructs/Matrix3x3.h"
+#include "BasicStructs/Matrix4x4.h"

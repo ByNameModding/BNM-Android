@@ -158,24 +158,6 @@ void BNM::BNM_ExampleClass::Update() {
     Frames++;
     if (Frames == 11) Frames = 0;
 }
-[[maybe_unused]] void *MyGameObject = nullptr;
-//! Создать новый объект
-BNM::LoadClass GameObject;
-BNM::Method AddComponent;
-BNM::Method DontDestroyOnLoad;
-void *Example_NewGameObject() {
-    void *new_GameObject = GameObject.CreateNewObject();
-    AddComponent[new_GameObject](BNM::BNM_ExampleClass::BNMClass.type);
-    DontDestroyOnLoad(new_GameObject);
-    return new_GameObject;
-}
-#endif
-void (*old_FPS$$ctor)(void*);
-void FPS$$ctor(void *instance) {
-    old_FPS$$ctor(instance);
-    // Делать что-либо
-}
-
 namespace ClassModify {
     // Например, есть класс:
     /*
@@ -206,22 +188,19 @@ namespace ClassModify {
             );
         }
         void Update();
-        
+
     // Добавить метод Start
     BNM_ModAddMethod(BNM::GetType<void>(), Start, 0);
-        
+
     // Добавить метод Update
     BNM_ModAddMethod(BNM::GetType<void>(), Update, 0);
-        
+
     // Добавить метод StaticMethod
     BNM_ModAddStaticMethod(BNM::GetType<void>(), StaticMethod, 1, BNM::GetType<void*>());
-        
+
     // Добавить поле DataField
     BNM_ModAddField(DataField, BNM::GetType<void*>());
-        
-    // Добавить статическое поле StaticDataField_Static из статического поля
-    BNM_ModAddStaticField(StaticDataField, BNM::GetType<void*>());
-        
+
     // Заменить родителя
     BNM_ModNewParent({
         // Код для получения нового родителя
@@ -233,7 +212,30 @@ namespace ClassModify {
         LOGIBNM("[SeceretDataClass, 0x%X] Адрес DataField: 0x%X", (BNM::BNM_PTR)this, BNMModField_DataField.offset);
     }
 }
+#endif
+[[maybe_unused]] void *MyGameObject = nullptr;
+//! Создать новый объект
+BNM::LoadClass GameObject;
+BNM::Method<void> AddComponent;
+BNM::Method<void> DontDestroyOnLoad;
+void *Example_NewGameObject() {
+    void *new_GameObject = GameObject.CreateNewObject();
+#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
+    AddComponent[new_GameObject](BNM::BNM_ExampleClass::BNMClass.type);
+#endif
+    DontDestroyOnLoad(new_GameObject);
+    return new_GameObject;
+}
 
+void (*old_FPS$$ctor)(void*);
+void FPS$$ctor(void *instance) {
+    old_FPS$$ctor(instance);
+    // Делать что-либо
+}
+monoString *(*old_FPS$$ToString)(void*);
+monoString *FPS$$ToString(void *instance) {
+    return monoString::Create(old_FPS$$ToString(instance)->str() + OBFUSCATES_BNM("BNM_Moddded"));
+}
 
 void hack_thread() {
     using namespace BNM; // Чтобы не писать BNM:: в этом методе
@@ -261,7 +263,10 @@ void hack_thread() {
     //! Позволяет подменять методы, которые при использовании базового HOOK вылетают, НО если они вызываются через il2cpp_invoke
     //! Методы, которые вызываются через invoke: .ctor(без аргументов!), ..ctor(), события от Unity (Update и т.п.) и другие методы, созданные компилятором.
     //! Если вызвать этот метод на Update и он перезаписан в дочернем классе, он не будет вызван
-    BNM::InvokeHook(FPSController.GetMethodByName(OBFUSCATE_BNM(".ctor")), (void*) FPS$$ctor, (void**)&old_FPS$$ctor);
+    InvokeHook(FPSController.GetMethodByName(OBFUSCATE_BNM(".ctor")), FPS$$ctor, old_FPS$$ctor);
+
+    //! Позволяет подменять виртуальные методы в определённом классе
+    VirtualHook(FPSController, FPSController.GetMethodByName(OBFUSCATE_BNM("ToString")), FPS$$ToString, old_FPS$$ToString);
 
     PlayerName = FPSController.GetFieldByName(OBFUSCATE_BNM("PlayerName")); // Поля, методы, свойства могут автоматически менять свой тип
     LocalPlayer = FPSController.GetFieldByName(OBFUSCATE_BNM("LocalPlayer"));
@@ -271,7 +276,7 @@ void hack_thread() {
     transformPosition = Transform.GetPropertyByName(OBFUSCATE_BNM("position"));
     set_position_Injected = Transform.GetMethodByName(OBFUSCATE_BNM("set_position_Injected"), 1);
 
-    HOOK(FPSController.GetMethodByName(OBFUSCATE_BNM("Update"), 0).GetOffset(), Update, old_Update);
+    BNM::HOOK(FPSController.GetMethodByName(OBFUSCATE_BNM("Update"), 0), Update, old_Update);
 
     LoadClass Physics = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Physics"));
     
