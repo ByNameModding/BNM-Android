@@ -14,7 +14,9 @@
 //#define UNITY_VER 211 // 2021.1.x (You need set UNITY_PATCH_VER to 24 if build 24 and upper)
 //#define UNITY_VER 212 // 2021.2.x
 //#define UNITY_VER 213 // 2021.3.x
-//#define UNITY_VER 221 // 2022.1.x // TODO: Check new versions 2022.2.0+
+//#define UNITY_VER 221 // 2022.1.x
+//#define UNITY_VER 222 // 2022.2.x - 2022.3.x
+//#define UNITY_VER 231 // 2023.1.x+
 
 #define UNITY_PATCH_VER 11 // For some special cases
 
@@ -49,10 +51,11 @@
 #if defined(__ARM_ARCH_7A__) || defined(__i386__) // armv7 or x86
 #include <Substrate/SubstrateHook.h>
 #include <Substrate/CydiaSubstrate.h>
-#elif defined(__aarch64__) //arm64-v8a
+#elif defined(__aarch64__) // arm64-v8a
 #include <And64InlineHook/And64InlineHook.hpp>
 #endif
-auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
+template<typename PTR_T, typename NEW_T, typename OLD_T>
+inline void HOOK(PTR_T ptr, NEW_T newMethod, OLD_T&& oldBytes) {
     if (ptr != 0){
 #if defined(__aarch64__)
         A64HookFunction((void *)ptr, (void *) newMethod, (void **) &oldBytes);
@@ -60,15 +63,17 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
         MSHookFunction((void *)ptr, (void *) newMethod, (void **) &oldBytes);
 #endif
     }
-};
+}
 */
 //! DobbyHook
 //!!!!!!!! Recommended !!!!!!!!
 #include <dobby.h>
-auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
+
+template<typename PTR_T, typename NEW_T, typename OLD_T>
+inline void HOOK(PTR_T ptr, NEW_T newMethod, OLD_T&& oldBytes) {
     if (((void *)ptr) != nullptr)
         DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
-};
+}
 
 // For System.Collections.Generic.Dictionary (monoDictionary)
 
@@ -93,6 +98,10 @@ auto HOOK = [](auto ptr, auto newMethod, auto&& oldBytes) {
 
 // Can make game crashes on arm64
 // #define BNM_USE_APPDOMAIN // Use System.AppDomain to find il2cpp::vm::Assembly::GetAllAssemblies
+
+// Enable zero-padding of new il2cpp objects
+// #define BNM_IL2CPP_ZERO_PTR
+
 /********** USER AREA **************/
 
 #include <android/log.h>
