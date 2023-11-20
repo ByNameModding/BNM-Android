@@ -9,7 +9,7 @@ namespace BNM {
     typedef int BNM_INT_PTR;
     typedef unsigned int BNM_PTR;
 #endif
-    namespace UNITY_STRUCTS {
+    namespace Structures::Unity {
         struct RaycastHit {
             Vector3 point{}, normal{};
             unsigned int faceID{};
@@ -20,7 +20,7 @@ namespace BNM {
         #else
             void *m_Collider{};
         #endif
-            void *get_Collider() const;
+            void *GetCollider() const;
             std::string str() { return OBFUSCATES_BNM("Point: ") + point.str() + OBFUSCATES_BNM(", Normal: ") + normal.str() + OBFUSCATES_BNM(", FaceID: ") + std::to_string(faceID) + OBFUSCATES_BNM(", Distance: ") + std::to_string(distance) + OBFUSCATES_BNM(", UV: ") + UV.str() + OBFUSCATES_BNM(", m_Collider: ") + std::to_string((BNM::BNM_PTR)m_Collider); }
         };
     }

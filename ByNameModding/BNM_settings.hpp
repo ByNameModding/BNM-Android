@@ -1,3 +1,8 @@
+#if __cplusplus < 202002L
+static_assert(false, "ByNameModding требуется C++20 и выше!");
+#endif
+
+
 /********** ОБЛАСТЬ ПОЛЬЗОВАТЕЛЯ **************/
 
 //#define UNITY_VER 171 // 2017.1.x
@@ -20,21 +25,38 @@
 
 #define UNITY_PATCH_VER 11 // Для особых случаев
 
-// Включить устаревшие методы (если есть)
+//! Включить устаревший код (если есть)
 // #define BNM_DEPRECATED
+
+//! Разрешить использовать GetOffset
+//! GetOffset можно использовать только в крайних случаях, он не должен быть использован на постоянной основе
+//! Неправильное использование может повысить риск ошибок
+// #define BNM_ALLOW_GET_OFFSET
+
+//! Убрать использование кода для синхронизации потоков
+//! Рекомендуется при внутреннем использовании
+// #define BNM_DISABLE_MULTI_THREADING_SYNC
 
 #ifndef NDEBUG
 
-//! Отладочный журнал
+//! Методы str() в структурах
+#define BNM_ALLOW_STR_METHODS
+
+//! Использовать signal в IsAllocated
+#define BNM_ALLOW_SAFE_IS_ALLOCATED
+
+//! Использовать signal при попытки поиска generic объекта
+#define BNM_ALLOW_SAFE_GENERIC_CREATION
+
+//! Проверять объекты MONO_STRUCTS в их методах
+#define BNM_ALLOW_SELF_CHECKS
+
 #define BNM_DEBUG
 
-//! Информационный журнал
 #define BNM_INFO
 
-//! Журнал ошибок
 #define BNM_ERROR
 
-//! Журнал предупреждений
 #define BNM_WARNING
 
 #endif
@@ -42,13 +64,11 @@
 //! Добавьте ваш шифровщик строк
 #define OBFUSCATE_BNM(str) str // const char *
 #define OBFUSCATES_BNM(str) std::string(str) // std::string
-#define BNMTAG OBFUSCATE_BNM("ByNameModding")
 
 //! Добавьте вашу утилиту для подмены методов
-//! Substrate MSHook with And64InlineHook 
-//!!!!!!!! Они могут не работать !!!!!!!!
+//! Substrate MSHook with And64InlineHook
 /* 
-#if defined(__ARM_ARCH_7A__) || defined(__i386__) // armv7 or x86
+#if defined(__ARM_ARCH_7A__) || defined(__i386__) // armv7 или x86
 #include <Substrate/SubstrateHook.h>
 #include <Substrate/CydiaSubstrate.h>
 #elif defined(__aarch64__) // arm64-v8a
@@ -69,8 +89,8 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, OLD_T&& oldBytes) {
 //!!!!!!!! Рекомендуется !!!!!!!!
 #include <dobby.h>
 
-template<typename PTR_T, typename NEW_T, typename OLD_T>
-inline void HOOK(PTR_T ptr, NEW_T newMethod, OLD_T&& oldBytes) {
+template<typename PTR_T, typename NEW_T, typename T_OLD>
+inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
     if (((void *)ptr) != nullptr)
         DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
 }
@@ -93,39 +113,51 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, OLD_T&& oldBytes) {
 
 // Отключение автоматической загрузки BNM при загрузке вашей библиотеки
 // Раскоментируйте его, когда вы используете BNM::HardBypass для увелечения скорости загрузки или когда вы загружаете BNM извне
-// #define BNM_DISABLE_AUTO_LOAD
+#define BNM_DISABLE_AUTO_LOAD
 #define BNM_DISABLE_NEW_CLASSES 0
 
 // Может привести к сбоям игры на arm64
 // #define BNM_USE_APPDOMAIN // Использовать System.AppDomain для получения il2cpp::vm::Assembly::GetAllAssemblies
 
-// Включить заполнение нулями новых il2cpp объектов
-// #define BNM_IL2CPP_ZERO_PTR
 
 /********** ОБЛАСТЬ ПОЛЬЗОВАТЕЛЯ **************/
 
 #include <android/log.h>
 
-#ifdef BNM_INFO
-#define LOGIBNM(...) ((void)__android_log_print(4,  BNMTAG, __VA_ARGS__))
+#define BNM_TAG "ByNameModding"
+
+#ifdef BNM_ALLOW_SELF_CHECKS
+#define BNM_CHECK_SELF(returnValue) if (!SelfCheck()) return returnValue
 #else
-#define LOGIBNM(...) ((void)0)
+#define BNM_CHECK_SELF(returnValue) ((void)0)
+#endif
+
+#ifdef BNM_INFO
+#define BNM_LOG_INFO(...) ((void)__android_log_print(4,  BNM_TAG, __VA_ARGS__))
+#else
+#define BNM_LOG_INFO(...) ((void)0)
 #endif
 
 #ifdef BNM_DEBUG
-#define LOGDBNM(...) ((void)__android_log_print(3,  BNMTAG, __VA_ARGS__))
+#define BNM_LOG_DEBUG(...) ((void)__android_log_print(3,  BNM_TAG, __VA_ARGS__))
 #else
-#define LOGDBNM(...) ((void)0)
+#define BNM_LOG_DEBUG(...) ((void)0)
 #endif
 
 #ifdef BNM_ERROR
-#define LOGEBNM(...) ((void)__android_log_print(6,  BNMTAG, __VA_ARGS__))
+#define BNM_LOG_ERR(...) ((void)__android_log_print(6,  BNM_TAG, __VA_ARGS__))
+#define BNM_LOG_ERR_IF(condition, ...) if (condition) ((void)__android_log_print(6,  BNM_TAG, __VA_ARGS__))
 #else
-#define LOGEBNM(...) ((void)0)
+#define BNM_LOG_ERR(...) ((void)0)
+#define BNM_LOG_ERR_IF(condition, ...) ((void)0)
 #endif
 
 #ifdef BNM_WARNING
-#define LOGWBNM(...) ((void)__android_log_print(5,  BNMTAG, __VA_ARGS__))
+#define BNM_LOG_WARN(...) ((void)__android_log_print(5,  BNM_TAG, __VA_ARGS__))
+#define BNM_LOG_WARN_IF(condition, ...) if (condition) ((void)__android_log_print(5,  BNM_TAG, __VA_ARGS__))
 #else
-#define LOGWBNM(...) ((void)0)
+#define BNM_LOG_WARN(...) ((void)0)
+#define BNM_LOG_WARN_IF(condition, ...) ((void)0)
 #endif
+
+#define BNM_VER "1.0"

@@ -3,103 +3,92 @@
 #include <atomic>
 #include <array>
 #include <thread>
-#ifdef BNM_DEPRECATED
-#include <codecvt>
-#endif
+#include <functional>
+#include <algorithm>
 #include <shared_mutex>
 #include <dlfcn.h>
 #include "BNM.hpp"
 #include "BNM_data/utf8.h"
 
-#define DO_API(r, n, p) auto (n) = (r (*) p)BNM_dlsym(BNM_Internal::dlLib, OBFUSCATE_BNM(#n))
-#if __cplusplus <= 201103L
-namespace nonstd {
-    struct shared_mutex {
-        shared_mutex() : m_readerCount(0), m_writeInProgress(false) {}
-
-        shared_mutex(const shared_mutex&) = delete;
-        shared_mutex& operator=(const shared_mutex&) = delete;
-
-        void lock() {
-            std::unique_lock<std::mutex> lock(m_mutex);
-            m_writeCond.wait(lock, [this]() { return !m_writeInProgress; });
-            m_writeInProgress = true;
-            m_readCond.wait(lock, [this]() {
-                return m_readerCount == 0;
-            });
-        }
-
-        void lock_shared() {
-            std::unique_lock<std::mutex> lock(m_mutex);
-            m_readCond.wait(lock, [this]() {
-                return m_writeInProgress == false;
-            });
-            ++m_readerCount;
-        }
-
-        void unlock_shared() {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            --m_readerCount;
-            m_readCond.notify_all();
-        }
-    private:
-        mutable std::mutex m_mutex;
-        std::condition_variable m_writeCond;
-        std::condition_variable m_readCond;
-        size_t m_readerCount;
-        bool m_writeInProgress;
-    };
-    struct shared_lock {
-        explicit shared_lock(shared_mutex& lock) : m_lock(lock) { m_lock.lock_shared(); }
-        ~shared_lock() { m_lock.unlock_shared(); }
-    private:
-        shared_mutex& m_lock;
-    };
-}
-#endif
 namespace BNM_Internal {
     using namespace BNM;
+    using namespace Structures;
 
     // Внутренние переменные
-    static bool LibLoaded = false;
-    static void *dlLib{};
-    static bool hardBypass = false;
-    static const char *LibAbsolutePath{};
-    static BNM_PTR LibAbsoluteAddress{};
-    static bool HasImageGetCls = false;
-#if __cplusplus >= 201402L
-    using bnm_shared_mutex = std::shared_mutex;
-    using bnm_shared_lock = std::shared_lock<bnm_shared_mutex>;
-#else
-    using bnm_shared_mutex = nonstd::shared_mutex;
-    using bnm_shared_lock = nonstd::shared_lock;
+    bool bnmLoaded = false;
+    void *il2cppLibraryHandle{};
+    const char *il2cppLibraryAbsolutePath{};
+    BNM_PTR il2cppLibraryAbsoluteAddress{};
+
+#pragma pack(push, 1)
+    // Список с переменными из виртуальной машины il2cpp
+    struct {
+        BNM::LoadClass Object;
+        BNM::Method<void *> Interlocked$$CompareExchange{};
+        BNM::Method<BNM::MonoType *> Type$$MakeGenericType{};
+        BNM::Method<BNM::MonoType *> Type$$MakePointerType{};
+        BNM::Method<BNM::MonoType *> Type$$MakeByRefType{};
+        BNM::Method<IL2CPP::Il2CppReflectionMethod *> MonoMethod$$MakeGenericMethod_impl{};
+        Mono::monoString **String$$Empty{};
+    } vmData;
+#pragma pack(pop)
+    // il2cpp методы, чтобы не искать их каждый запрос BNM
+    struct {
+        IL2CPP::Il2CppImage *(*il2cpp_get_corlib)(){};
+        IL2CPP::Il2CppClass *(*il2cpp_class_from_name)(const IL2CPP::Il2CppImage *, const char *, const char *){};
+        IL2CPP::Il2CppImage *(*il2cpp_assembly_get_image)(const IL2CPP::Il2CppAssembly *){};
+        IL2CPP::Il2CppClass *(*il2cpp_image_get_class)(const IL2CPP::Il2CppImage *, unsigned int){};
+        const char *(*il2cpp_method_get_param_name)(const IL2CPP::MethodInfo *, uint32_t){};
+        IL2CPP::Il2CppClass *(*il2cpp_class_from_il2cpp_type)(const IL2CPP::Il2CppType *){};
+        IL2CPP::Il2CppClass *(*il2cpp_array_class_get)(const IL2CPP::Il2CppClass *, uint32_t){};
+        IL2CPP::Il2CppObject *(*il2cpp_type_get_object)(const IL2CPP::Il2CppType *){};
+        IL2CPP::Il2CppObject *(*il2cpp_object_new)(const IL2CPP::Il2CppClass *){};
+        IL2CPP::Il2CppObject *(*il2cpp_value_box)(const IL2CPP::Il2CppClass *, void *){};
+        IL2CPP::Il2CppArray *(*il2cpp_array_new)(const IL2CPP::Il2CppClass *, IL2CPP::il2cpp_array_size_t){};
+        void (*il2cpp_field_static_get_value)(const IL2CPP::FieldInfo *, void *){};
+        void (*il2cpp_field_static_set_value)(const IL2CPP::FieldInfo *, void *){};
+        Mono::monoString *(*il2cpp_string_new)(const char *str){};
+        void *(*il2cpp_resolve_icall)(const char *){};
+
+#ifdef BNM_DEPRECATED
+        IL2CPP::Il2CppDomain *(*il2cpp_domain_get)(){};
+        IL2CPP::Il2CppThread *(*il2cpp_thread_attach)(const IL2CPP::Il2CppDomain *){};
+        IL2CPP::Il2CppThread *(*il2cpp_thread_current)(){};
+        void (*il2cpp_thread_detach)(const IL2CPP::Il2CppThread *){};
 #endif
-    
+    } il2cppMethods;
 
-    static bnm_shared_mutex findClasses{};
-    static std::mutex addClass{}, modClass{};
-    static std::list<void(*)()> onIl2CppLoaded{};
-
+#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+    std::shared_mutex findClassesMutex{};
+    std::mutex addClassMutex{}, modClassMutex{};
+#endif
+    std::list<void(*)()> onIl2CppLoaded{};
     std::list<void(*)()> &GetEvents() { return onIl2CppLoaded; }
 
+    std::string_view constructorName = ".ctor";
+    BNM::LoadClass customListTemplateClass{};
+    std::map<uint32_t, BNM::LoadClass> customListsMap{};
+    int32_t finalizerSlot = -1;
 
     // Методы для новых классов и для обычного режима
     AssemblyVector *(*Assembly$$GetAllAssemblies)(){};
     void Empty() {}
-    
-#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
-    static std::shared_mutex classesFindAccess{};
+
+#if !BNM_DISABLE_NEW_CLASSES
+#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+    std::shared_mutex classesFindAccessMutex{};
+#endif
     // Список со всеми новыми классами, которые BNM должен загрузить
-    static std::vector<NEW_CLASSES::NewClass *> *classes4Add = nullptr;
+    std::vector<NEW_CLASSES::NewClass *> *newClassesVector = nullptr;
 
     // Список со всеми классами, которые BNM должен изменить
-    static std::vector<MODIFY_CLASSES::TargetClass *> *classes4Mod = nullptr;
+    std::vector<MODIFY_CLASSES::TargetClass *> *modClassesVector = nullptr;
 
-    // Конструктор, который вызывает базовый конструктор (.ctor)
+    // Конструктор, который вызывает базовый конструктор
     void DefaultConstructor(IL2CPP::Il2CppObject* instance) {
-        LoadClass(instance->klass->parent).GetMethodByName(OBFUSCATE_BNM(".ctor"), 0)[instance]();
+        LoadClass(instance->klass->parent).GetMethodByName(constructorName, 0).cast<void>()[instance]();
     }
-    void DefaultConstructorInvoke(IL2CPP::Il2CppMethodPointer, IL2CPP::MethodInfo*, IL2CPP::Il2CppObject *instance, void**) { DefaultConstructor(instance); }
+    void DefaultConstructorInvoke(IL2CPP::Il2CppMethodPointer, IL2CPP::MethodInfo*, IL2CPP::Il2CppObject *instance, void**, void*) { DefaultConstructor(instance); }
 
     IL2CPP::Il2CppClass *(*old_Class$$FromIl2CppType)(IL2CPP::Il2CppType *type){};
     IL2CPP::Il2CppClass *Class$$FromIl2CppType(IL2CPP::Il2CppType *type);
@@ -110,12 +99,6 @@ namespace BNM_Internal {
     IL2CPP::Il2CppClass *(*old_Class$$FromName)(IL2CPP::Il2CppImage *image, const char *ns, const char *name){};
     IL2CPP::Il2CppClass *Class$$FromName(IL2CPP::Il2CppImage *image, const char *namespaze, const char *name);
 
-    // Структура для Il2CppType, для классов, чтобы проверять, созданы ли они через BNM
-    struct BNMTypeData {
-        BNMTypeData() = default;
-        BNM_PTR bnm = -0x424e4d;
-        IL2CPP::Il2CppClass *cls{};
-    };
     void ModifyClasses();
     void InitNewClasses();
 #if UNITY_VER <= 174
@@ -128,29 +111,22 @@ namespace BNM_Internal {
 #endif
 
 #endif
-#ifdef BNM_IL2CPP_ZERO_PTR
-    void *(*old_Object$$NewAllocSpecific)(IL2CPP::Il2CppClass *klass){};
-    void *Object$$NewAllocSpecific(IL2CPP::Il2CppClass *klass) {
-        auto obj = old_Object$$NewAllocSpecific(klass);
-        if (obj) memset((char*)obj + sizeof(IL2CPP::Il2CppObject), 0, klass->instance_size - sizeof(IL2CPP::Il2CppObject));
-        return obj;
-    }
-#endif
-    void (*old_Image$$GetTypes)(IL2CPP::Il2CppImage *image, bool exportedOnly, ClassVector *target){};
-    void Image$$GetTypes(IL2CPP::Il2CppImage *image, bool exportedOnly, ClassVector *target);
+
+    void (*old_Image$$GetTypes)(const IL2CPP::Il2CppImage *image, bool exportedOnly, ClassVector *target){};
+    void Image$$GetTypes(const IL2CPP::Il2CppImage *image, bool exportedOnly, ClassVector *target);
 
     void (*Class$$Init)(IL2CPP::Il2CppClass *klass){};
 
-    void (*old_BNM_il2cpp_init)(const char *);
+    void (*old_BNM_il2cpp_init)(const char *){};
     void BNM_il2cpp_init(const char *domain_name);
 
-    void InitIl2cppMethods();
+    void SetupBNM();
 
 #ifndef BNM_DISABLE_AUTO_LOAD
-    [[maybe_unused]] __attribute__((constructor)) void PrepareBNM();
+    __attribute__((constructor)) void PrepareBNM();
 #endif
 
-    bool InitDlLib(void *dl, const char *path = nullptr, bool external = false);
+    bool InitLibraryHandle(void *handle, const char *path = nullptr, bool external = false);
 
     // Методы для конвертации C#-строк (monoString)
     typedef std::basic_string<IL2CPP::Il2CppChar> string16;
@@ -168,65 +144,118 @@ namespace BNM_Internal {
         }
         return utf16String;
     }
-}
 
-// Безопасно конвертировать std::string в const char *
-char *str2char(const std::string &str) {
-    size_t size = str.end() - str.begin();
-    if (str.c_str()[size]) {
-        auto c = (char *)malloc(size + 1);
-        memset(c, 0, size + 1);
-        memcpy(c, str.data(), size);
-        return c;
+    IL2CPP::Il2CppClass *TryGetClassInImage(const IL2CPP::Il2CppImage *image, const std::string_view &namespaze, const std::string_view &name);
+
+#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
+    struct {
+        jmp_buf jump{};
+    } _genericCreation;
+    void _genericHandler(int) { longjmp(_genericCreation.jump, 1); }
+#endif
+    LoadClass TryMakeGenericClass(LoadClass genericType, const std::vector<RuntimeTypeGetter> &templateTypes) {
+        using namespace BNM::Operators;
+        if (!vmData.Type$$MakeGenericType) return {};
+        auto monoType = genericType.GetMonoType();
+        auto monoGenericsList = Mono::monoArray<MonoType *>::Create(templateTypes.size());
+        for (size_t i = 0; i < templateTypes.size(); ++i) (*monoGenericsList)[i] = templateTypes[i].ToLC().GetMonoType();
+
+        LoadClass typedGenericType;
+
+#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
+        volatile char c;
+        bool ok = true;
+        sighandler_t old_handler = signal(SIGSEGV, _genericHandler);
+        if (!setjmp (_genericCreation.jump))
+#endif
+        typedGenericType = (monoType->*vmData.Type$$MakeGenericType)(monoGenericsList);
+
+#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
+        else typedGenericType = {};
+        signal(SIGSEGV, old_handler);
+#endif
+        monoGenericsList->Destroy();
+
+        return typedGenericType;
     }
-    return (char *)str.c_str();
+#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
+    struct {
+        jmp_buf jump{};
+    } _genericMethodCreation;
+    void _genericMethodHandler(int) { longjmp(_genericMethodCreation.jump, 1); }
+#endif
+    MethodBase TryMakeGenericMethod(const MethodBase &genericMethod, const std::vector<RuntimeTypeGetter> &templateTypes) {
+        using namespace BNM::Operators;
+        if (!vmData.MonoMethod$$MakeGenericMethod_impl || !genericMethod.GetInfo()->is_generic) return {};
+        IL2CPP::Il2CppReflectionMethod reflectionMethod;
+        reflectionMethod.method = genericMethod.GetInfo();
+        auto monoGenericsList = Mono::monoArray<MonoType *>::Create(templateTypes.size());
+        for (size_t i = 0; i < templateTypes.size(); ++i) (*monoGenericsList)[i] = templateTypes[i].ToLC().GetMonoType();
+
+        MethodBase typedGenericMethod;
+
+#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
+        volatile char c;
+        bool ok = true;
+        sighandler_t old_handler = signal(SIGSEGV, _genericMethodHandler);
+        if (!setjmp (_genericMethodCreation.jump))
+#endif
+        typedGenericMethod = ((&reflectionMethod)->*vmData.MonoMethod$$MakeGenericMethod_impl)(monoGenericsList)->method;
+
+#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
+        else typedGenericMethod = {};
+        signal(SIGSEGV, old_handler);
+#endif
+        monoGenericsList->Destroy();
+
+        return typedGenericMethod;
+    }
+
+    LoadClass GetPointer(LoadClass target) {
+        using namespace BNM::Operators;
+        if (!vmData.Type$$MakePointerType) return {};
+        return (target.GetMonoType()->*vmData.Type$$MakePointerType)();
+    }
+
+    LoadClass GetReference(LoadClass target) {
+        using namespace BNM::Operators;
+        if (!vmData.Type$$MakeByRefType) return {};
+        return (target.GetMonoType()->*vmData.Type$$MakeByRefType)();
+    }
+
+    template <class CompareMethod>
+    IL2CPP::MethodInfo *IterateMethods(LoadClass target, CompareMethod compare) {
+        auto curClass = target.klass;
+        do {
+            for (uint16_t i = 0; i < curClass->method_count; ++i) {
+                auto method = curClass->methods[i];
+                if (compare((IL2CPP::MethodInfo *)method)) return (IL2CPP::MethodInfo *) method;
+            }
+            curClass = curClass->parent;
+        } while (curClass);
+        return nullptr;
+    }
 }
 
 namespace BNM {
-    // Получить/Установить внутренние данные
-    bool Il2cppLoaded() { return BNM_Internal::LibLoaded; }
+    bool IsLoaded() { return BNM_Internal::bnmLoaded; }
 
-    namespace MONO_STRUCTS {
+    namespace Structures::Mono {
         void *CompareExchange4List(void *syncRoot) { // Единственный нормальный способ вызвать CompareExchange для syncRoot для monoList
-            static std::once_flag once{};
-            static BNM::Method<void *> CompareExchange{};
-            static BNM::LoadClass objectType{};
-            std::call_once(once, []() {
-                objectType = BNM::GetType<void*>().ToLC();
-                CompareExchange = BNM::LoadClass(OBFUSCATE_BNM("System.Threading"), OBFUSCATE_BNM("Interlocked")).GetMethodByName(OBFUSCATE_BNM("Exchange"), {objectType, objectType, objectType});
-            });
-            if (CompareExchange) CompareExchange((void **)&syncRoot, (void *)objectType.CreateNewInstance(), (void *)nullptr);
+            if (BNM_Internal::vmData.Interlocked$$CompareExchange) BNM_Internal::vmData.Interlocked$$CompareExchange((void **)&syncRoot, (void *)BNM_Internal::vmData.Object.CreateNewInstance(), (void *)nullptr);
             return syncRoot;
         }
-        std::string monoString::get_string() {
-            monoString *me = this;
-            if (!me) return OBFUSCATE_BNM("ОШИБКА: monoString мёртв");
-            if (!IsAllocated(chars)) return OBFUSCATE_BNM("ОШИБКА: символы строки мертвы");
-            if (!length) return OBFUSCATE_BNM("");
+        std::string monoString::str() {
+            BNM_CHECK_SELF("ОШИБКА: monoString мёртв");
+            if (!length) return {};
             return BNM_Internal::Utf16ToUtf8(chars, length);
         }
-        std::string monoString::str() { return get_string(); }
 
-        const char *monoString::get_const_char() { return str2char(get_string()); }
-        const char *monoString::c_str() { return get_const_char(); }
-
-#ifdef BNM_DEPRECATED
-        std::string monoString::get_string_old() {
-            if (!this) return OBFUSCATE_BNM("ОШИБКА: monoString мёртв");
-            if (!IsAllocated(chars)) return OBFUSCATE_BNM("ОШИБКА: символы строки мертвы");
-            if (!length) return OBFUSCATE_BNM("");
-            return std::wstring_convert<std::codecvt_utf8<IL2CPP::Il2CppChar>, IL2CPP::Il2CppChar>().to_bytes((IL2CPP::Il2CppChar *)chars);
-        }
-        [[maybe_unused]] std::string monoString::strO() { return get_string_old(); }
-#endif
-
-        [[maybe_unused]] unsigned int monoString::getHash() {
-            monoString *me = this;
-            if (!me || !IsAllocated(chars)) return 0;
-            IL2CPP::Il2CppChar *p = chars;
+        unsigned int monoString::GetHash() const {
+            BNM_CHECK_SELF(0);
+            const IL2CPP::Il2CppChar *p = chars;
             unsigned int h = 0;
-            for (int i = 0; i < length; ++i)
-                h = (h << 5) - h + *p; p++;
+            for (int i = 0; i < length; ++i) h = (h << 5) - h + *p; p++;
             return h;
         }
 
@@ -234,21 +263,29 @@ namespace BNM {
         monoString *monoString::Create(const char *str) {
             const size_t length = strlen(str);
             const size_t utf16Size = sizeof(IL2CPP::Il2CppChar) * length;
-            auto ret = (monoString *)malloc(sizeof(monoString) + utf16Size);
+            auto ret = (monoString *) malloc(sizeof(monoString) + utf16Size);
+            memset(ret, 0, sizeof(monoString) + utf16Size);
             ret->length = (int)length;
             auto u16 = BNM_Internal::Utf8ToUtf16(str, ret->length);
-            memcpy(ret->chars, &u16[0], utf16Size);
-            u16.clear();
+            memcpy(ret->chars, u16.data(), utf16Size);
             auto empty = Empty();
             if (empty) ret->klass = empty->klass;
             return (monoString *)ret;
         }
-        [[maybe_unused]] monoString *monoString::Create(const std::string &str) { return Create(str2char(str)); }
+        monoString *monoString::Create(const std::string &str) { return Create(str.c_str()); }
 
-        [[maybe_unused]] monoString *monoString::Empty() {
-            static monoString** ret = LoadClass(OBFUSCATES_BNM("System"), OBFUSCATES_BNM("String")).GetFieldByName(OBFUSCATES_BNM("Empty")).cast<monoString *>().getPointer();
-            return *ret;
+        monoString *monoString::Empty() {
+            if (!BNM_Internal::vmData.String$$Empty) return {};
+            return *BNM_Internal::vmData.String$$Empty;
         }
+#ifdef BNM_ALLOW_SELF_CHECKS
+        bool monoString::SelfCheck() volatile const {
+            auto *me = (monoString *)this;
+            if (me != nullptr) return true;
+            BNM_LOG_ERR("[monoString::SelfCheck] Попытка использовать мёртвую строку!");
+            return false;
+        }
+#endif
     }
 
     /*** LoadClass ***/
@@ -259,366 +296,267 @@ namespace BNM {
         klass = obj->klass;
     }
 
-    [[maybe_unused]] LoadClass::LoadClass(const IL2CPP::Il2CppType *type) {
+    LoadClass::LoadClass(const IL2CPP::Il2CppType *type) {
         if (!type) return;
-        DO_API(IL2CPP::Il2CppClass *, il2cpp_class_from_il2cpp_type, (const IL2CPP::Il2CppType *));
-        klass = il2cpp_class_from_il2cpp_type(type);
+        klass = BNM_Internal::il2cppMethods.il2cpp_class_from_il2cpp_type(type);
     }
 
-    [[maybe_unused]] LoadClass::LoadClass(const MonoType *type) {
+    LoadClass::LoadClass(const MonoType *type) {
         if (!type) return;
-        DO_API(IL2CPP::Il2CppClass *, il2cpp_class_from_il2cpp_type, (const IL2CPP::Il2CppType *));
-        klass = il2cpp_class_from_il2cpp_type(type->type);
+        klass = BNM_Internal::il2cppMethods.il2cpp_class_from_il2cpp_type(type->type);
     }
 
-    [[maybe_unused]] LoadClass::LoadClass(RuntimeTypeGetter type) { klass = type; }
+    LoadClass::LoadClass(RuntimeTypeGetter type) { klass = type; }
 
-    LoadClass::LoadClass(const std::string &namespaze, const std::string &name) {
-        DO_API(IL2CPP::Il2CppImage *, il2cpp_assembly_get_image, (IL2CPP::Il2CppAssembly *));
-
+    LoadClass::LoadClass(const std::string_view &namespaze, const std::string_view &name) {
         auto assemblies = BNM_Internal::Assembly$$GetAllAssemblies();
 
         for (auto assembly : *assemblies) {
-            // Получить образ из сборки
-            auto image = il2cpp_assembly_get_image(assembly);
-
-            // Получить все классы образа
-            ClassVector classes;
-            BNM_Internal::Image$$GetTypes(image, false, &classes);
-
-            for (auto cls : classes) {
-                if (!cls) continue;
-
-                // Попробовать инициализировать класс
-                BNM_Internal::Class$$Init(cls);
-
-                // Пропускать внутренние классы
-                if (cls->declaringType) continue;
-
-                // Проверить, нужный ли это класс
-                if (cls->name == name && cls->namespaze == namespaze) {
-                    klass = cls;
-                    break;
-                }
-            }
-
-            // Очистить список классов
-            classes.clear(); classes.shrink_to_fit();
-
-            if (klass) break;
+            auto image = BNM_Internal::il2cppMethods.il2cpp_assembly_get_image(assembly);
+            if (klass = BNM_Internal::TryGetClassInImage(image, namespaze, name); klass) return;
         }
-        if (!klass) LOGWBNM(OBFUSCATE_BNM("Класс: [%s]::[%s] - не найден."), namespaze.c_str(), name.c_str());
+        BNM_LOG_WARN("Класс: [%s]::[%s] - не найден.", namespaze.data(), name.data());
     }
 
-    LoadClass::LoadClass(const std::string &namespaze, const std::string &name, const std::string &dllName) {
-        DO_API(IL2CPP::Il2CppImage *, il2cpp_assembly_get_image, (const IL2CPP::Il2CppAssembly *));
-
+    LoadClass::LoadClass(const std::string_view &namespaze, const std::string_view &name, const std::string_view &dllName) {
         IL2CPP::Il2CppImage *image = nullptr;
         auto assemblies = BNM_Internal::Assembly$$GetAllAssemblies();
 
-        // Попробовать найти образ
-        for (auto assembly : *assemblies)
-            if (dllName == il2cpp_assembly_get_image(assembly)->name) {
-                image = il2cpp_assembly_get_image(assembly);
-                break;
-            }
+        for (auto assembly : *assemblies) {
+            auto currentImage = BNM_Internal::il2cppMethods.il2cpp_assembly_get_image(assembly);
+            if (dllName != currentImage->nameNoExt && dllName != currentImage->name) continue;
+            image = currentImage;
+            break;
+        }
 
-        // Проверить, найден ли образ
+
         if (!image) {
-            LOGWBNM(OBFUSCATE_BNM("Класс: [%s]::[%s]::[%s] - dll не найден."), dllName.c_str(), namespaze.c_str(), name.c_str());
+            BNM_LOG_WARN("Класс: [%s]::[%s]::[%s] - dll не найден.", dllName.data(), namespaze.data(), name.data());
             klass = nullptr;
             return;
         }
 
-        // Получить все классы образа
-        ClassVector classes;
-        BNM_Internal::Image$$GetTypes(image, false, &classes);
+        if (klass = BNM_Internal::TryGetClassInImage(image, namespaze, name); klass) return;
 
-        // Попробовать найти класс
-        for (auto cls : classes) {
-            if (!cls) continue;
-
-            // Попробовать инициализировать класс
-            BNM_Internal::Class$$Init(cls);
-
-            // Пропускать внутренние классы
-            if (cls->declaringType) continue;
-
-            // Проверить, нужный ли это класс
-            if (cls->name == name && cls->namespaze == namespaze) {
-                klass = cls;
-                break;
-            }
-        }
-
-        // Очистить список классов
-        classes.clear(); classes.shrink_to_fit();
-
-        if (!klass) LOGWBNM(OBFUSCATE_BNM("Класс: [%s]::[%s]::[%s] - не найден."), dllName.c_str(), namespaze.c_str(), name.c_str());
+        BNM_LOG_WARN("Класс: [%s]::[%s]::[%s] - не найден.", dllName.data(), namespaze.data(), name.data());
     }
+    LoadClass::LoadClass(const std::string_view &namespaze, const std::string_view &name, const IL2CPP::Il2CppImage *image) {
+        if (klass = BNM_Internal::TryGetClassInImage(image, namespaze, name); klass) return;
 
-    [[maybe_unused]] std::vector<LoadClass> LoadClass::GetInnerClasses(bool includeParent) const {
-        if (!klass) return {};
-        TryInit(); // Попробовать инициализировать класс
-
-        std::vector<LoadClass> ret;
-        auto curClass = klass;
-
-        do {
-            // Добавить классы в список
-            for (int i = 0; i < curClass->nested_type_count; ++i) ret.emplace_back(curClass->nestedTypes[i]);
-
-            // Переключиться на родителя, если требуется
-            if (includeParent) curClass = curClass->parent;
-            else curClass = nullptr;
-
-        } while (curClass);
-
-        return ret;
+        BNM_LOG_WARN("Класс: [%s]::[%s]::[%s] - не найден.", image->name, namespaze.data(), name.data());
     }
-
-    [[maybe_unused]] std::vector<IL2CPP::FieldInfo *> LoadClass::GetFieldsInfo(bool includeParent) const {
-        if (!klass) return {};
-        TryInit(); // Попробовать инициализировать класс
-
-        std::vector<IL2CPP::FieldInfo *> ret;
-        auto curClass = klass;
-
-        do {
-            // Добавить поля в список
-            for (int i = 0; i < curClass->field_count; ++i) ret.emplace_back(curClass->fields + i);
-
-            // Переключиться на родителя, если требуется
-            if (includeParent) curClass = curClass->parent;
-            else curClass = nullptr;
-        } while (curClass);
-
-        return ret;
+    LoadClass::LoadClass(const std::string_view &namespaze, const std::string_view &name, const IL2CPP::Il2CppAssembly *assembly) {
+        *this = LoadClass(namespaze, name, BNM_Internal::il2cppMethods.il2cpp_assembly_get_image(assembly));
     }
-
-    [[maybe_unused]] std::vector<IL2CPP::MethodInfo *> LoadClass::GetMethodsInfo(bool includeParent) const {
-        if (!klass) return {};
-        TryInit(); // Попробовать инициализировать класс
-
-        std::vector<IL2CPP::MethodInfo *> ret;
-        auto curClass = klass;
-
-        do {
-            // Добавить методы в список
-            for (int i = 0; i < curClass->method_count; ++i) ret.emplace_back(Method<void>(curClass->methods[i]).GetInfo());
-
-            // Переключиться на родителя, если требуется
-            if (includeParent) curClass = curClass->parent;
-            else curClass = nullptr;
-
-        } while (curClass);
-
-        return ret;
-    }
-
-    Method<void> LoadClass::GetMethodByName(const std::string &name, int parameters) const {
-        if (!klass) return {};
-        TryInit(); // Попробовать инициализировать класс
-
-        Method<void> ret{};
-
-        // Получить все методы
-        auto methods = GetMethodsInfo(true);
-
-        // Попробовать найти метод
-        for (auto method : methods)
-            if (name == method->name && (method->parameters_count == parameters || parameters == -1)) {
-                ret = method;
-                break;
-            }
-
-        // Очистить список методов
-        methods.clear(); methods.shrink_to_fit();
-
-        // Предупредить о ненахождении
-        if (!ret) LOGWBNM(OBFUSCATE_BNM("Метод: [%s]::[%s].[%s], %d - не найден."), klass->namespaze, klass->name, name.c_str(), parameters);
-
-        return ret;
-    }
-
-    Method<void> LoadClass::GetMethodByName(const std::string &name, const std::vector<std::string> &parametersName) const {
-        if (!klass) return {};
-        TryInit(); // Попробовать инициализировать класс
-
-        DO_API(const char *, il2cpp_method_get_param_name, (IL2CPP::MethodInfo *method, uint32_t index));
-
-        Method<void> ret{};
-
-        // Получить все методы
-        auto methods = GetMethodsInfo(true);
-
-        size_t parameters = parametersName.size();
-
-        // Попробовать найти метод
-        for (auto method : methods)
-            if (name == method->name && (method->parameters_count == parameters)) {
-                bool ok = true;
-
-                // Проверить аргументы
-                for (int g = 0; g < parameters; ++g)
-                    if (il2cpp_method_get_param_name(method, g) != parametersName[g]) {
-                        // Имя не совпадает, останавливаем for
-                        ok = false;
-                        break;
-                    }
-
-                // Найдено, останавливаем for
-                if (ok) {
-                    ret = method;
-                    break;
-                }
-            }
-
-        // Очистить список методов
-        methods.clear(); methods.shrink_to_fit();
-
-        // Предупредить о ненахождении
-        if (!ret) LOGWBNM(OBFUSCATE_BNM("Метод: [%s]::[%s].(%s), %d - не найден; использовались имена аргументов."), klass->namespaze, klass->name, name.c_str(), parameters);
-
-        return ret;
-    }
-
-    Method<void> LoadClass::GetMethodByName(const std::string &name, const std::vector<RuntimeTypeGetter> &parametersType) const {
-        if (!klass) return {};
-        TryInit(); // Попробовать инициализировать класс
-
-        DO_API(IL2CPP::Il2CppClass *, il2cpp_class_from_il2cpp_type, (const IL2CPP::Il2CppType *));
-
-        Method<void> ret{};
-
-        // Получить все методы
-        auto methods = GetMethodsInfo(true);
-
-        size_t parameters = parametersType.size();
-
-        // Попробовать найти метод
-        for (auto method : methods)
-            if (name == method->name && (method->parameters_count == parameters)) {
-                bool ok = true;
-
-                // Проверить аргументы
-                for (int g = 0; g < parameters; ++g) {
-#if UNITY_VER < 212
-                    auto param = method->parameters + g;
-                    auto cls = il2cpp_class_from_il2cpp_type(param->parameter_type);
-#else
-                    auto param = method->parameters[g];
-                    auto cls = il2cpp_class_from_il2cpp_type(param);
-#endif
-                    if (cls == ((RuntimeTypeGetter) parametersType[g]).ToIl2CppClass()) {
-                        // Тип не совпадает, останавливаем for
-                        ok = false;
-                        break;
-                    }
-                }
-
-                // Найдено, останавливаем for
-                if (ok) {
-                    ret = method;
-                    break;
-                }
-            }
-
-        // Очистить список методов
-        methods.clear(); methods.shrink_to_fit();
-
-        // Предупредить о ненахождении
-        if (!ret) LOGWBNM(OBFUSCATE_BNM("Метод: [%s]::[%s].[%s], %d - не найден; использовались типы аргументов."), klass->namespaze, klass->name, name.c_str(), parameters);
-
-        return ret;
-    }
-
-    [[maybe_unused]] Property<bool> LoadClass::GetPropertyByName(const std::string &name, bool warning) {
+    std::vector<LoadClass> LoadClass::GetInnerClasses(bool includeParent) const {
         if (!klass) return {};
         TryInit();
-        auto get = GetMethodByName(OBFUSCATES_BNM("get_") + name);
-        auto set = GetMethodByName(OBFUSCATES_BNM("set_") + name);
-        if (!get && !set) {
-            LOGWBNM(OBFUSCATE_BNM("Свойство %s.(%s) не найдено."), str().c_str(), name.c_str());
-            return {};
-        }
-        if (!get && warning)
-            LOGWBNM(OBFUSCATE_BNM("Свойство %s.(%s) без получателя."), str().c_str(), name.c_str());
-        if (!set && warning)
-            LOGWBNM(OBFUSCATE_BNM("Свойство %s.(%s) без установщика."), str().c_str(), name.c_str());
-        return {get, set};
+        std::vector<LoadClass> ret{};
+        auto curClass = klass;
+
+        do {
+            for (uint16_t i = 0; i < curClass->nested_type_count; ++i) ret.emplace_back(curClass->nestedTypes[i]);
+            if (includeParent) curClass = curClass->parent;
+            else break;
+        } while (curClass);
+
+        return std::move(ret);
     }
 
-    [[maybe_unused]] LoadClass LoadClass::GetInnerClass(const std::string &name) const {
+    std::vector<FieldBase> LoadClass::GetFields(bool includeParent) const {
         if (!klass) return {};
-        TryInit(); // Попробовать инициализировать класс
+        TryInit();
+        std::vector<FieldBase> ret{};
+        auto curClass = klass;
 
-        LoadClass ret{};
+        do {
+            auto end = curClass->fields + curClass->field_count;
+            for (IL2CPP::FieldInfo *currentField = curClass->fields; currentField != end; ++currentField) ret.emplace_back(currentField);
+            if (includeParent) curClass = curClass->parent;
+            else break;
+        } while (curClass);
 
-        // Получить все внутренние классы
-        auto classes = GetInnerClasses(true);
+        return std::move(ret);
+    }
 
-        // Попробовать найти класс
-        for (auto cls : classes)
-            if (name == cls.klass->name) {
-                ret = cls;
-                break;
+    std::vector<MethodBase> LoadClass::GetMethods(bool includeParent) const {
+        if (!klass) return {};
+        TryInit();
+        std::vector<MethodBase> ret{};
+        auto curClass = klass;
+
+        do {
+            for (uint16_t i = 0; i < curClass->method_count; ++i) ret.emplace_back(curClass->methods[i]);
+            if (includeParent) curClass = curClass->parent;
+            else break;
+        } while (curClass);
+
+        return std::move(ret);
+    }
+    std::vector<PropertyBase> LoadClass::GetProperties(bool includeParent) const {
+        if (!klass) return {};
+        TryInit();
+        std::vector<PropertyBase> ret{};
+        auto curClass = klass;
+
+        do {
+            auto end = curClass->properties + curClass->property_count;
+            for (auto currentProperty = curClass->properties; currentProperty != end; ++currentProperty) ret.emplace_back(currentProperty);
+            if (includeParent) curClass = curClass->parent;
+            else break;
+        } while (curClass);
+
+        return std::move(ret);
+    }
+
+    MethodBase LoadClass::GetMethodByName(const std::string_view &name, int parameters) const {
+        if (!klass) return {};
+        TryInit();
+
+        auto method = BNM_Internal::IterateMethods(*this, [&name, &parameters](IL2CPP::MethodInfo *method) {
+            return name == method->name && (method->parameters_count == parameters || parameters == -1);
+        });
+
+        if (method) return method;
+
+        BNM_LOG_WARN("Метод: [%s]::[%s].[%s], %d - не найден.", klass->namespaze, klass->name, name.data(), parameters);
+        return {};
+    }
+
+    MethodBase LoadClass::GetMethodByName(const std::string_view &name, const std::vector<std::string_view> &parametersName) const {
+        if (!klass) return {};
+        TryInit();
+
+        auto parameters = (uint8_t) parametersName.size();
+
+        auto method = BNM_Internal::IterateMethods(*this, [&name, &parameters, &parametersName](IL2CPP::MethodInfo *method) {
+            if (name != method->name || method->parameters_count != parameters) return false;
+            for (uint8_t i = 0; i < parameters; ++i) if (BNM_Internal::il2cppMethods.il2cpp_method_get_param_name(method, i) != parametersName[i]) return false;
+            return true;
+        });
+
+        if (method) return method;
+
+        BNM_LOG_WARN("Метод: [%s]::[%s].(%s), %d - не найден; использовались имена аргументов.", klass->namespaze, klass->name, name.data(), parameters);
+        return {};
+    }
+
+    MethodBase LoadClass::GetMethodByName(const std::string_view &name, const std::vector<RuntimeTypeGetter> &parametersType) const {
+        if (!klass) return {};
+        TryInit();
+        auto parameters = (uint8_t) parametersType.size();
+
+        auto method = BNM_Internal::IterateMethods(*this, [&name, &parameters, &parametersType](IL2CPP::MethodInfo *method) {
+            if (name != method->name || method->parameters_count != parameters) return false;
+            for (uint8_t i = 0; i < parameters; ++i) {
+#if UNITY_VER < 212
+                auto param = (method->parameters + i)->parameter_type;
+#else
+                auto param = method->parameters[i];
+#endif
+
+                if (LoadClass(param).GetIl2CppClass() != parametersType[i].ToIl2CppClass()) return false;
             }
+            return true;
+        });
 
-        // Очистить список классов
-        classes.clear(); classes.shrink_to_fit();
+        if (method) return method;
 
-        // Предупредить о ненахождении
-        if (!ret.klass) LOGWBNM(OBFUSCATE_BNM("Вложенный класс: [%s]::[%s]::[%s] - не найден."), klass->namespaze, klass->name, name.c_str());
-
-        return ret;
+        BNM_LOG_WARN("Метод: [%s]::[%s].[%s], %d - не найден; использовались типы аргументов.", klass->namespaze, klass->name, name.data(), parameters);
+        return {};
     }
 
-    Field<int> LoadClass::GetFieldByName(const std::string &name) const {
+    PropertyBase LoadClass::GetPropertyByName(const std::string_view &name) {
         if (!klass) return {};
-        TryInit(); // Попробовать инициализировать класс
+        TryInit();
+        auto curClass = klass;
 
-        Field<int> ret{};
+        do {
+            auto end = curClass->properties + curClass->property_count;
+            for (auto currentProperty = curClass->properties; currentProperty != end; ++currentProperty) if (name == currentProperty->name) return currentProperty;
+            curClass = curClass->parent;
+        } while (curClass);
 
-        // Получить все поля
-        auto fields = GetFieldsInfo(true);
+        BNM_LOG_WARN("Свойство: %s.(%s) - не найден.", str().c_str(), name.data());
+        return {};
+    }
 
-        // Попробовать найти поле
-        for (auto field : fields)
-            if (name == field->name) {
-                ret = field;
-                break;
+    LoadClass LoadClass::GetInnerClass(const std::string_view &name) const {
+        if (!klass) return {};
+        TryInit();
+        auto curClass = klass;
+
+        do {
+            for (uint16_t i = 0; i < curClass->nested_type_count; ++i) {
+                auto cls = curClass->nestedTypes[i];
+                if (name == cls->name) return cls;
             }
+            curClass = curClass->parent;
+        } while (curClass);
 
-        // Очистить список полей
-        fields.clear(); fields.shrink_to_fit();
+        BNM_LOG_WARN("Вложенный класс: [%s]::[%s]::[%s] - не найден.", klass->namespaze, klass->name, name.data());
+        return {};
+    }
 
-        // Предупредить о ненахождении
-        if (!ret.Initialized()) LOGWBNM(OBFUSCATE_BNM("Поле: [%s]::[%s].(%s) - не найдено."), klass->namespaze, klass->name, name.c_str());
+    FieldBase LoadClass::GetFieldByName(const std::string_view &name) const {
+        if (!klass) return {};
+        TryInit();
+        auto curClass = klass;
 
-        return ret;
+        do {
+            auto end = curClass->fields + curClass->field_count;
+            for (IL2CPP::FieldInfo *currentField = curClass->fields; currentField != end; ++currentField) {
+                if (name != currentField->name) continue;
+                return currentField;
+            }
+            curClass = curClass->parent;
+        } while (curClass);
+
+        BNM_LOG_WARN("Поле: [%s]::[%s].(%s) - не найдено.", klass->namespaze, klass->name, name.data());
+        return {};
     }
 
 
-    [[maybe_unused]] LoadClass LoadClass::GetParent() const {
+    LoadClass LoadClass::GetParent() const {
         if (!klass) return {};
-        TryInit(); // Попробовать инициализировать класс
+        TryInit();
         return klass->parent;
     }
 
-    [[maybe_unused]] LoadClass LoadClass::GetArrayClass() const {
+    LoadClass LoadClass::GetArray() const {
         if (!klass) return {};
-        TryInit(); // Попробовать инициализировать класс
+        TryInit();
+        return BNM_Internal::il2cppMethods.il2cpp_array_class_get(klass, 1);
+    }
 
-        DO_API(IL2CPP::Il2CppClass *, il2cpp_array_class_get, (IL2CPP::Il2CppClass *, uint32_t));
+    LoadClass LoadClass::GetPointer() const {
+        if (!klass) return {};
+        TryInit();
+        return BNM_Internal::GetPointer(*this);
+    }
 
-        return il2cpp_array_class_get(klass, 1);
+    LoadClass LoadClass::GetReference() const {
+        if (!klass) return {};
+        TryInit();
+        return BNM_Internal::GetReference(*this);
+    }
+
+
+    LoadClass LoadClass::GetGeneric(const std::vector<RuntimeTypeGetter> &templateTypes) const {
+        if (!klass) return {};
+        TryInit();
+        auto ret = BNM_Internal::TryMakeGenericClass(*this, templateTypes);
+        if (ret) return ret;
+#ifdef BNM_WARNING
+        BNM_LOG_WARN("Не удалось получить %s с:", str().c_str());
+        for (auto &type : templateTypes) BNM_LOG_WARN("\t%s", type.ToLC().str().c_str());
+#endif
+        return {};
     }
 
     IL2CPP::Il2CppType *LoadClass::GetIl2CppType() const {
         if (!klass) return nullptr;
-        TryInit(); // Попробовать инициализировать класс
-
+        TryInit();
 #if UNITY_VER > 174
         return (IL2CPP::Il2CppType *)&klass->byval_arg;
 #else
@@ -626,205 +564,352 @@ namespace BNM {
 #endif
     }
 
-    [[maybe_unused]] MonoType *LoadClass::GetMonoType() const {
+    MonoType *LoadClass::GetMonoType() const {
         if (!klass) return nullptr;
-        TryInit(); // Попробовать инициализировать класс
-
-        DO_API(IL2CPP::Il2CppObject *, il2cpp_type_get_object, (IL2CPP::Il2CppType *));
-
-        return (MonoType *) il2cpp_type_get_object(GetIl2CppType());
+        TryInit();
+        return (MonoType *) BNM_Internal::il2cppMethods.il2cpp_type_get_object(GetIl2CppType());
     }
 
     IL2CPP::Il2CppClass *LoadClass::GetIl2CppClass() const {
-        TryInit(); // Попробовать инициализировать класс
+        TryInit();
         return klass;
     }
 
     BNM::RuntimeTypeGetter LoadClass::GetRuntimeType() const {
-        TryInit(); // Попробовать инициализировать класс
-        return {nullptr, nullptr, false, {klass}};
+        TryInit();
+#if UNITY_VER > 174
+#define typeGet .
+#else
+#define typeGet ->
+#endif
+        return {nullptr, nullptr,
+                !Valid() ? RuntimeTypeGetter::RuntimeModifier::None :
+                klass->byval_arg typeGet type == IL2CPP::IL2CPP_TYPE_ARRAY ? RuntimeTypeGetter::RuntimeModifier::Array :
+                klass->byval_arg typeGet type == IL2CPP::IL2CPP_TYPE_PTR ? RuntimeTypeGetter::RuntimeModifier::Pointer :
+                klass->byval_arg typeGet type == IL2CPP::IL2CPP_TYPE_BYREF ? RuntimeTypeGetter::RuntimeModifier::Reference :
+                RuntimeTypeGetter::RuntimeModifier::None,
+                *this};
+#undef typeGet
     }
 
     LoadClass::operator BNM::RuntimeTypeGetter() const { return GetRuntimeType(); }
 
     void *LoadClass::CreateNewInstance() const {
         if (!klass) return nullptr;
-        TryInit(); // Попробовать инициализировать класс
+        TryInit();
 
         if ((klass->flags & (0x00000080 | 0x00000020))) // TYPE_ATTRIBUTE_ABSTRACT | TYPE_ATTRIBUTE_INTERFACE
-            LOGWBNM(OBFUSCATE_BNM("Вы пытаетесь создать объект абстрактного класса или интерфейса %s?\nВ C# это невозможно."), str().c_str());
+            BNM_LOG_WARN("Вы пытаетесь создать объект абстрактного класса или интерфейса %s?\nВ C# это невозможно.", str().c_str());
 
-        DO_API(IL2CPP::Il2CppObject *, il2cpp_object_new, (IL2CPP::Il2CppClass *));
-        auto obj = il2cpp_object_new(klass);
+        auto obj = BNM_Internal::il2cppMethods.il2cpp_object_new(klass);
         if (obj) memset((char*)obj + sizeof(IL2CPP::Il2CppObject), 0, klass->instance_size - sizeof(IL2CPP::Il2CppObject));
         return (void *) obj;
     }
 
-
-    [[maybe_unused]] std::string LoadClass::str() const {
-        if (klass) {
-            TryInit(); // Попробовать инициализировать класс
-            return OBFUSCATES_BNM("[") + klass->image->name + OBFUSCATES_BNM("]::[") + klass->namespaze + OBFUSCATES_BNM("]::[") + klass->name + OBFUSCATES_BNM("]");
-        }
-        return OBFUSCATES_BNM("Мёртвый класс");
+#ifdef BNM_ALLOW_STR_METHODS
+    std::string LoadClass::str() const {
+        if (!klass) return OBFUSCATES_BNM("Мёртвый класс");
+        TryInit();
+        return OBFUSCATES_BNM("[") + klass->image->name + OBFUSCATES_BNM("]::[") + klass->namespaze + OBFUSCATES_BNM("]::[") + klass->name + OBFUSCATES_BNM("]");
     }
+#endif
 
     // Попробовать инициализировать класс, если он жив
     void LoadClass::TryInit() const { if (klass) BNM_Internal::Class$$Init(klass); }
 
     IL2CPP::Il2CppObject *LoadClass::ObjBox(IL2CPP::Il2CppClass *klass, void *data) {
-        DO_API(IL2CPP::Il2CppObject *, il2cpp_value_box, (IL2CPP::Il2CppClass *, void *));
-        return il2cpp_value_box(klass, data);
+        return BNM_Internal::il2cppMethods.il2cpp_value_box(klass, data);
     }
 
     IL2CPP::Il2CppArray *LoadClass::ArrayNew(IL2CPP::Il2CppClass *cls, IL2CPP::il2cpp_array_size_t length) {
-        DO_API(IL2CPP::Il2CppArray *, il2cpp_array_new, (IL2CPP::Il2CppClass *, IL2CPP::il2cpp_array_size_t));
-        return il2cpp_array_new(cls, length);
+        return BNM_Internal::il2cppMethods.il2cpp_array_new(cls, length);
     }
 
-    void MonoListFinalize(IL2CPP::Il2CppObject *obj) { // Метод очистки monoList
-        for (auto i = 4; i < obj->klass->vtable_count; ++i) free((void *)obj->klass->vtable[i].method);
-    }
-    BNM::IL2CPP::MethodInfo* GetListFinalize() {
-        static std::once_flag once{};
-        static BNM::IL2CPP::MethodInfo* ret{};
-        std::call_once(once, []() {
-            auto i = BNM::GetType<void*>().ToLC().GetMethodByName(OBFUSCATE_BNM("Finalize")).myInfo;
-            ret = (IL2CPP::MethodInfo *)malloc(sizeof(IL2CPP::MethodInfo));
-            memcpy((void *)ret, (void *)i, sizeof(IL2CPP::MethodInfo));
-            ret->methodPointer = (decltype(ret->methodPointer)) MonoListFinalize;
-        });
-        return ret;
-    }
     void *LoadClass::NewListInstance() {
-        static std::once_flag flag;
-        static LoadClass LC;
-        std::call_once(flag, [](){
-            LC = LoadClass(OBFUSCATE_BNM("System.Collections.Generic"), OBFUSCATE_BNM("List`1"));
-            auto cls = LC.klass;
-            auto size = sizeof(IL2CPP::Il2CppClass) + cls->vtable_count * sizeof(IL2CPP::VirtualInvokeData);
-            LC.klass = (IL2CPP::Il2CppClass *)malloc(size);
-            memcpy(LC.klass, cls, size);
-            LC.klass->has_finalize = 1;
-            LC.klass->instance_size = sizeof(MONO_STRUCTS::monoList<void*>);
-            LC.klass->vtable[1].method = GetListFinalize();
-            LC.klass->vtable[1].methodPtr = LC.klass->vtable[1].method->methodPointer;
-            // Обход создания статического поля _emptyArray, потому что его не может существовать
-            LC.klass->has_cctor = 0;
-            LC.klass->cctor_started = 0;
-#if UNITY_VER >= 212
-            LC.klass->cctor_finished_or_no_cctor = 1;
-#else
-            LC.klass->cctor_finished = 1;
-#endif
-            auto info = LC.GetMethodByName(OBFUSCATE_BNM(".ctor"), 0).myInfo;
-            info->methodPointer = (decltype(info->methodPointer)) BNM_Internal::Empty;
-        });
-        auto r = LC.CreateNewInstance();
-        LOGIBNM("NewListInstance 4, %p", r);
-        return r;
-
+        return BNM_Internal::customListTemplateClass.CreateNewInstance();
     }
 
+    // Метод для получения и создания типов для каждого типа списков
+    IL2CPP::Il2CppClass *Structures::Mono::__PRIVATE_MonoListData::TryGetMonoListClass(uint32_t typeHash, std::array<__PRIVATE_MonoListData::MethodData, 16> &data) {
+        auto &klass = BNM_Internal::customListsMap[typeHash];
+        if (klass) return klass;
+
+        std::map<size_t, IL2CPP::MethodInfo *> createdMethods{};
+        auto templateClass = BNM_Internal::customListTemplateClass.klass;
+        auto size = sizeof(IL2CPP::Il2CppClass) + templateClass->vtable_count * sizeof(IL2CPP::VirtualInvokeData);
+        auto typedClass = (IL2CPP::Il2CppClass *) malloc(size);
+        memcpy(typedClass, templateClass, size);
+        auto hash = std::hash<std::string_view>();
+        for (uint16_t i = 4 /* Пропуск virtual методов от System.Object */; i < typedClass->vtable_count; ++i) {
+            auto &cur = typedClass->vtable[i];
+            auto name = std::string_view(cur.method->name);
+            auto dot = name.rfind('.');
+            if (dot != std::string_view::npos) name = name.substr(dot + 1);
+
+            auto iterator = data.begin();
+            for (; iterator != data.end(); ++iterator) if (iterator->methodName == name) break;
+
+            auto &methodInfo = createdMethods[hash(name)];
+
+            if (methodInfo == nullptr) {
+                methodInfo = (IL2CPP::MethodInfo *) malloc(sizeof(IL2CPP::MethodInfo));
+                memcpy((void *) methodInfo, (void *) cur.methodPtr, sizeof(IL2CPP::MethodInfo));
+                methodInfo->methodPointer = (decltype(methodInfo->methodPointer)) iterator->ptr;
+            }
+            cur.method = methodInfo;
+            cur.methodPtr = cur.method->methodPointer;
+        }
+        klass = typedClass;
+        return klass;
+    }
 
     /*** RuntimeTypeGetter ***/
     LoadClass RuntimeTypeGetter::ToLC() {
-        if (!loadedClass.klass) {
-            if (!name) {
-                namespaze = OBFUSCATE_BNM("System");
-                name = OBFUSCATE_BNM("Object");
-            }
-            loadedClass = LoadClass(namespaze, name);
-            if (isArray) loadedClass = loadedClass.GetArrayClass();
-        }
+        if (loadedClass) return loadedClass;
+
+        if (!name || !namespaze) return {};
+
+        loadedClass = LoadClass(namespaze, name);
+        if (modifier == RuntimeModifier::Array) loadedClass = loadedClass.GetArray();
+        else if (modifier == RuntimeModifier::Pointer) loadedClass = loadedClass.GetPointer();
+        else if (modifier == RuntimeModifier::Reference) loadedClass = loadedClass.GetReference();
+
         return loadedClass;
     }
+    LoadClass RuntimeTypeGetter::ToLC() const {
+        return ((RuntimeTypeGetter *)this)->ToLC();
+    }
     RuntimeTypeGetter::operator LoadClass() { return ToLC(); }
+    RuntimeTypeGetter::operator LoadClass() const { return ToLC(); }
 
     IL2CPP::Il2CppType *RuntimeTypeGetter::ToIl2CppType() { return ToLC().GetIl2CppType(); }
+    IL2CPP::Il2CppType *RuntimeTypeGetter::ToIl2CppType() const { return ToLC().GetIl2CppType(); }
     RuntimeTypeGetter::operator IL2CPP::Il2CppType*() { return ToIl2CppType(); }
+    RuntimeTypeGetter::operator IL2CPP::Il2CppType*() const { return ToIl2CppType(); }
 
     IL2CPP::Il2CppClass *RuntimeTypeGetter::ToIl2CppClass() { return ToLC().GetIl2CppClass(); }
+    IL2CPP::Il2CppClass *RuntimeTypeGetter::ToIl2CppClass() const { return ToLC().GetIl2CppClass(); }
     RuntimeTypeGetter::operator IL2CPP::Il2CppClass*() { return ToIl2CppClass(); }
+    RuntimeTypeGetter::operator IL2CPP::Il2CppClass*() const { return ToIl2CppClass(); }
 
     // Для статических полей потоков
-    namespace PRIVATE_FILED_UTILS {
+    namespace __PRIVATE_FieldUtils {
         void GetStaticValue(IL2CPP::FieldInfo *info, void *value) {
-            DO_API(void, il2cpp_field_static_get_value, (IL2CPP::FieldInfo *, void *));
-            return il2cpp_field_static_get_value(info, value);
+            return BNM_Internal::il2cppMethods.il2cpp_field_static_get_value(info, value);
         }
         void SetStaticValue(IL2CPP::FieldInfo *info, void *value) {
-            DO_API(void, il2cpp_field_static_set_value, (IL2CPP::FieldInfo *, void *));
-            return il2cpp_field_static_set_value(info, value);
+            return BNM_Internal::il2cppMethods.il2cpp_field_static_set_value(info, value);
         }
+    }
+
+    bool CheckIsFieldStatic(IL2CPP::FieldInfo *field) {
+        if (!field || !field->type) return false;
+        return (field->type->attrs & 0x0010) != 0 && field->offset != -1 && (field->type->attrs & 0x0040) == 0;
+    }
+
+    FieldBase::FieldBase(IL2CPP::FieldInfo *info) {
+        init = info != nullptr;
+        if (init) {
+            isStatic = CheckIsFieldStatic(info);
+            myInfo = info;
+            isThreadStatic = myInfo->offset == -1;
+        }
+    }
+
+    FieldBase::FieldBase(const FieldBase &other) {
+        myInfo = other.myInfo;
+        instance = other.instance;
+        init = other.init;
+        isStatic = other.isStatic;
+        isThreadStatic = other.isThreadStatic;
+    }
+
+    FieldBase &FieldBase::SetInstance(IL2CPP::Il2CppObject *val)  {
+        if (init && isStatic) {
+            BNM_LOG_WARN("Попытка установить объект статическому полю %s. Пожалуйста, уберите вызов SetInstance в коде.", str().c_str());
+            return *this;
+        }
+        init = val && myInfo != nullptr;
+        instance = val;
+        return *this;
+    }
+
+    IL2CPP::FieldInfo *FieldBase::GetInfo() const {
+        if (init) return myInfo;
+        return {};
+    }
+
+    BNM_PTR FieldBase::GetOffset() const {
+#ifndef BNM_ALLOW_GET_OFFSET
+        BNM_LOG_ERR("GetOffset запрещён для использования! Проверьте примеры, может ли BNM выполнить нужное вам действие. Если вам действительно нужен GetOffset, и BNM не предоставляет API для действия, которое вы задумали, то включите BNM_ALLOW_GET_OFFSET в его настройках.");
+        return 0;
+#endif
+        if (!init) return 0;
+        return myInfo->offset;
+    }
+
+    void *FieldBase::GetFieldPointer() const {
+        if (!init) return nullptr;
+        if (!isStatic && !CheckObj(instance)) {
+            BNM_LOG_ERR("Не могу получить не статический указатель поля %s без объекта! Пожалуйста, установите объект перед попыткой получить указатель.", str().c_str());
+            return nullptr;
+        } else if (isStatic && !CheckObj(myInfo->parent)) {
+            BNM_LOG_ERR("Что-то пошло не так, статическое поле %s не имеет класс.", str().c_str());
+            return nullptr;
+        } else if (isThreadStatic) {
+            BNM_LOG_ERR("Получение указателя на статические поля потоков не поддерживается, поле: %s.", str().c_str());
+            return nullptr;
+        }
+        if (isStatic) return (void *) ((BNM_PTR) myInfo->parent->static_fields + myInfo->offset);
+        return (void *) ((BNM_PTR) instance + myInfo->offset);
+    }
+
+    MethodBase::MethodBase(const IL2CPP::MethodInfo *info)  {
+        init = (BNM::CheckObj(info) != nullptr);
+        if (init) {
+            isStatic = info->flags & 0x0010;
+            isVirtual = info->slot != IL2CPP::kInvalidIl2CppMethodSlot;
+            myInfo = (decltype(myInfo)) info;
+        }
+    }
+
+    MethodBase::MethodBase(const MethodBase &other) {
+        myInfo = other.myInfo;
+        instance = other.instance;
+        init = other.init;
+        isStatic = other.isStatic;
+        isVirtual = other.isVirtual;
+    }
+
+    MethodBase &MethodBase::SetInstance(IL2CPP::Il2CppObject *val)  {
+        if (!init) return *this;
+        if (init && isStatic) {
+            BNM_LOG_WARN("Попытка установить объект статическому методу %s. Пожалуйста, уберите вызов SetInstance в коде.", str().c_str());
+            return *this;
+        }
+        instance = val;
+        return *this;
+    }
+
+    IL2CPP::MethodInfo *MethodBase::GetInfo() const {
+        if (init) return myInfo;
+        return {};
+    }
+
+    BNM_PTR MethodBase::GetOffset() const {
+#ifndef BNM_ALLOW_GET_OFFSET
+        BNM_LOG_ERR("GetOffset запрещён для использования! Проверьте примеры, может ли BNM выполнить нужное вам действие. Если вам действительно нужен GetOffset, и BNM не предоставляет API для действия, которое вы задумали, то включите BNM_ALLOW_GET_OFFSET в его настройках.");
+        return 0;
+#endif
+        if (init) return (BNM_PTR) myInfo->methodPointer;
+        return {};
+    }
+
+    MethodBase MethodBase::GetGeneric(const std::vector<RuntimeTypeGetter> &templateTypes) const {
+        BNM_LOG_WARN_IF(!myInfo->is_generic, "Метод %s не generic!", str().c_str());
+        if (!myInfo->is_generic) return {};
+        auto method = BNM_Internal::TryMakeGenericMethod(*this, templateTypes);
+        if (method) return method;
+#ifdef BNM_WARNING
+        BNM_LOG_WARN("Не удалось получить %s с:", str().c_str());
+        for (auto &type : templateTypes) BNM_LOG_WARN("\t%s", type.ToLC().str().c_str());
+#endif
+        return {};
+    }
+
+    PropertyBase::PropertyBase(const IL2CPP::PropertyInfo *info) {
+        if (!info) return;
+        hasGetter = hasSetter = false;
+        if (info->get && info->get->methodPointer) {
+            hasGetter = true;
+            getter = info->get;
+        }
+        if (info->set && info->set->methodPointer) {
+            hasSetter = true;
+            setter = info->set;
+        }
+    }
+
+    PropertyBase::PropertyBase(const PropertyBase &other) {
+        myInfo = other.myInfo;
+        getter = other.getter;
+        setter = other.setter;
+        hasGetter = other.hasGetter;
+        hasSetter = other.hasSetter;
+    }
+
+    PropertyBase::PropertyBase(const MethodBase &newGetter, const MethodBase &newSetter)  {
+        hasGetter = hasSetter = false;
+        if (newGetter) {
+            hasGetter = true;
+            getter = newGetter;
+        }
+        if (newSetter) {
+            hasSetter = true;
+            setter = newSetter;
+        }
+    }
+
+    PropertyBase &PropertyBase::SetInstance(IL2CPP::Il2CppObject *val) {
+        if (hasGetter) getter.SetInstance(val);
+        if (hasSetter) setter.SetInstance(val);
+        return *this;
     }
 
     /*** BNM-методы ***/
-    using namespace MONO_STRUCTS;
-    [[maybe_unused]] bool AttachIl2Cpp() {
+#ifdef BNM_DEPRECATED
+    bool AttachIl2Cpp() {
         if (CurrentIl2CppThread()) return false;
-        DO_API(IL2CPP::Il2CppDomain *, il2cpp_domain_get, ());
-        DO_API(IL2CPP::Il2CppThread *, il2cpp_thread_attach, (IL2CPP::Il2CppDomain *));
-        il2cpp_thread_attach(il2cpp_domain_get());
+        BNM_Internal::il2cppMethods.il2cpp_thread_attach(BNM_Internal::il2cppMethods.il2cpp_domain_get());
         return true;
     }
 
-    [[maybe_unused]] IL2CPP::Il2CppThread *CurrentIl2CppThread() {
-        DO_API(IL2CPP::Il2CppThread *, il2cpp_thread_current, ());
-        return il2cpp_thread_current();
+    IL2CPP::Il2CppThread *CurrentIl2CppThread() {
+        return BNM_Internal::il2cppMethods.il2cpp_thread_current();
     }
 
-    [[maybe_unused]] void DetachIl2Cpp() {
+    void DetachIl2Cpp() {
         auto thread = CurrentIl2CppThread();
         if (!thread) return;
-        DO_API(void, il2cpp_thread_detach, (IL2CPP::Il2CppThread *));
-        il2cpp_thread_detach(thread);
+        BNM_Internal::il2cppMethods.il2cpp_thread_detach(thread);
     }
-
+#endif
     // Создать обычную C#-строку, используя il2cpp
-    monoString *CreateMonoString(const char *str) {
-        DO_API(monoString *, il2cpp_string_new, (const char *str));
-        return il2cpp_string_new(str);
+    Structures::Mono::monoString *CreateMonoString(const char *str) {
+        return BNM_Internal::il2cppMethods.il2cpp_string_new(str);
     }
-    [[maybe_unused]] monoString *CreateMonoString(const std::string &str) { return CreateMonoString(str2char(str)); }
+    Structures::Mono::monoString *CreateMonoString(const std::string_view &str) { return CreateMonoString(str.data()); }
 
-    void *GetExternMethod(const std::string &str) {
-        DO_API(void *, il2cpp_resolve_icall, (const char *));
-        auto c_str = str2char(str);
-        auto ret = il2cpp_resolve_icall(c_str);
-        if (!ret) LOGWBNM(OBFUSCATE_BNM("Внешний метод %s не найден. Пожалуйста, проверьте код."), c_str);
+    void *GetExternMethod(const std::string_view &str) {
+        auto c_str = str.data();
+        auto ret = BNM_Internal::il2cppMethods.il2cpp_resolve_icall(c_str);
+        BNM_LOG_WARN_IF(!ret, "Внешний метод %s не найден. Пожалуйста, проверьте код.", c_str);
         return ret;
     }
 
 
-    [[maybe_unused]] std::string GetLibIl2CppPath() {
-        if (!BNM_Internal::dlLib) return OBFUSCATE_BNM("libil2cpp не найден!");
-        return BNM_Internal::LibAbsolutePath;
+    std::string_view GetIl2CppLibraryPath() {
+        if (!BNM_Internal::il2cppLibraryHandle) return {};
+        return BNM_Internal::il2cppLibraryAbsolutePath;
     }
 
-    [[maybe_unused]] BNM_PTR GetLibIl2CppOffset() {
-        return BNM_Internal::LibAbsoluteAddress;
+    BNM_PTR GetIl2CppLibraryOffset() {
+        return BNM_Internal::il2cppLibraryAbsoluteAddress;
     }
 
-    void *offsetInLib(void *offsetInMemory) {
-        Dl_info info; BNM_dladdr(offsetInMemory, &info);
-        return (void *) ((BNM_PTR) offsetInMemory - (BNM_PTR) info.dli_fbase);
-    }
-
-    [[maybe_unused]] void *GetLibIl2CppDlInst() {
-        return BNM_Internal::dlLib;
+    void *GetIl2CppLibraryHandle() {
+        return BNM_Internal::il2cppLibraryHandle;
     }
 
     bool InvokeHookImpl(IL2CPP::MethodInfo *m, void *newMet, void **oldMet) {
         if (!m) return false;
-        if (oldMet) *oldMet = (void *)m->methodPointer;
-        m->methodPointer = (void(*)())newMet;
+        if (oldMet) *oldMet = (void *) m->methodPointer;
+        m->methodPointer = (IL2CPP::Il2CppMethodPointer) newMet;
         return true;
     }
 
     bool VirtualHookImpl(BNM::LoadClass targetClass, IL2CPP::MethodInfo *m, void *newMet, void **oldMet) {
         if (!m || !targetClass) return false;
-        DO_API(bool, il2cpp_type_equals, (const IL2CPP::Il2CppType * type, const IL2CPP::Il2CppType * otherType));
         for (uint16_t i = 0; i < targetClass.klass->vtable_count; ++i) {
             auto &vTable = targetClass.klass->vtable[i];
             auto count = vTable.method->parameters_count;
@@ -839,14 +924,13 @@ namespace BNM {
                     auto type = vTable.method->parameters[p];
                     auto type2 = m->parameters[p];
 #endif
-                    if (il2cpp_type_equals(type, type2)) continue;
 
+                    if (LoadClass(type).GetIl2CppClass() == LoadClass(type2).GetIl2CppClass()) continue;
                     same = false;
                     break;
                 }
                 if (!same) break;
-
-                if (oldMet) *oldMet = (void *)vTable.methodPtr;
+                if (oldMet) *oldMet = (void *) vTable.methodPtr;
                 vTable.methodPtr = (void(*)()) newMet;
                 return true;
 
@@ -861,1296 +945,22 @@ namespace BNM {
         return false;
     }
 
-    namespace UNITY_STRUCTS {
-        [[maybe_unused]] void *RaycastHit::get_Collider() const {
-            if (!m_Collider || (BNM_PTR)m_Collider < 0) return {};
-#if UNITY_VER > 174
-            static void *(*FromId)(int);
-            if (!FromId) InitResolveFunc(FromId, OBFUSCATE_BNM("UnityEngine.Object::FindObjectFromInstanceID"));
-            return FromId(m_Collider);
-#else
-            return m_Collider;
-#endif
-        }
-        [[maybe_unused]] const float Vector4::infinity = std::numeric_limits<float>::infinity();
-        [[maybe_unused]] const Vector4 Vector4::infinityVec = {std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()};
-        [[maybe_unused]] const Vector4 Vector4::zero = {0, 0, 0, 0};
-        [[maybe_unused]] const Vector4 Vector4::one = {1, 1, 1, 1};
-        [[maybe_unused]] const float Vector3::epsilon = 0.00001f;
-        [[maybe_unused]] const Vector3 Vector3::infinityVec = {std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()};
-        [[maybe_unused]] const Vector3 Vector3::zero = {0.f, 0.f, 0.f};
-        [[maybe_unused]] const Vector3 Vector3::one = {1.f, 1.f, 1.f};
-        [[maybe_unused]] const Vector3 Vector3::up = {0.f, 1.f, 0.f};
-        [[maybe_unused]] const Vector3 Vector3::down = {0.f, -1.f, 0.f};
-        [[maybe_unused]] const Vector3 Vector3::left = {-1.f, 0.f, 0.f};
-        [[maybe_unused]] const Vector3 Vector3::right = {1.f, 0.f, 0.f};
-        [[maybe_unused]] const Vector3 Vector3::forward = {0.f, 0.f, 1.f};
-        [[maybe_unused]] const Vector3 Vector3::back = {0.f, 0.f, -1.f};
-
-        inline Vector3 Matrix3x3::MultiplyVector3(const Vector3& v) const
-        {
-            Vector3 res;
-            res.x = m_Data[0] * v.x + m_Data[3] * v.y + m_Data[6] * v.z;
-            res.y = m_Data[1] * v.x + m_Data[4] * v.y + m_Data[7] * v.z;
-            res.z = m_Data[2] * v.x + m_Data[5] * v.y + m_Data[8] * v.z;
-            return res;
-        }
-
-        inline void Matrix3x3::MultiplyVector3(const Vector3& v, Vector3& output) const
-        {
-            output.x = m_Data[0] * v.x + m_Data[3] * v.y + m_Data[6] * v.z;
-            output.y = m_Data[1] * v.x + m_Data[4] * v.y + m_Data[7] * v.z;
-            output.z = m_Data[2] * v.x + m_Data[5] * v.y + m_Data[8] * v.z;
-        }
-
-        inline void MultiplyMatrices3x3(const Matrix3x3* __restrict lhs, const Matrix3x3* __restrict rhs, Matrix3x3* __restrict res)
-        {
-            for (int i = 0; i < 3; ++i)
-            {
-                res->m_Data[i]    = lhs->m_Data[i] * rhs->m_Data[0]  + lhs->m_Data[i + 3] * rhs->m_Data[1]  + lhs->m_Data[i + 6] * rhs->m_Data[2];
-                res->m_Data[i + 3]  = lhs->m_Data[i] * rhs->m_Data[3]  + lhs->m_Data[i + 3] * rhs->m_Data[4]  + lhs->m_Data[i + 6] * rhs->m_Data[5];
-                res->m_Data[i + 6]  = lhs->m_Data[i] * rhs->m_Data[6]  + lhs->m_Data[i + 3] * rhs->m_Data[7]  + lhs->m_Data[i + 6] * rhs->m_Data[8];
-            }
-        }
-
-        inline Matrix3x3 operator*(const Matrix3x3& lhs, const Matrix3x3& rhs)
-        {
-            Matrix3x3 temp;
-            MultiplyMatrices3x3(&lhs, &rhs, &temp);
-            return temp;
-        }
-
-        inline Vector3 Matrix3x3::MultiplyVector3Transpose(const Vector3& v) const
-        {
-            Vector3 res;
-            res.x = Get(0, 0) * v.x + Get(1, 0) * v.y + Get(2, 0) * v.z;
-            res.y = Get(0, 1) * v.x + Get(1, 1) * v.y + Get(2, 1) * v.z;
-            res.z = Get(0, 2) * v.x + Get(1, 2) * v.y + Get(2, 2) * v.z;
-            return res;
-        }
-
-        Matrix3x3& Matrix3x3::SetIdentity()
-        {
-            Get(0, 0) = 1.0F;  Get(0, 1) = 0.0F;  Get(0, 2) = 0.0F;
-            Get(1, 0) = 0.0F;  Get(1, 1) = 1.0F;  Get(1, 2) = 0.0F;
-            Get(2, 0) = 0.0F;  Get(2, 1) = 0.0F;  Get(2, 2) = 1.0F;
-            return *this;
-        }
-
-        Matrix3x3& Matrix3x3::SetZero()
-        {
-            Get(0, 0) = 0.0F;  Get(0, 1) = 0.0F;  Get(0, 2) = 0.0F;
-            Get(1, 0) = 0.0F;  Get(1, 1) = 0.0F;  Get(1, 2) = 0.0F;
-            Get(2, 0) = 0.0F;  Get(2, 1) = 0.0F;  Get(2, 2) = 0.0F;
-            return *this;
-        }
-
-        Matrix3x3& Matrix3x3::SetBasis(const Vector3& inX, const Vector3& inY, const Vector3& inZ)
-        {
-            Get(0, 0) = inX[0];    Get(0, 1) = inY[0];    Get(0, 2) = inZ[0];
-            Get(1, 0) = inX[1];    Get(1, 1) = inY[1];    Get(1, 2) = inZ[1];
-            Get(2, 0) = inX[2];    Get(2, 1) = inY[2];    Get(2, 2) = inZ[2];
-            return *this;
-        }
-
-        Matrix3x3& Matrix3x3::SetBasisTransposed(const Vector3& inX, const Vector3& inY, const Vector3& inZ)
-        {
-            Get(0, 0) = inX[0];    Get(1, 0) = inY[0];    Get(2, 0) = inZ[0];
-            Get(0, 1) = inX[1];    Get(1, 1) = inY[1];    Get(2, 1) = inZ[1];
-            Get(0, 2) = inX[2];    Get(1, 2) = inY[2];    Get(2, 2) = inZ[2];
-            return *this;
-        }
-
-        Matrix3x3& Matrix3x3::SetScale(const Vector3& inScale)
-        {
-            Get(0, 0) = inScale[0];    Get(0, 1) = 0.0F;          Get(0, 2) = 0.0F;
-            Get(1, 0) = 0.0F;          Get(1, 1) = inScale[1];    Get(1, 2) = 0.0F;
-            Get(2, 0) = 0.0F;          Get(2, 1) = 0.0F;          Get(2, 2) = inScale[2];
-            return *this;
-        }
-        inline bool CompareApproximately(float f0, float f1, float epsilon = 0.000001F) {
-            float dist = (f0 - f1);
-            dist = abs(dist);
-            return dist <= epsilon;
-        }
-        bool Matrix3x3::IsIdentity(float threshold)
-        {
-            if (CompareApproximately(Get(0, 0), 1.0f, threshold) && CompareApproximately(Get(0, 1), 0.0f, threshold) && CompareApproximately(Get(0, 2), 0.0f, threshold) &&
-                CompareApproximately(Get(1, 0), 0.0f, threshold) && CompareApproximately(Get(1, 1), 1.0f, threshold) && CompareApproximately(Get(1, 2), 0.0f, threshold) &&
-                CompareApproximately(Get(2, 0), 0.0f, threshold) && CompareApproximately(Get(2, 1), 0.0f, threshold) && CompareApproximately(Get(2, 2), 1.0f, threshold))
-                return true;
-            return false;
-        }
-
-        Matrix3x3& Matrix3x3::Scale(const Vector3& inScale)
-        {
-            Get(0, 0) *= inScale[0];
-            Get(1, 0) *= inScale[0];
-            Get(2, 0) *= inScale[0];
-
-            Get(0, 1) *= inScale[1];
-            Get(1, 1) *= inScale[1];
-            Get(2, 1) *= inScale[1];
-
-            Get(0, 2) *= inScale[2];
-            Get(1, 2) *= inScale[2];
-            Get(2, 2) *= inScale[2];
-            return *this;
-        }
-
-        float Matrix3x3::GetDeterminant() const
-        {
-            float fCofactor0 = Get(0, 0) * Get(1, 1) * Get(2, 2);
-            float fCofactor1 = Get(0, 1) * Get(1, 2) * Get(2, 0);
-            float fCofactor2 = Get(0, 2) * Get(1, 0) * Get(2, 1);
-
-            float fCofactor3 = Get(0, 2) * Get(1, 1) * Get(2, 0);
-            float fCofactor4 = Get(0, 1) * Get(1, 0) * Get(2, 2);
-            float fCofactor5 = Get(0, 0) * Get(1, 2) * Get(2, 1);
-
-            return fCofactor0 + fCofactor1 + fCofactor2 - fCofactor3 - fCofactor4 - fCofactor5;
-        }
-
-        Matrix3x3& Matrix3x3::Transpose()
-        {
-            std::swap(Get(0, 1), Get(1, 0));
-            std::swap(Get(0, 2), Get(2, 0));
-            std::swap(Get(2, 1), Get(1, 2));
-            return *this;
-        }
-
-        void Matrix3x3::InvertTranspose()
-        {
-            Invert();
-            Transpose();
-        }
-
-        Matrix3x3& Matrix3x3::operator*=(float f)
-        {
-            for (float & i : m_Data)
-                i *= f;
-            return *this;
-        }
-
-        Matrix3x3& Matrix3x3::operator*=(const Matrix3x3& inM)
-        {
-            int i;
-            for (i = 0; i < 3; i++)
-            {
-                float v[3] = {Get(i, 0), Get(i, 1), Get(i, 2)};
-                Get(i, 0) = v[0] * inM.Get(0, 0) + v[1] * inM.Get(1, 0) + v[2] * inM.Get(2, 0);
-                Get(i, 1) = v[0] * inM.Get(0, 1) + v[1] * inM.Get(1, 1) + v[2] * inM.Get(2, 1);
-                Get(i, 2) = v[0] * inM.Get(0, 2) + v[1] * inM.Get(1, 2) + v[2] * inM.Get(2, 2);
-            }
-            return *this;
-        }
-
-
-        Matrix3x3& Matrix3x3::SetAxisAngle(const Vector3& rotationAxis, float radians)
-        {
-            GetRotMatrixNormVec(m_Data, rotationAxis.GetPtr(), radians);
-            return *this;
-        }
-
-        void Matrix3x3::EulerToMatrix(const Vector3& v, Matrix3x3& matrix)
-        {
-            float cx = cos(v.x);
-            float sx = sin(v.x);
-            float cy = cos(v.y);
-            float sy = sin(v.y);
-            float cz = cos(v.z);
-            float sz = sin(v.z);
-
-            matrix.Get(0, 0) = cy * cz + sx * sy * sz;
-            matrix.Get(0, 1) = cz * sx * sy - cy * sz;
-            matrix.Get(0, 2) = cx * sy;
-
-            matrix.Get(1, 0) = cx * sz;
-            matrix.Get(1, 1) = cx * cz;
-            matrix.Get(1, 2) = -sx;
-
-            matrix.Get(2, 0) = -cz * sy + cy * sx * sz;
-            matrix.Get(2, 1) = cy * cz * sx + sy * sz;
-            matrix.Get(2, 2) = cx * cy;
-        }
-
-        Matrix3x3& Matrix3x3::SetFromToRotation(const Vector3& from, const Vector3& to)
-        {
-            Vector3 v = Vector3::Cross(from, to);
-            float e = Vector3::Dot(from, to);
-            const float kEpsilon = 0.000001f;
-            if (e > 1.0 - kEpsilon)
-            {
-                Get(0, 0) = 1.0; Get(0, 1) = 0.0; Get(0, 2) = 0.0;
-                Get(1, 0) = 0.0; Get(1, 1) = 1.0; Get(1, 2) = 0.0;
-                Get(2, 0) = 0.0; Get(2, 1) = 0.0; Get(2, 2) = 1.0;
-            }
-            else if (e < -1.0 + kEpsilon)
-            {
-                float invlen;
-                float fxx, fyy, fzz, fxy, fxz, fyz;
-                float uxx, uyy, uzz, uxy, uxz, uyz;
-                float lxx, lyy, lzz, lxy, lxz, lyz;
-                Vector3 left(0.0f, from[2], -from[1]);
-                if (Vector3::Dot(left, left) < kEpsilon) left[0] = -from[2]; left[1] = 0.0; left[2] = from[0];
-                
-                invlen = 1.0f / sqrt(Vector3::Dot(left, left));
-                left[0] *= invlen;
-                left[1] *= invlen;
-                left[2] *= invlen;
-                Vector3 up = Vector3::Cross(left, from);
-                fxx = -from[0] * from[0]; fyy = -from[1] * from[1]; fzz = -from[2] * from[2];
-                fxy = -from[0] * from[1]; fxz = -from[0] * from[2]; fyz = -from[1] * from[2];
-
-                uxx = up[0] * up[0]; uyy = up[1] * up[1]; uzz = up[2] * up[2];
-                uxy = up[0] * up[1]; uxz = up[0] * up[2]; uyz = up[1] * up[2];
-
-                lxx = -left[0] * left[0]; lyy = -left[1] * left[1]; lzz = -left[2] * left[2];
-                lxy = -left[0] * left[1]; lxz = -left[0] * left[2]; lyz = -left[1] * left[2];
-
-                Get(0, 0) = fxx + uxx + lxx; Get(0, 1) = fxy + uxy + lxy; Get(0, 2) = fxz + uxz + lxz;
-                Get(1, 0) = Get(0, 1);   Get(1, 1) = fyy + uyy + lyy; Get(1, 2) = fyz + uyz + lyz;
-                Get(2, 0) = Get(0, 2);   Get(2, 1) = Get(1, 2);   Get(2, 2) = fzz + uzz + lzz;
-            } else {
-                float hvx, hvz, hvxy, hvxz, hvyz;
-                float h = (1.0f - e) / Vector3::Dot(v, v);
-                hvx = h * v[0];
-                hvz = h * v[2];
-                hvxy = hvx * v[1];
-                hvxz = hvx * v[2];
-                hvyz = hvz * v[1];
-                Get(0, 0) = e + hvx * v[0]; Get(0, 1) = hvxy - v[2];     Get(0, 2) = hvxz + v[1];
-                Get(1, 0) = hvxy + v[2];  Get(1, 1) = e + h * v[1] * v[1]; Get(1, 2) = hvyz - v[0];
-                Get(2, 0) = hvxz - v[1];  Get(2, 1) = hvyz + v[0];     Get(2, 2) = e + hvz * v[2];
-            }
-            return *this;
-        }
-
-        bool Matrix3x3::LookRotationToMatrix(const Vector3& viewVec, const Vector3& upVec, Matrix3x3* m)
-        {
-            Vector3 z = viewVec;
-            float mag = Vector3::Magnitude(z);
-            if (mag < Vector3::epsilon)
-            {
-                m->SetIdentity();
-                return false;
-            }
-            z /= mag;
-
-            Vector3 x = Vector3::Cross(upVec, z);
-            mag = Vector3::Magnitude(x);
-            if (mag < Vector3::epsilon)
-            {
-                m->SetIdentity();
-                return false;
-            }
-            x /= mag;
-
-            Vector3 y(Vector3::Cross(z, x));
-            if (!CompareApproximately(Vector3::SqrMagnitude(y), 1.0F))
-                return false;
-
-            m->SetBasis(x, y, z);
-            return true;
-        }
-
-        void Matrix3x3::GetRotMatrixNormVec(float* out, const float* inVec, float radians)
-        {
-            float s, c;
-            float vx, vy, vz, xx, yy, zz, xy, yz, zx, xs, ys, zs, one_c;
-
-            s = sin(radians);
-            c = cos(radians);
-
-            vx = inVec[0];
-            vy = inVec[1];
-            vz = inVec[2];
-
-#define M(row, col)  out[(row)*3 + col]
-            xx = vx * vx;
-            yy = vy * vy;
-            zz = vz * vz;
-            xy = vx * vy;
-            yz = vy * vz;
-            zx = vz * vx;
-            xs = vx * s;
-            ys = vy * s;
-            zs = vz * s;
-            one_c = 1.0F - c;
-
-            M(0, 0) = (one_c * xx) + c;
-            M(1, 0) = (one_c * xy) - zs;
-            M(2, 0) = (one_c * zx) + ys;
-
-            M(0, 1) = (one_c * xy) + zs;
-            M(1, 1) = (one_c * yy) + c;
-            M(2, 1) = (one_c * yz) - xs;
-
-            M(0, 2) = (one_c * zx) - ys;
-            M(1, 2) = (one_c * yz) + xs;
-            M(2, 2) = (one_c * zz) + c;
-
-#undef M
-        }
-
-        void Matrix3x3::OrthoNormalize(Matrix3x3& matrix)
-        {
-            Vector3* c0 = (Vector3*)matrix.GetPtr() + 0;
-            Vector3* c1 = (Vector3*)matrix.GetPtr() + 3;
-            Vector3* c2 = (Vector3*)matrix.GetPtr() + 6;
-            Vector3::OrthoNormalize(c0, c1, c2);
-        }
-        Matrix3x3& Matrix3x3::operator=(const Matrix4x4& other)
-        {
-            m_Data[0] = other.m_Data[0];
-            m_Data[1] = other.m_Data[1];
-            m_Data[2] = other.m_Data[2];
-
-            m_Data[3] = other.m_Data[4];
-            m_Data[4] = other.m_Data[5];
-            m_Data[5] = other.m_Data[6];
-
-            m_Data[6] = other.m_Data[8];
-            m_Data[7] = other.m_Data[9];
-            m_Data[8] = other.m_Data[10];
-            return *this;
-        }
-        Matrix3x3::Matrix3x3(const Matrix4x4& other)
-        {
-            m_Data[0] = other.m_Data[0];
-            m_Data[1] = other.m_Data[1];
-            m_Data[2] = other.m_Data[2];
-
-            m_Data[3] = other.m_Data[4];
-            m_Data[4] = other.m_Data[5];
-            m_Data[5] = other.m_Data[6];
-
-            m_Data[6] = other.m_Data[8];
-            m_Data[7] = other.m_Data[9];
-            m_Data[8] = other.m_Data[10];
-        }
-        Matrix3x3& Matrix3x3::operator*=(const Matrix4x4& inM)
-        {
-            int i;
-            for (i = 0; i < 3; i++)
-            {
-                float v[3] = {Get(i, 0), Get(i, 1), Get(i, 2)};
-                Get(i, 0) = v[0] * inM.Get(0, 0) + v[1] * inM.Get(1, 0) + v[2] * inM.Get(2, 0);
-                Get(i, 1) = v[0] * inM.Get(0, 1) + v[1] * inM.Get(1, 1) + v[2] * inM.Get(2, 1);
-                Get(i, 2) = v[0] * inM.Get(0, 2) + v[1] * inM.Get(1, 2) + v[2] * inM.Get(2, 2);
-            }
-            return *this;
-        }
-        bool Matrix3x3::Invert()
-        {
-            Matrix4x4 m = *this;
-            bool success = InvertMatrix4x4_Full(m.GetPtr(), m.GetPtr());
-            *this = m;
-            return success;
-        }
-        void QuaternionToMatrix(const Quaternion& q, Matrix4x4& m)
-        {
-            float x = q.x * 2.0F;
-            float y = q.y * 2.0F;
-            float z = q.z * 2.0F;
-            float xx = q.x * x;
-            float yy = q.y * y;
-            float zz = q.z * z;
-            float xy = q.x * y;
-            float xz = q.x * z;
-            float yz = q.y * z;
-            float wx = q.w * x;
-            float wy = q.w * y;
-            float wz = q.w * z;
-
-            m.m_Data[0] = 1.0f - (yy + zz);
-            m.m_Data[1] = xy + wz;
-            m.m_Data[2] = xz - wy;
-            m.m_Data[3] = 0.0F;
-
-            m.m_Data[4] = xy - wz;
-            m.m_Data[5] = 1.0f - (xx + zz);
-            m.m_Data[6] = yz + wx;
-            m.m_Data[7] = 0.0F;
-
-            m.m_Data[8]  = xz + wy;
-            m.m_Data[9]  = yz - wx;
-            m.m_Data[10] = 1.0f - (xx + yy);
-            m.m_Data[11] = 0.0F;
-
-            m.m_Data[12] = 0.0F;
-            m.m_Data[13] = 0.0F;
-            m.m_Data[14] = 0.0F;
-            m.m_Data[15] = 1.0F;
-        }
-        const Matrix4x4 Matrix4x4::identity(kIdentity);
-
-        Matrix4x4::Matrix4x4(const Matrix3x3 &other)
-        {
-            m_Data[0] = other.m_Data[0];
-            m_Data[1] = other.m_Data[1];
-            m_Data[2] = other.m_Data[2];
-            m_Data[3] = 0.0F;
-
-            m_Data[4] = other.m_Data[3];
-            m_Data[5] = other.m_Data[4];
-            m_Data[6] = other.m_Data[5];
-            m_Data[7] = 0.0F;
-
-            m_Data[8] = other.m_Data[6];
-            m_Data[9] = other.m_Data[7];
-            m_Data[10] = other.m_Data[8];
-            m_Data[11] = 0.0F;
-
-            m_Data[12] = 0.0F;
-            m_Data[13] = 0.0F;
-            m_Data[14] = 0.0F;
-            m_Data[15] = 1.0F;
-        }
-
-        Matrix4x4& Matrix4x4::operator=(const Matrix3x3& other)
-        {
-            m_Data[0] = other.m_Data[0];
-            m_Data[1] = other.m_Data[1];
-            m_Data[2] = other.m_Data[2];
-            m_Data[3] = 0.0F;
-
-            m_Data[4] = other.m_Data[3];
-            m_Data[5] = other.m_Data[4];
-            m_Data[6] = other.m_Data[5];
-            m_Data[7] = 0.0F;
-
-            m_Data[8] = other.m_Data[6];
-            m_Data[9] = other.m_Data[7];
-            m_Data[10] = other.m_Data[8];
-            m_Data[11] = 0.0F;
-
-            m_Data[12] = 0.0F;
-            m_Data[13] = 0.0F;
-            m_Data[14] = 0.0F;
-            m_Data[15] = 1.0F;
-            return *this;
-        }
-
-        bool Matrix4x4::IsIdentity(float threshold) const
-        {
-            if (CompareApproximately(Get(0, 0), 1.0f, threshold) && CompareApproximately(Get(0, 1), 0.0f, threshold) && CompareApproximately(Get(0, 2), 0.0f, threshold) && CompareApproximately(Get(0, 3), 0.0f, threshold) &&
-                CompareApproximately(Get(1, 0), 0.0f, threshold) && CompareApproximately(Get(1, 1), 1.0f, threshold) && CompareApproximately(Get(1, 2), 0.0f, threshold) && CompareApproximately(Get(1, 3), 0.0f, threshold) &&
-                CompareApproximately(Get(2, 0), 0.0f, threshold) && CompareApproximately(Get(2, 1), 0.0f, threshold) && CompareApproximately(Get(2, 2), 1.0f, threshold) && CompareApproximately(Get(2, 3), 0.0f, threshold) &&
-                CompareApproximately(Get(3, 0), 0.0f, threshold) && CompareApproximately(Get(3, 1), 0.0f, threshold) && CompareApproximately(Get(3, 2), 0.0f, threshold) && CompareApproximately(Get(3, 3), 1.0f, threshold))
-                return true;
-            return false;
-        }
-
-        void Matrix4x4::RemoveScale()
-        {
-            SetAxisX(Vector3::Normalize(GetAxisX()));
-            SetAxisY(Vector3::Normalize(GetAxisY()));
-            SetAxisZ(Vector3::Normalize(GetAxisZ()));
-        }
-
-        float Matrix4x4::GetDeterminant2x2() const
-        {
-            return Get(0,0)*Get(1,1) - Get(0,1)*Get(1,0);
-        }
-
-        float Matrix4x4::GetDeterminant() const
-        {
-            double m00 = Get(0, 0);  double m01 = Get(0, 1);  double m02 = Get(0, 2);  double m03 = Get(0, 3);
-            double m10 = Get(1, 0);  double m11 = Get(1, 1);  double m12 = Get(1, 2);  double m13 = Get(1, 3);
-            double m20 = Get(2, 0);  double m21 = Get(2, 1);  double m22 = Get(2, 2);  double m23 = Get(2, 3);
-            double m30 = Get(3, 0);  double m31 = Get(3, 1);  double m32 = Get(3, 2);  double m33 = Get(3, 3);
-
-            double result =
-                    m03 * m12 * m21 * m30 - m02 * m13 * m21 * m30 - m03 * m11 * m22 * m30 + m01 * m13 * m22 * m30 +
-                    m02 * m11 * m23 * m30 - m01 * m12 * m23 * m30 - m03 * m12 * m20 * m31 + m02 * m13 * m20 * m31 +
-                    m03 * m10 * m22 * m31 - m00 * m13 * m22 * m31 - m02 * m10 * m23 * m31 + m00 * m12 * m23 * m31 +
-                    m03 * m11 * m20 * m32 - m01 * m13 * m20 * m32 - m03 * m10 * m21 * m32 + m00 * m13 * m21 * m32 +
-                    m01 * m10 * m23 * m32 - m00 * m11 * m23 * m32 - m02 * m11 * m20 * m33 + m01 * m12 * m20 * m33 +
-                    m02 * m10 * m21 * m33 - m00 * m12 * m21 * m33 - m01 * m10 * m22 * m33 + m00 * m11 * m22 * m33;
-            return (float)result;
-        }
-        inline void MultiplyMatrices4x4(const Matrix4x4* __restrict lhs, const Matrix4x4* __restrict rhs, Matrix4x4* __restrict res) {
-            for (int i = 0; i < 4; i++)
-            {
-                res->m_Data[i] = lhs->m_Data[i] * rhs->m_Data[0] + lhs->m_Data[i + 4] * rhs->m_Data[1] + lhs->m_Data[i + 8] * rhs->m_Data[2] + lhs->m_Data[i + 12] * rhs->m_Data[3];
-                res->m_Data[i + 4] = lhs->m_Data[i] * rhs->m_Data[4] + lhs->m_Data[i + 4] * rhs->m_Data[5] + lhs->m_Data[i + 8] * rhs->m_Data[6] + lhs->m_Data[i + 12] * rhs->m_Data[7];
-                res->m_Data[i + 8] = lhs->m_Data[i] * rhs->m_Data[8] + lhs->m_Data[i + 4] * rhs->m_Data[9] + lhs->m_Data[i + 8] * rhs->m_Data[10] + lhs->m_Data[i + 12] * rhs->m_Data[11];
-                res->m_Data[i + 12] = lhs->m_Data[i] * rhs->m_Data[12] + lhs->m_Data[i + 4] * rhs->m_Data[13] + lhs->m_Data[i + 8] * rhs->m_Data[14] + lhs->m_Data[i + 12] * rhs->m_Data[15];
-            }
-        }
-        Matrix4x4& Matrix4x4::operator*=(const Matrix4x4& inM1)
-        {
-            Matrix4x4 tmp;
-            MultiplyMatrices4x4(this, &inM1, &tmp);
-            *this = tmp;
-            return *this;
-        }
-
-        void MultiplyMatrices3x4(const Matrix4x4& lhs, const Matrix4x4& rhs, Matrix4x4& res)
-        {
-            for (int i = 0; i < 3; i++)
-            {
-                res.m_Data[i]    = lhs.m_Data[i] * rhs.m_Data[0]  + lhs.m_Data[i + 4] * rhs.m_Data[1]  + lhs.m_Data[i + 8] * rhs.m_Data[2];//  + lhs.m_Data[i+12] * rhs.m_Data[3];
-                res.m_Data[i + 4]  = lhs.m_Data[i] * rhs.m_Data[4]  + lhs.m_Data[i + 4] * rhs.m_Data[5]  + lhs.m_Data[i + 8] * rhs.m_Data[6];//  + lhs.m_Data[i+12] * rhs.m_Data[7];
-                res.m_Data[i + 8]  = lhs.m_Data[i] * rhs.m_Data[8]  + lhs.m_Data[i + 4] * rhs.m_Data[9]  + lhs.m_Data[i + 8] * rhs.m_Data[10];// + lhs.m_Data[i+12] * rhs.m_Data[11];
-                res.m_Data[i + 12] = lhs.m_Data[i] * rhs.m_Data[12] + lhs.m_Data[i + 4] * rhs.m_Data[13] + lhs.m_Data[i + 8] * rhs.m_Data[14] + lhs.m_Data[i + 12];// * rhs.m_Data[15];
-            }
-
-            res.m_Data[3]  = 0.0f;
-            res.m_Data[7]  = 0.0f;
-            res.m_Data[11] = 0.0f;
-            res.m_Data[15] = 1.0f;
-        }
-
-        void MultiplyMatrices2D(const Matrix4x4& lhs, const Matrix4x4& rhs, Matrix4x4& res)
-        {
-            res.m_Data[0] = lhs.m_Data[0] * rhs.m_Data[0]  + lhs.m_Data[0 + 4] * rhs.m_Data[1]  + lhs.m_Data[0 + 8] * rhs.m_Data[2];
-            res.m_Data[4] = lhs.m_Data[0] * rhs.m_Data[4]  + lhs.m_Data[0 + 4] * rhs.m_Data[5]  + lhs.m_Data[0 + 8] * rhs.m_Data[6];
-            res.m_Data[12] = lhs.m_Data[0] * rhs.m_Data[12] + lhs.m_Data[0 + 4] * rhs.m_Data[13] + lhs.m_Data[0 + 8] * rhs.m_Data[14] + lhs.m_Data[0 + 12];
-            res.m_Data[1]    = lhs.m_Data[1] * rhs.m_Data[0]  + lhs.m_Data[1 + 4] * rhs.m_Data[1]  + lhs.m_Data[1 + 8] * rhs.m_Data[2];
-            res.m_Data[5]  = lhs.m_Data[1] * rhs.m_Data[4]  + lhs.m_Data[1 + 4] * rhs.m_Data[5]  + lhs.m_Data[1 + 8] * rhs.m_Data[6];
-            res.m_Data[13] = lhs.m_Data[1] * rhs.m_Data[12] + lhs.m_Data[1 + 4] * rhs.m_Data[13] + lhs.m_Data[1 + 8] * rhs.m_Data[14] + lhs.m_Data[1 + 12];
-            res.m_Data[2]    = lhs.m_Data[2] * rhs.m_Data[0]  + lhs.m_Data[2 + 4] * rhs.m_Data[1]  + lhs.m_Data[2 + 8] * rhs.m_Data[2];
-            res.m_Data[14] = lhs.m_Data[2] * rhs.m_Data[12] + lhs.m_Data[2 + 4] * rhs.m_Data[13] + lhs.m_Data[2 + 8] * rhs.m_Data[14] + lhs.m_Data[2 + 12];
-            res.m_Data[3]  = 0;
-            res.m_Data[6]  = 0;
-            res.m_Data[7]  = 0;
-            res.m_Data[8]  = 0;
-            res.m_Data[9]  = 0;
-            res.m_Data[10]  = 1.0f;
-            res.m_Data[11] = 0;
-            res.m_Data[15] = 1.0f;
-        }
-
-        Matrix4x4& Matrix4x4::SetIdentity()
-        {
-            Get(0, 0) = 1.0;   Get(0, 1) = 0.0;   Get(0, 2) = 0.0;   Get(0, 3) = 0.0;
-            Get(1, 0) = 0.0;   Get(1, 1) = 1.0;   Get(1, 2) = 0.0;   Get(1, 3) = 0.0;
-            Get(2, 0) = 0.0;   Get(2, 1) = 0.0;   Get(2, 2) = 1.0;   Get(2, 3) = 0.0;
-            Get(3, 0) = 0.0;   Get(3, 1) = 0.0;   Get(3, 2) = 0.0;   Get(3, 3) = 1.0;
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::SetZero()
-        {
-            Get(0, 0) = 0.0;   Get(0, 1) = 0.0;   Get(0, 2) = 0.0;   Get(0, 3) = 0.0;
-            Get(1, 0) = 0.0;   Get(1, 1) = 0.0;   Get(1, 2) = 0.0;   Get(1, 3) = 0.0;
-            Get(2, 0) = 0.0;   Get(2, 1) = 0.0;   Get(2, 2) = 0.0;   Get(2, 3) = 0.0;
-            Get(3, 0) = 0.0;   Get(3, 1) = 0.0;   Get(3, 2) = 0.0;   Get(3, 3) = 0.0;
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::SetBasis(const Vector3& inX, const Vector3& inY, const Vector3& inZ)
-        {
-            Get(0, 0) = inX[0];    Get(0, 1) = inY[0];    Get(0, 2) = inZ[0];    Get(0, 3) = 0.0;
-            Get(1, 0) = inX[1];    Get(1, 1) = inY[1];    Get(1, 2) = inZ[1];    Get(1, 3) = 0.0;
-            Get(2, 0) = inX[2];    Get(2, 1) = inY[2];    Get(2, 2) = inZ[2];    Get(2, 3) = 0.0;
-            Get(3, 0) = 0.0;       Get(3, 1) = 0.0;       Get(3, 2) = 0.0;       Get(3, 3) = 1.0;
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::SetBasisTransposed(const Vector3& inX, const Vector3& inY, const Vector3& inZ)
-        {
-            Get(0, 0) = inX[0];    Get(1, 0) = inY[0];    Get(2, 0) = inZ[0];    Get(3, 0) = 0.0;
-            Get(0, 1) = inX[1];    Get(1, 1) = inY[1];    Get(2, 1) = inZ[1];    Get(3, 1) = 0.0;
-            Get(0, 2) = inX[2];    Get(1, 2) = inY[2];    Get(2, 2) = inZ[2];    Get(3, 2) = 0.0;
-            Get(0, 3) = 0.0;       Get(1, 3) = 0.0;       Get(2, 3) = 0.0;       Get(3, 3) = 1.0;
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::SetPositionAndOrthoNormalBasis(const Vector3& inPosition, const Vector3& inX, const Vector3& inY, const Vector3& inZ)
-        {
-            Get(0, 0) = inX[0];    Get(0, 1) = inY[0];    Get(0, 2) = inZ[0];    Get(0, 3) = inPosition[0];
-            Get(1, 0) = inX[1];    Get(1, 1) = inY[1];    Get(1, 2) = inZ[1];    Get(1, 3) = inPosition[1];
-            Get(2, 0) = inX[2];    Get(2, 1) = inY[2];    Get(2, 2) = inZ[2];    Get(2, 3) = inPosition[2];
-            Get(3, 0) = 0.0;       Get(3, 1) = 0.0;       Get(3, 2) = 0.0;       Get(3, 3) = 1.0;
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::SetScaleAndPosition(const Vector3& inScale, const Vector3& inPosition)
-        {
-            Get(0, 0) = inScale[0];    Get(0, 1) = 0.0;           Get(0, 2) = 0.0;           Get(0, 3) = inPosition[0];
-            Get(1, 0) = 0.0;           Get(1, 1) = inScale[1];    Get(1, 2) = 0.0;           Get(1, 3) = inPosition[1];
-            Get(2, 0) = 0.0;           Get(2, 1) = 0.0;           Get(2, 2) = inScale[2];    Get(2, 3) = inPosition[2];
-            Get(3, 0) = 0.0;           Get(3, 1) = 0.0;           Get(3, 2) = 0.0;           Get(3, 3) = 1.0;
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::Scale(const Vector3& inScale)
-        {
-            Get(0, 0) *= inScale[0];
-            Get(1, 0) *= inScale[0];
-            Get(2, 0) *= inScale[0];
-            Get(3, 0) *= inScale[0];
-
-            Get(0, 1) *= inScale[1];
-            Get(1, 1) *= inScale[1];
-            Get(2, 1) *= inScale[1];
-            Get(3, 1) *= inScale[1];
-
-            Get(0, 2) *= inScale[2];
-            Get(1, 2) *= inScale[2];
-            Get(2, 2) *= inScale[2];
-            Get(3, 2) *= inScale[2];
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::Translate(const Vector3& inTrans)
-        {
-            Get(0, 3) = Get(0, 0) * inTrans[0] + Get(0, 1) * inTrans[1] + Get(0, 2) * inTrans[2] + Get(0, 3);
-            Get(1, 3) = Get(1, 0) * inTrans[0] + Get(1, 1) * inTrans[1] + Get(1, 2) * inTrans[2] + Get(1, 3);
-            Get(2, 3) = Get(2, 0) * inTrans[0] + Get(2, 1) * inTrans[1] + Get(2, 2) * inTrans[2] + Get(2, 3);
-            Get(3, 3) = Get(3, 0) * inTrans[0] + Get(3, 1) * inTrans[1] + Get(3, 2) * inTrans[2] + Get(3, 3);
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::SetPerspective(
-                float fovy,
-                float aspect,
-                float zNear,
-                float zFar)
-        {
-            float cotangent, deltaZ;
-            float radians = Deg2Rad * (fovy / 2.0f);
-            cotangent = cos(radians) / sin(radians);
-            deltaZ = zNear - zFar;
-
-            Get(0, 0) = cotangent / aspect; Get(0, 1) = 0.0F;      Get(0, 2) = 0.0F;                    Get(0, 3) = 0.0F;
-            Get(1, 0) = 0.0F;               Get(1, 1) = cotangent; Get(1, 2) = 0.0F;                    Get(1, 3) = 0.0F;
-            Get(2, 0) = 0.0F;               Get(2, 1) = 0.0F;      Get(2, 2) = (zFar + zNear) / deltaZ; Get(2, 3) = 2.0F * zNear * zFar / deltaZ;
-            Get(3, 0) = 0.0F;               Get(3, 1) = 0.0F;      Get(3, 2) = -1.0F;                   Get(3, 3) = 0.0F;
-
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::SetPerspectiveCotan(
-                float cotangent,
-                float zNear,
-                float zFar)
-        {
-            float deltaZ = zNear - zFar;
-
-            Get(0, 0) = cotangent;          Get(0, 1) = 0.0F;      Get(0, 2) = 0.0F;                    Get(0, 3) = 0.0F;
-            Get(1, 0) = 0.0F;               Get(1, 1) = cotangent; Get(1, 2) = 0.0F;                    Get(1, 3) = 0.0F;
-            Get(2, 0) = 0.0F;               Get(2, 1) = 0.0F;      Get(2, 2) = (zFar + zNear) / deltaZ; Get(2, 3) = 2.0F * zNear * zFar / deltaZ;
-            Get(3, 0) = 0.0F;               Get(3, 1) = 0.0F;      Get(3, 2) = -1.0F;                   Get(3, 3) = 0.0F;
-
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::SetOrtho(
-                float left,
-                float right,
-                float bottom,
-                float top,
-                float zNear,
-                float zFar)
-        {
-            SetIdentity();
-
-            float deltax = right - left;
-            float deltay = top - bottom;
-            float deltaz = zFar - zNear;
-
-            Get(0, 0) = 2.0F / deltax;
-            Get(0, 3) = -(right + left) / deltax;
-            Get(1, 1) = 2.0F / deltay;
-            Get(1, 3) = -(top + bottom) / deltay;
-            Get(2, 2) = -2.0F / deltaz;
-            Get(2, 3) = -(zFar + zNear) / deltaz;
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::SetFrustum(
-                float left,
-                float right,
-                float bottom,
-                float top,
-                float nearval,
-                float farval)
-        {
-            float x, y, a, b, c, d, e;
-
-            x =  (2.0F * nearval)       / (right - left);
-            y =  (2.0F * nearval)       / (top - bottom);
-            a =  (right + left)         / (right - left);
-            b =  (top + bottom)         / (top - bottom);
-            c = -(farval + nearval)        / (farval - nearval);
-            d = -(2.0f * farval * nearval) / (farval - nearval);
-            e = -1.0f;
-
-            Get(0, 0) = x;    Get(0, 1) = 0.0;  Get(0, 2) = a;   Get(0, 3) = 0.0;
-            Get(1, 0) = 0.0;  Get(1, 1) = y;    Get(1, 2) = b;   Get(1, 3) = 0.0;
-            Get(2, 0) = 0.0;  Get(2, 1) = 0.0;  Get(2, 2) = c;   Get(2, 3) = d;
-            Get(3, 0) = 0.0;  Get(3, 1) = 0.0;  Get(3, 2) = e;  Get(3, 3) = 0.0;
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::AdjustDepthRange(float origNear, float newNear, float newFar)
-        {
-            if (IsPerspective())
-            {
-                float x = Get(0, 0);
-                float y = Get(1, 1);
-                float w = Get(0, 2);
-                float z = Get(1, 2);
-
-                float r = ((2.0f * origNear) / x) * ((w + 1) * 0.5f);
-                float t = ((2.0f * origNear) / y) * ((z + 1) * 0.5f);
-                float l = ((2.0f * origNear) / x) * (((w + 1) * 0.5f) - 1.0f);
-                float b = ((2.0f * origNear) / y) * (((z + 1) * 0.5f) - 1.0f);
-
-                float ratio = (newNear / origNear);
-
-                r *= ratio;
-                t *= ratio;
-                l *= ratio;
-                b *= ratio;
-
-                return SetFrustum(l, r, b, t, newNear, newFar);
-            }
-            else
-            {
-                float deltaz = newFar - newNear;
-                Get(2, 2) = -2.0F / deltaz;
-                Get(2, 3) = -(newFar + newNear) / deltaz;
-                return *this;
-            }
-        }
-
-        float ComputeUniformScale(const Matrix4x4& matrix)
-        {
-            return Vector3::Magnitude(matrix.GetAxisX());
-        }
-
-
-#define SWAP_ROWS(a, b) PP_WRAP_CODE(float *_tmp = a; (a)=(b); (b)=_tmp;)
-        bool InvertMatrix4x4_Full(const float* m, float* out) {
-            float wtmp[4][8];
-            float m0, m1, m2, m3, s;
-            float *r0, *r1, *r2, *r3;
-
-            r0 = wtmp[0], r1 = wtmp[1], r2 = wtmp[2], r3 = wtmp[3];
-
-            r0[0] = MAT(m, 0, 0); r0[1] = MAT(m, 0, 1);
-            r0[2] = MAT(m, 0, 2); r0[3] = MAT(m, 0, 3);
-            r0[4] = 1.0; r0[5] = r0[6] = r0[7] = 0.0;
-
-            r1[0] = MAT(m, 1, 0); r1[1] = MAT(m, 1, 1);
-            r1[2] = MAT(m, 1, 2); r1[3] = MAT(m, 1, 3);
-            r1[5] = 1.0; r1[4] = r1[6] = r1[7] = 0.0;
-
-            r2[0] = MAT(m, 2, 0); r2[1] = MAT(m, 2, 1);
-            r2[2] = MAT(m, 2, 2); r2[3] = MAT(m, 2, 3);
-            r2[6] = 1.0; r2[4] = r2[5] = r2[7] = 0.0;
-
-            r3[0] = MAT(m, 3, 0); r3[1] = MAT(m, 3, 1);
-            r3[2] = MAT(m, 3, 2); r3[3] = MAT(m, 3, 3);
-            r3[7] = 1.0; r3[4] = r3[5] = r3[6] = 0.0;
-
-            if (abs(r3[0]) > abs(r2[0]))
-                SWAP_ROWS(r3, r2);
-            if (abs(r2[0]) > abs(r1[0]))
-                SWAP_ROWS(r2, r1);
-            if (abs(r1[0]) > abs(r0[0]))
-                SWAP_ROWS(r1, r0);
-            if (0.0F == r0[0])
-                RETURN_ZERO;
-
-            m1 = r1[0] / r0[0]; m2 = r2[0] / r0[0]; m3 = r3[0] / r0[0];
-            s = r0[1]; r1[1] -= m1 * s; r2[1] -= m2 * s; r3[1] -= m3 * s;
-            s = r0[2]; r1[2] -= m1 * s; r2[2] -= m2 * s; r3[2] -= m3 * s;
-            s = r0[3]; r1[3] -= m1 * s; r2[3] -= m2 * s; r3[3] -= m3 * s;
-            s = r0[4];
-            if (s != 0.0F)
-            {
-                r1[4] -= m1 * s; r2[4] -= m2 * s; r3[4] -= m3 * s;
-            }
-            s = r0[5];
-            if (s != 0.0F)
-            {
-                r1[5] -= m1 * s; r2[5] -= m2 * s; r3[5] -= m3 * s;
-            }
-            s = r0[6];
-            if (s != 0.0F)
-            {
-                r1[6] -= m1 * s; r2[6] -= m2 * s; r3[6] -= m3 * s;
-            }
-            s = r0[7];
-            if (s != 0.0F)
-            {
-                r1[7] -= m1 * s; r2[7] -= m2 * s; r3[7] -= m3 * s;
-            }
-
-            if (abs(r3[1]) > abs(r2[1]))
-                SWAP_ROWS(r3, r2);
-            if (abs(r2[1]) > abs(r1[1]))
-                SWAP_ROWS(r2, r1);
-            if (0.0F == r1[1])
-                RETURN_ZERO;
-
-            m2 = r2[1] / r1[1]; m3 = r3[1] / r1[1];
-            r2[2] -= m2 * r1[2]; r3[2] -= m3 * r1[2];
-            r2[3] -= m2 * r1[3]; r3[3] -= m3 * r1[3];
-            s = r1[4]; if (0.0F != s)
-            {
-                r2[4] -= m2 * s; r3[4] -= m3 * s;
-            }
-            s = r1[5]; if (0.0F != s)
-            {
-                r2[5] -= m2 * s; r3[5] -= m3 * s;
-            }
-            s = r1[6]; if (0.0F != s)
-            {
-                r2[6] -= m2 * s; r3[6] -= m3 * s;
-            }
-            s = r1[7]; if (0.0F != s)
-            {
-                r2[7] -= m2 * s; r3[7] -= m3 * s;
-            }
-
-            if (abs(r3[2]) > abs(r2[2]))
-                SWAP_ROWS(r3, r2);
-            if (0.0F == r2[2])
-                RETURN_ZERO;
-
-            m3 = r3[2] / r2[2];
-            r3[3] -= m3 * r2[3]; r3[4] -= m3 * r2[4];
-            r3[5] -= m3 * r2[5]; r3[6] -= m3 * r2[6];
-            r3[7] -= m3 * r2[7];
-
-            if (0.0F == r3[3])
-                RETURN_ZERO;
-
-            s = 1.0F / r3[3];
-            r3[4] *= s; r3[5] *= s; r3[6] *= s; r3[7] *= s;
-
-            m2 = r2[3];
-            s  = 1.0F / r2[2];
-            r2[4] = s * (r2[4] - r3[4] * m2), r2[5] = s * (r2[5] - r3[5] * m2),
-            r2[6] = s * (r2[6] - r3[6] * m2), r2[7] = s * (r2[7] - r3[7] * m2);
-            m1 = r1[3];
-            r1[4] -= r3[4] * m1; r1[5] -= r3[5] * m1,
-                    r1[6] -= r3[6] * m1; r1[7] -= r3[7] * m1;
-            m0 = r0[3];
-            r0[4] -= r3[4] * m0; r0[5] -= r3[5] * m0,
-                    r0[6] -= r3[6] * m0; r0[7] -= r3[7] * m0;
-
-            m1 = r1[2];
-            s  = 1.0F / r1[1];
-            r1[4] = s * (r1[4] - r2[4] * m1); r1[5] = s * (r1[5] - r2[5] * m1),
-                    r1[6] = s * (r1[6] - r2[6] * m1); r1[7] = s * (r1[7] - r2[7] * m1);
-            m0 = r0[2];
-            r0[4] -= r2[4] * m0; r0[5] -= r2[5] * m0,
-                    r0[6] -= r2[6] * m0; r0[7] -= r2[7] * m0;
-
-            m0 = r0[1];
-            s  = 1.0F / r0[0];
-            r0[4] = s * (r0[4] - r1[4] * m0); r0[5] = s * (r0[5] - r1[5] * m0),
-                    r0[6] = s * (r0[6] - r1[6] * m0); r0[7] = s * (r0[7] - r1[7] * m0);
-
-            MAT(out, 0, 0) = r0[4]; MAT(out, 0, 1) = r0[5], MAT(out, 0, 2) = r0[6]; MAT(out, 0, 3) = r0[7];
-            MAT(out, 1, 0) = r1[4]; MAT(out, 1, 1) = r1[5], MAT(out, 1, 2) = r1[6]; MAT(out, 1, 3) = r1[7];
-            MAT(out, 2, 0) = r2[4]; MAT(out, 2, 1) = r2[5], MAT(out, 2, 2) = r2[6]; MAT(out, 2, 3) = r2[7];
-            MAT(out, 3, 0) = r3[4]; MAT(out, 3, 1) = r3[5], MAT(out, 3, 2) = r3[6]; MAT(out, 3, 3) = r3[7];
-
-            return true;
-        }
-
-#undef SWAP_ROWS
-#undef MAT
-#undef RETURN_ZERO
-
-        Matrix4x4& Matrix4x4::Transpose()
-        {
-            std::swap(Get(0, 1), Get(1, 0));
-            std::swap(Get(0, 2), Get(2, 0));
-            std::swap(Get(0, 3), Get(3, 0));
-            std::swap(Get(1, 2), Get(2, 1));
-            std::swap(Get(1, 3), Get(3, 1));
-            std::swap(Get(2, 3), Get(3, 2));
-            return *this;
-        }
-
-        Matrix4x4& Matrix4x4::SetFromToRotation(const Vector3& from, const Vector3& to)
-        {
-            Matrix3x3 mat;
-            mat.SetFromToRotation(from, to);
-            *this = mat;
-            return *this;
-        }
-
-        bool CompareApproximately(const Matrix4x4& lhs, const Matrix4x4& rhs, float dist)
-        {
-            for (int i = 0; i < 16; i++)
-            {
-                if (!CompareApproximately(lhs[i], rhs[i], dist))
-                    return false;
-            }
-            return true;
-        }
-
-        void Matrix4x4::SetTR(const Vector3& pos, const Quaternion& q)
-        {
-            QuaternionToMatrix(q, *this);
-            m_Data[12] = pos[0];
-            m_Data[13] = pos[1];
-            m_Data[14] = pos[2];
-        }
-
-        void Matrix4x4::SetTRS(const Vector3& pos, const Quaternion& q, const Vector3& s)
-        {
-            QuaternionToMatrix(q, *this);
-
-            m_Data[0] *= s[0];
-            m_Data[1] *= s[0];
-            m_Data[2] *= s[0];
-
-            m_Data[4] *= s[1];
-            m_Data[5] *= s[1];
-            m_Data[6] *= s[1];
-
-            m_Data[8] *= s[2];
-            m_Data[9] *= s[2];
-            m_Data[10] *= s[2];
-
-            m_Data[12] = pos[0];
-            m_Data[13] = pos[1];
-            m_Data[14] = pos[2];
-        }
-
-        void Matrix4x4::SetTRInverse(const Vector3& pos, const Quaternion& q)
-        {
-            QuaternionToMatrix(Quaternion::Inverse(q), *this);
-            Translate(Vector3(-pos[0], -pos[1], -pos[2]));
-        }
-
-        void TransformPoints3x3(const Matrix4x4& matrix, const Vector3* in, Vector3* out, int count)
-        {
-            auto m = Matrix3x3(matrix);
-            for (int i = 0; i < count; i++)
-                out[i] = m.MultiplyPoint3(in[i]);
-        }
-
-        void TransformPoints3x4(const Matrix4x4& matrix, const Vector3* in, Vector3* out, int count)
-        {
-            for (int i = 0; i < count; i++)
-                out[i] = matrix.MultiplyPoint3(in[i]);
-        }
-
-        void TransformPoints3x3(const Matrix4x4& matrix, const Vector3* in, size_t inStride, Vector3* out, size_t outStride, int count)
-        {
-            auto m = Matrix3x3(matrix);
-            for (int i = 0; i < count; ++i, in = Stride(in, inStride), out = Stride(out, outStride))
-            {
-                *out = m.MultiplyPoint3(*in);
-            }
-        }
-
-        void TransformPoints3x4(const Matrix4x4& matrix, const Vector3* in, size_t inStride, Vector3* out, size_t outStride, int count)
-        {
-            for (int i = 0; i < count; ++i, in = Stride(in, inStride), out = Stride(out, outStride))
-            {
-                *out = matrix.MultiplyPoint3(*in);
-            }
-        }
-
-        FrustumPlanes Matrix4x4::DecomposeProjection() const {
-            FrustumPlanes planes{};
-
-            if (IsPerspective())
-            {
-                planes.zNear = Get(2, 3) / (Get(2, 2) - 1.0f);
-                planes.zFar = Get(2, 3) / (Get(2, 2) + 1.0f);
-                planes.right = planes.zNear * (1.0f + Get(0, 2)) / Get(0, 0);
-                planes.left = planes.zNear * (-1.0f + Get(0, 2)) / Get(0, 0);
-                planes.top = planes.zNear  * (1.0f + Get(1, 2)) / Get(1, 1);
-                planes.bottom = planes.zNear  * (-1.0f + Get(1, 2)) / Get(1, 1);
-            }
-            else
-            {
-                planes.zNear = (Get(2, 3) + 1.0f) / Get(2, 2);
-                planes.zFar =  (Get(2, 3) - 1.0f) / Get(2, 2);
-                planes.right = (1.0f - Get(0, 3)) / Get(0, 0);
-                planes.left = (-1.0f - Get(0, 3)) / Get(0, 0);
-                planes.top = (1.0f - Get(1, 3)) / Get(1, 1);
-                planes.bottom = (-1.0f - Get(1, 3)) / Get(1, 1);
-            }
-
-            return planes;
-        }
-
-        Vector3 Matrix4x4::GetLossyScale() const {
-
-            Vector3 result;
-            result.x = Vector3::Magnitude(GetAxisX());
-            result.y = Vector3::Magnitude(GetAxisY());
-            result.z = Vector3::Magnitude(GetAxisZ());
-
-            float determinant = Matrix3x3(*this).GetDeterminant();
-            if (determinant < 0)
-                result.x *= -1;
-
-            return result;
-        }
-
-        bool Matrix4x4::ValidTRS() const
-        {
-            return Get(3, 0) == 0 && Get(3, 1) == 0 && Get(3, 2) == 0 && fabs(Get(3, 3)) == 1;
-        }
-
-        inline Vector3 Matrix4x4::GetAxisX() const
-        {
-            return {Get(0, 0), Get(1, 0), Get(2, 0)};
-        }
-
-        inline Vector3 Matrix4x4::GetAxisY() const
-        {
-            return {Get(0, 1), Get(1, 1), Get(2, 1)};
-        }
-
-        inline Vector3 Matrix4x4::GetAxisZ() const
-        {
-            return {Get(0, 2), Get(1, 2), Get(2, 2)};
-        }
-
-        inline Vector3 Matrix4x4::GetAxis(int axis) const
-        {
-            return {Get(0, axis), Get(1, axis), Get(2, axis)};
-        }
-
-        inline Vector3 Matrix4x4::GetPosition() const
-        {
-            return {Get(0, 3), Get(1, 3), Get(2, 3)};
-        }
-
-        inline Vector4 Matrix4x4::GetRow(int row) const
-        {
-            return {Get(row, 0), Get(row, 1), Get(row, 2), Get(row, 3)};
-        }
-
-        inline Vector4 Matrix4x4::GetColumn(int col) const
-        {
-            return {Get(0, col), Get(1, col), Get(2, col), Get(3, col)};
-        }
-
-        inline void Matrix4x4::SetAxisX(const Vector3& v)
-        {
-            Get(0, 0) = v.x; Get(1, 0) = v.y; Get(2, 0) = v.z;
-        }
-
-        inline void Matrix4x4::SetAxisY(const Vector3& v)
-        {
-            Get(0, 1) = v.x; Get(1, 1) = v.y; Get(2, 1) = v.z;
-        }
-
-        inline void Matrix4x4::SetAxisZ(const Vector3& v)
-        {
-            Get(0, 2) = v.x; Get(1, 2) = v.y; Get(2, 2) = v.z;
-        }
-
-        inline void Matrix4x4::SetAxis(int axis, const Vector3& v)
-        {
-            Get(0, axis) = v.x; Get(1, axis) = v.y; Get(2, axis) = v.z;
-        }
-
-        inline void Matrix4x4::SetPosition(const Vector3& v)
-        {
-            Get(0, 3) = v.x; Get(1, 3) = v.y; Get(2, 3) = v.z;
-        }
-
-        inline void Matrix4x4::SetRow(int row, const Vector4& v)
-        {
-            Get(row, 0) = v.x; Get(row, 1) = v.y; Get(row, 2) = v.z; Get(row, 3) = v.w;
-        }
-
-        inline void Matrix4x4::SetColumn(int col, const Vector4& v)
-        {
-            Get(0, col) = v.x; Get(1, col) = v.y; Get(2, col) = v.z; Get(3, col) = v.w;
-        }
-
-        inline Vector3 Matrix4x4::MultiplyPoint3(const Vector3& v) const
-        {
-            Vector3 res;
-            res.x = m_Data[0] * v.x + m_Data[4] * v.y + m_Data[8] * v.z + m_Data[12];
-            res.y = m_Data[1] * v.x + m_Data[5] * v.y + m_Data[9] * v.z + m_Data[13];
-            res.z = m_Data[2] * v.x + m_Data[6] * v.y + m_Data[10] * v.z + m_Data[14];
-            return res;
-        }
-
-        inline void Matrix4x4::MultiplyPoint3(const Vector3& v, Vector3& output) const
-        {
-            output.x = m_Data[0] * v.x + m_Data[4] * v.y + m_Data[8] * v.z + m_Data[12];
-            output.y = m_Data[1] * v.x + m_Data[5] * v.y + m_Data[9] * v.z + m_Data[13];
-            output.z = m_Data[2] * v.x + m_Data[6] * v.y + m_Data[10] * v.z + m_Data[14];
-        }
-
-        inline Vector2 Matrix4x4::MultiplyPoint2(const Vector2& v) const
-        {
-            Vector2 res;
-            res.x = m_Data[0] * v.x + m_Data[4] * v.y + m_Data[12];
-            res.y = m_Data[1] * v.x + m_Data[5] * v.y + m_Data[13];
-            return res;
-        }
-
-        inline void Matrix4x4::MultiplyPoint2(const Vector2& v, Vector2& output) const
-        {
-            output.x = m_Data[0] * v.x + m_Data[4] * v.y + m_Data[12];
-            output.y = m_Data[1] * v.x + m_Data[5] * v.y + m_Data[13];
-        }
-
-        inline Vector3 Matrix4x4::MultiplyVector3(const Vector3& v) const
-        {
-            Vector3 res;
-            res.x = m_Data[0] * v.x + m_Data[4] * v.y + m_Data[8] * v.z;
-            res.y = m_Data[1] * v.x + m_Data[5] * v.y + m_Data[9] * v.z;
-            res.z = m_Data[2] * v.x + m_Data[6] * v.y + m_Data[10] * v.z;
-            return res;
-        }
-
-        inline void Matrix4x4::MultiplyVector3(const Vector3& v, Vector3& output) const
-        {
-            output.x = m_Data[0] * v.x + m_Data[4] * v.y + m_Data[8] * v.z;
-            output.y = m_Data[1] * v.x + m_Data[5] * v.y + m_Data[9] * v.z;
-            output.z = m_Data[2] * v.x + m_Data[6] * v.y + m_Data[10] * v.z;
-        }
-
-        inline bool Matrix4x4::PerspectiveMultiplyPoint3(const Vector3& v, Vector3& output) const
-        {
-            Vector3 res;
-            float w;
-            res.x = Get(0, 0) * v.x + Get(0, 1) * v.y + Get(0, 2) * v.z + Get(0, 3);
-            res.y = Get(1, 0) * v.x + Get(1, 1) * v.y + Get(1, 2) * v.z + Get(1, 3);
-            res.z = Get(2, 0) * v.x + Get(2, 1) * v.y + Get(2, 2) * v.z + Get(2, 3);
-            w     = Get(3, 0) * v.x + Get(3, 1) * v.y + Get(3, 2) * v.z + Get(3, 3);
-            if (abs(w) > 1.0e-7f)
-            {
-                float invW = 1.0f / w;
-                output.x = res.x * invW;
-                output.y = res.y * invW;
-                output.z = res.z * invW;
-                return true;
-            }
-            else
-            {
-                output.x = 0.0f;
-                output.y = 0.0f;
-                output.z = 0.0f;
-                return false;
-            }
-        }
-
-        inline Vector4 Matrix4x4::MultiplyVector4(const Vector4& v) const
-        {
-            Vector4 res;
-            MultiplyVector4(v, res);
-            return res;
-        }
-
-        inline void Matrix4x4::MultiplyVector4(const Vector4& v, Vector4& output) const
-        {
-            output.x = m_Data[0] * v.x + m_Data[4] * v.y + m_Data[8] * v.z + m_Data[12] * v.w;
-            output.y = m_Data[1] * v.x + m_Data[5] * v.y + m_Data[9] * v.z + m_Data[13] * v.w;
-            output.z = m_Data[2] * v.x + m_Data[6] * v.y + m_Data[10] * v.z + m_Data[14] * v.w;
-            output.w = m_Data[3] * v.x + m_Data[7] * v.y + m_Data[11] * v.z + m_Data[15] * v.w;
-        }
-
-        inline bool Matrix4x4::PerspectiveMultiplyVector3(const Vector3& v, Vector3& output) const
-        {
-            Vector3 res;
-            float w;
-            res.x = Get(0, 0) * v.x + Get(0, 1) * v.y + Get(0, 2) * v.z;
-            res.y = Get(1, 0) * v.x + Get(1, 1) * v.y + Get(1, 2) * v.z;
-            res.z = Get(2, 0) * v.x + Get(2, 1) * v.y + Get(2, 2) * v.z;
-            w     = Get(3, 0) * v.x + Get(3, 1) * v.y + Get(3, 2) * v.z;
-            if (abs(w) > 1.0e-7f)
-            {
-                float invW = 1.0f / w;
-                output.x = res.x * invW;
-                output.y = res.y * invW;
-                output.z = res.z * invW;
-                return true;
-            }
-            else
-            {
-                output.x = 0.0f;
-                output.y = 0.0f;
-                output.z = 0.0f;
-                return false;
-            }
-        }
-
-        inline Vector3 Matrix4x4::InverseMultiplyPoint3Affine(const Vector3& inV) const
-        {
-            Vector3 v(inV.x - Get(0, 3), inV.y - Get(1, 3), inV.z - Get(2, 3));
-            Vector3 res;
-            res.x = Get(0, 0) * v.x + Get(1, 0) * v.y + Get(2, 0) * v.z;
-            res.y = Get(0, 1) * v.x + Get(1, 1) * v.y + Get(2, 1) * v.z;
-            res.z = Get(0, 2) * v.x + Get(1, 2) * v.y + Get(2, 2) * v.z;
-            return res;
-        }
-
-        inline Vector3 Matrix4x4::InverseMultiplyVector3Affine(const Vector3& v) const
-        {
-            Vector3 res;
-            res.x = Get(0, 0) * v.x + Get(1, 0) * v.y + Get(2, 0) * v.z;
-            res.y = Get(0, 1) * v.x + Get(1, 1) * v.y + Get(2, 1) * v.z;
-            res.z = Get(0, 2) * v.x + Get(1, 2) * v.y + Get(2, 2) * v.z;
-            return res;
-        }
-        inline Matrix4x4 Matrix4x4::Rotate(Quaternion q) { // Из C#
-            float x = q.x * 2.0f;
-            float y = q.y * 2.0f;
-            float z = q.z * 2.0f;
-            float xx = q.x * x;
-            float yy = q.y * y;
-            float zz = q.z * z;
-            float xy = q.x * y;
-            float xz = q.x * z;
-            float yz = q.y * z;
-            float wx = q.w * x;
-            float wy = q.w * y;
-            float wz = q.w * z;
-
-            Matrix4x4 m;
-            m.m_Data[0] = 1.0f - (yy + zz); m.m_Data[1] = xy + wz; m.m_Data[2] = xz - wy; m.m_Data[3] = 0.0f;
-            m.m_Data[4] = xy - wz; m.m_Data[5] = 1.0f - (xx + zz); m.m_Data[6] = yz + wx; m.m_Data[7] = 0.0f;
-            m.m_Data[8] = xz + wy; m.m_Data[9] = yz - wx; m.m_Data[10] = 1.0f - (xx + yy); m.m_Data[11] = 0.0f;
-            m.m_Data[12] = 0.0f; m.m_Data[13] = 0.0f; m.m_Data[14] = 0.0F; m.m_Data[15] = 1.0f;
-            return m;
-        }
-    }
-
     namespace HexUtils {
-
         // Перевернуть шестнадцатеричную строку (из 001122 в 221100)
         std::string ReverseHexString(const std::string &hex) {
             std::string out;
-            for (unsigned int i = 0; i < hex.length(); i += 2) out.insert(0, hex.substr(i, 2));
+            for (size_t i = 0; i < hex.length(); i += 2) out.insert(0, hex.substr(i, 2));
             return out;
         }
 
-        // Удалить пробелы и 0x
-        std::string FixHexString(std::string str) {
-            std::string::size_type tmp;
-            if (str.find(OBFUSCATE_BNM("0x")) != -1) {
-                tmp = str.find(OBFUSCATE_BNM("0x"));
-                str.replace(tmp, 2, OBFUSCATE_BNM(""));
-            }
-            for (int i = (int)str.length() - 1; i >= 0; --i)
-                if (str[i] == ' ') str.erase(i, 1);
-            return str;
-        }
-
         // Конвертировать шестнадцатеричную строку в значение
-        BNM_PTR HexStr2Value(const std::string &hex) { return strtoull(hex.c_str(), nullptr, 16); }
+        unsigned long long HexStr2Value(const std::string &hex) { return strtoull(hex.c_str(), nullptr, 16); }
 
 #if defined(__ARM_ARCH_7A__)
 
         // Проверить, является ли ассемблер `bl ...` или `b ...`
         bool IsBranchHex(const std::string &hex) {
-            BNM_PTR hexW = HexStr2Value(ReverseHexString(FixHexString(hex)));
+            BNM_PTR hexW = HexStr2Value(ReverseHexString(hex));
             return (hexW & 0x0A000000) == 0x0A000000;
         }
 
@@ -2158,7 +968,7 @@ namespace BNM {
 
         // Проверить, является ли ассемблер `bl ...` или `b ...`
         bool IsBranchHex(const std::string &hex) {
-            BNM_PTR hexW = HexStr2Value(ReverseHexString(FixHexString(hex)));
+            BNM_PTR hexW = HexStr2Value(ReverseHexString(hex));
             return (hexW & 0xFC000000) == 0x14000000 || (hexW & 0xFC000000) == 0x94000000;
         }
 
@@ -2166,24 +976,24 @@ namespace BNM {
 
         // Проверить, является ли ассемблер `call ...`
         bool IsCallHex(const std::string &hex) { return hex.substr(0, 2) == OBFUSCATE_BNM("E8"); }
-
+#elif defined(__riscv)
+#error "Он вышел для Android?"
 #else
 #error "BNM поддерживает только arm64, arm, x86 и x86_64"
 #endif
-
+        const char *hexChars = OBFUSCATE_BNM("0123456789ABCDEF");
         // Прочитать память, как шестнадцатеричную строку
-        std::string ReadMemory(BNM_PTR address, size_t len) {
-            char temp[len];
-            memset(temp, 0, len);
-            const size_t bufferLen = len * 2 + 1;
-            char buffer[bufferLen];
-            memset(buffer, 0, bufferLen);
+        std::string ReadFiveBytesOfMemoryMax(BNM_PTR address, size_t len) {
+            char temp[5]; memset(temp, 0, len);
             std::string ret;
-            if (memcpy(temp, (void *)address, len) == nullptr) return ret;
-            for (int i = 0; i < len; ++i)
-                sprintf(&buffer[i * 2], OBFUSCATE_BNM("%02X"), (unsigned char) temp[i]);
-            ret += buffer;
-            return ret;
+            if (memcpy(temp, (void *)address, len) == nullptr) return std::move(ret);
+            ret.resize(len * 2, 0);
+            auto buf = (char *)ret.data();
+            for (size_t i = 0; i < len; ++i) {
+                *buf++ = hexChars[temp[i] >> 4];
+                *buf++ = hexChars[temp[i] & 0x0F];
+            }
+            return std::move(ret);
         }
 
         // Декодировать b или bl и получить адрес, по которому он переходит
@@ -2191,16 +1001,16 @@ namespace BNM {
 #if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
             if (!IsBranchHex(hex)) return false;
 #if defined(__aarch64__)
-            int add = 0;
+            uint8_t add = 0;
 #else
-            int add = 8;
+            uint8_t add = 8;
 #endif
             // Эта строка основана на коде capstone
-            outOffset = ((int32_t)(((((HexStr2Value(ReverseHexString(FixHexString(hex)))) & (((uint32_t)1 << 24) - 1) << 0) >> 0) << 2) << (32 - 26)) >> (32 - 26)) + offset + add;
+            outOffset = ((int32_t)(((((HexStr2Value(ReverseHexString(hex))) & (((uint32_t)1 << 24) - 1) << 0) >> 0) << 2) << (32 - 26)) >> (32 - 26)) + offset + add;
 #elif defined(__i386__) || defined(__x86_64__)
             if (!IsCallHex(hex)) return false;
             // Адрес + адрес из `call` + размер инструкции
-            outOffset = offset + HexStr2Value(ReverseHexString(FixHexString(hex)).substr(0, 8)) + 5;
+            outOffset = offset + HexStr2Value(ReverseHexString(hex).substr(0, 8)) + 5;
 #else
 #error "BNM поддерживает только arm64, arm, x86 и x86_64"
             return false;
@@ -2213,173 +1023,217 @@ namespace BNM {
         // index: 0 - первый, 1 - второй и т. д.
         BNM_PTR FindNextJump(BNM_PTR start, int index) {
 #if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
-            int offset = 0;
-            std::string curHex = ReadMemory(start, 4);
+            BNM_PTR offset = 0;
+            std::string curHex = ReadFiveBytesOfMemoryMax(start, 4);
             BNM_PTR outOffset = 0;
             bool out;
             while (!(out = DecodeBranchOrCall(curHex, start + offset, outOffset)) || index != 1) {
                 offset += 4;
-                curHex = ReadMemory(start + offset, 4);
+                curHex = ReadFiveBytesOfMemoryMax(start + offset, 4);
                 if (out) index--;
             }
             return outOffset;
 #elif defined(__i386__) || defined(__x86_64__)
-            int offset = 0;
-            std::string curHex = ReadMemory(start, 1);
+            BNM_PTR offset = 0;
+            std::string curHex = ReadFiveBytesOfMemoryMax(start, 1);
             BNM_PTR outOffset = 0;
             bool out;
             while (!(out = IsCallHex(curHex)) || index != 1) {
                 offset += 1;
-                curHex = ReadMemory(start + offset, 1);
+                curHex = ReadFiveBytesOfMemoryMax(start + offset, 1);
                 if (out) index--;
             }
-            DecodeBranchOrCall(ReadMemory(start + offset, 5), start + offset, outOffset);
+            DecodeBranchOrCall(ReadFiveBytesOfMemoryMax(start + offset, 5), start + offset, outOffset);
             return outOffset;
+#elif defined(__riscv)
+#error "Он вышел для Android?"
 #endif
         }
     }
-#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
-    namespace MODIFY_CLASSES {
-
-        TargetClass::TargetClass() noexcept = default;
-        AddableMethod::AddableMethod() noexcept = default;
-        AddableField::AddableField() noexcept = default;
-
-        void AddTargetClass(TargetClass *klass) {
-            if (!BNM_Internal::classes4Mod)
-                BNM_Internal::classes4Mod = new std::vector<TargetClass *>();
-            // Добавить класс ко всем целевым классам
-            BNM_Internal::classes4Mod->push_back(klass);
-        }
+#if !BNM_DISABLE_NEW_CLASSES
+    void MODIFY_CLASSES::AddTargetClass(TargetClass *klass) {
+        if (!BNM_Internal::modClassesVector) BNM_Internal::modClassesVector = new std::vector<TargetClass *>();
+        // Добавить класс ко всем целевым классам
+        BNM_Internal::modClassesVector->push_back(klass);
     }
-
-    namespace NEW_CLASSES {
-
-        NewMethod::NewMethod() noexcept = default;
-        NewField::NewField() noexcept = default;
-        NewClass::NewClass() noexcept = default;
-
-        void AddNewClass(NewClass *klass) {
-            if (!BNM_Internal::classes4Add)
-                BNM_Internal::classes4Add = new std::vector<NewClass *>();
-            // Добавить класс ко всем созданным классам
-            BNM_Internal::classes4Add->push_back(klass);
-        }
+    void NEW_CLASSES::AddNewClass(NewClass *klass) {
+        if (!BNM_Internal::newClassesVector) BNM_Internal::newClassesVector = new std::vector<NewClass *>();
+        // Добавить класс ко всем созданным классам
+        BNM_Internal::newClassesVector->push_back(klass);
     }
 #endif
+#if defined(__ARM_ARCH_7A__)
+#    define CURRENT_ARCH "armeabi-v7a"
+#elif defined(__aarch64__)
+#    define CURRENT_ARCH "arm64-v8a"
+#elif defined(__i386__)
+#    define CURRENT_ARCH "x86"
+#elif defined(__x86_64__)
+#    define CURRENT_ARCH "x86_64"
+#elif defined(__riscv)
+#    define CURRENT_ARCH "riscv64"
+#endif
+    void TryForceLoadIl2CppByPath(JNIEnv *env, jobject context) {
+        if (!env || BNM_Internal::il2cppLibraryHandle || BNM_Internal::bnmLoaded) return;
 
-    [[maybe_unused]] void HardBypass(JNIEnv *env, jobject context) {
-        if (!env || BNM_Internal::dlLib || BNM_Internal::hardBypass) return;
-        BNM_Internal::hardBypass = true;
-
-        // Получить путь до папки libs, используя JNI
-        if (!context) {
+        // Получить путь до libil2cpp.so, используя JNI
+        if (context == nullptr) {
             jclass activityThread = env->FindClass(OBFUSCATE_BNM("android/app/ActivityThread"));
-            context = env->CallObjectMethod(env->CallStaticObjectMethod(activityThread, env->GetStaticMethodID(activityThread, OBFUSCATE_BNM("currentActivityThread"), OBFUSCATE_BNM("()Landroid/app/ActivityThread;"))), env->GetMethodID(activityThread, OBFUSCATE_BNM("getApplication"), OBFUSCATE_BNM("()Landroid/app/Application;")));
+            auto currentActivityThread = env->CallStaticObjectMethod(activityThread, env->GetStaticMethodID(activityThread, OBFUSCATE_BNM("currentActivityThread"), OBFUSCATE_BNM("()Landroid/app/ActivityThread;")));
+            context = env->CallObjectMethod(currentActivityThread, env->GetMethodID(activityThread, OBFUSCATE_BNM("getApplication"), OBFUSCATE_BNM("()Landroid/app/Application;")));
+            env->DeleteLocalRef(currentActivityThread);
         }
-        auto appInfo = env->CallObjectMethod(context, env->GetMethodID(env->GetObjectClass(context), OBFUSCATE_BNM("getApplicationInfo"), OBFUSCATE_BNM("()Landroid/content/pm/ApplicationInfo;")));
-        std::string path = env->GetStringUTFChars((jstring)env->GetObjectField(appInfo, env->GetFieldID(env->GetObjectClass(appInfo), OBFUSCATE_BNM("nativeLibraryDir"), OBFUSCATE_BNM("Ljava/lang/String;"))), nullptr);
+        auto applicationInfo = env->CallObjectMethod(context, env->GetMethodID(env->GetObjectClass(context), OBFUSCATE_BNM("getApplicationInfo"), OBFUSCATE_BNM("()Landroid/content/pm/ApplicationInfo;")));
+        auto applicationInfoClass = env->GetObjectClass(applicationInfo);
+
+        auto flags = env->GetIntField(applicationInfo, env->GetFieldID(applicationInfoClass, OBFUSCATE_BNM("flags"), OBFUSCATE_BNM("I")));
+        bool isLibrariesExtracted = (flags & 0x10000000) == 0x10000000; // ApplicationInfo.FLAG_EXTRACT_NATIVE_LIBS
+
+        jstring jDir;
+        if (isLibrariesExtracted)
+            jDir = (jstring)env->GetObjectField(applicationInfo, env->GetFieldID(applicationInfoClass, OBFUSCATE_BNM("nativeLibraryDir"), OBFUSCATE_BNM("Ljava/lang/String;")));
+        else
+            jDir = (jstring)env->GetObjectField(applicationInfo, env->GetFieldID(applicationInfoClass, OBFUSCATE_BNM("sourceDir"), OBFUSCATE_BNM("Ljava/lang/String;")));
+
+        std::string file;
+        auto cDir = std::string_view(env->GetStringUTFChars(jDir, nullptr));
+        env->DeleteLocalRef(applicationInfo); env->DeleteLocalRef(applicationInfoClass);
+
+        if (isLibrariesExtracted)
+            // По пути до библиотеки /data/app/.../им пакета-.../lib/архитектура/libil2cpp.so
+            file = std::string(cDir) + OBFUSCATE_BNM("/libil2cpp.so");
+        else
+            // Из base.apk /data/app/.../им пакета-.../base.apk!/lib/архитектура/libil2cpp.so
+            file = std::string(cDir) + OBFUSCATE_BNM("!/lib/" CURRENT_ARCH "/libil2cpp.so");
+
 
         // Попробовать загрузить il2cpp по этому пути
-        auto libPath = str2char(path + OBFUSCATE_BNM("/libil2cpp.so"));
-        auto dl = BNM_dlopen(libPath, RTLD_LAZY);
-        if (!BNM_Internal::InitDlLib(dl, libPath)) LOGEBNM(OBFUSCATE_BNM("Тяжёлый обход не удался!"));
+        auto fileCopy = (char *) malloc(file.size() + 1);
+        memcpy(fileCopy, file.data(), file.size());
+        fileCopy[file.size()] = 0;
+        auto handle = BNM_dlopen(fileCopy, RTLD_LAZY);
+        if (!BNM_Internal::InitLibraryHandle(handle, fileCopy)) {
+            BNM_LOG_ERR_IF(isLibrariesExtracted, "Не удалось загрузить libil2cpp.so по пути!");
+            free(fileCopy);
+        } else goto END;
+        if (isLibrariesExtracted) goto END;
+        file.clear();
+
+        // Из split_config.архитектура.apk /data/app/.../имя пакета-.../split_config.архитектура.apk!/lib/архитектура/libil2cpp.so
+        file = std::string(cDir).substr(0, cDir.length() - 8) + OBFUSCATE_BNM("split_config." CURRENT_ARCH ".apk!/lib/" CURRENT_ARCH "/libil2cpp.so");
+        fileCopy = (char *) malloc(file.size() + 1);
+        memcpy(fileCopy, file.data(), file.size());
+        fileCopy[file.size()] = 0;
+        handle = BNM_dlopen(fileCopy, RTLD_LAZY);
+        if (!BNM_Internal::InitLibraryHandle(handle, fileCopy)) {
+            BNM_LOG_ERR("Не удалось загрузить libil2cpp.so по пути!");
+            free(fileCopy);
+        }
+
+        END:
+        env->ReleaseStringUTFChars(jDir, cDir.data()); env->DeleteLocalRef(jDir);
+    }
+#undef CURRENT_ARCH
+    namespace External {
+        bool TryInitHandle(void *handle, const char *path, bool external) {
+            return BNM_Internal::InitLibraryHandle(handle, path, external);
+        }
+        void TryLoad(void *handle) {
+            if (BNM_Internal::InitLibraryHandle(handle, nullptr, true)) {
+                BNM_Internal::SetupBNM();
+#if !BNM_DISABLE_NEW_CLASSES
+                BNM_Internal::InitNewClasses();
+                BNM_Internal::ModifyClasses();
+#endif
+                BNM_Internal::bnmLoaded = true;
+            } else BNM_LOG_WARN("[External::LoadBNM] handle мёртв или неверен, BNM не загружен!");
+        }
+        void ForceLoad(void *handle) {
+            BNM_Internal::il2cppLibraryHandle = handle; // Насильно установить дескриптор
+            BNM_Internal::SetupBNM();
+#if !BNM_DISABLE_NEW_CLASSES
+            BNM_Internal::InitNewClasses();
+            BNM_Internal::ModifyClasses();
+#endif
+            BNM_Internal::bnmLoaded = true;
+        }
     }
 
-    namespace External {
-        [[maybe_unused]] bool TryInitDl(void *dl, const char *path, bool external) {
-            return BNM_Internal::InitDlLib(dl, path, external);
-        }
-        [[maybe_unused]] void LoadBNM(void *dl) {
-            if (BNM_Internal::InitDlLib(dl, nullptr, true)) {
-                BNM_Internal::InitIl2cppMethods(); // Найти некоторые методы и подменить их
-#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
-                BNM_Internal::InitNewClasses(); // Создать новые классы и добавить их в il2cpp
-                BNM_Internal::ModifyClasses(); // Изменить существующие классы (ОПАСНО при загрузке извне)
-#endif
-                BNM_Internal::LibLoaded = true; // Установить LibLoaded в значение "истина"
-            } else LOGWBNM(OBFUSCATE_BNM("[External::LoadBNM] dl мёртв или неверен, BNM не загружен!"));
-        }
-        [[maybe_unused]] void ForceLoadBNM(void *dl) {
-            BNM_Internal::dlLib = dl; // Насильно установить dl
-            BNM_Internal::InitIl2cppMethods(); // Найти некоторые методы и подменить их
-#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
-            BNM_Internal::InitNewClasses(); // Создать новые классы и добавить их в il2cpp
-            BNM_Internal::ModifyClasses(); // Изменить существующие классы (ОПАСНО при загрузке извне)
-#endif
-            BNM_Internal::LibLoaded = true; // Установить LibLoaded в значение "истина"
-        }
-    }
-    
     void AddOnLoadedEvent(void (*event)()) {
         if (event) BNM_Internal::onIl2CppLoaded.push_back(event);
     }
-    
+
     void ClearOnLoadedEvents() {
         BNM_Internal::onIl2CppLoaded.clear();
     }
+#ifdef BNM_DEBUG
+    namespace Utils {
+        void *OffsetInLib(void *offsetInMemory) {
+            if (offsetInMemory == nullptr) return nullptr;
+            Dl_info info; BNM_dladdr(offsetInMemory, &info);
+            return (void *) ((BNM_PTR) offsetInMemory - (BNM_PTR) info.dli_fbase);
+        }
+    }
+#endif
+
 }
 namespace BNM_Internal {
-#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
+#if !BNM_DISABLE_NEW_CLASSES
     struct { // Структура для быстрого поиска классов по их образам
-
         // Добавить класс к образу
-        void addClass(IL2CPP::Il2CppImage *image, IL2CPP::Il2CppClass *cls) {
+        void addClass(const IL2CPP::Il2CppImage *image, IL2CPP::Il2CppClass *cls) {
             return addClass((BNM_PTR)image, cls);
         }
         void addClass(BNM_PTR image, IL2CPP::Il2CppClass *cls) {
-            std::shared_lock lock(classesFindAccess);
+#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+            std::shared_lock lock(classesFindAccessMutex);
+#endif
             map[image].emplace_back(cls);
         }
 
         // Перебрать все классы, добавленные к образу
-        void forEachByImage(IL2CPP::Il2CppImage *image, const std::function<bool(IL2CPP::Il2CppClass *)> &func) {
-            std::shared_lock lock(classesFindAccess);
+        void forEachByImage(const IL2CPP::Il2CppImage *image, const std::function<bool(IL2CPP::Il2CppClass *)> &func) {
+#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+            std::shared_lock lock(classesFindAccessMutex);
+#endif
             return forEachByImage((BNM_PTR)image, func);
         }
         void forEachByImage(BNM_PTR image, const std::function<bool(IL2CPP::Il2CppClass *)> &func) {
-            std::shared_lock lock(classesFindAccess);
-            if (map[image].empty()) return;
-            for (auto &item: map[image]) {
-                if (func(item))
-                    break;
-            }
+#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+            std::shared_lock lock(classesFindAccessMutex);
+#endif
+            for (auto item : map[image]) if (func(item)) break;
         }
 
         // Перебрать все образы с их классами
         void forEach(const std::function<bool(IL2CPP::Il2CppImage *, std::vector<IL2CPP::Il2CppClass *>)> &func) {
-            std::shared_lock lock(classesFindAccess);
-            for (auto [img, classes] : map) {
+#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+            std::shared_lock lock(classesFindAccessMutex);
+#endif
+            for (auto &[img, classes] : map)
                 if (func((IL2CPP::Il2CppImage *)img, classes))
                     break;
-            }
         }
     private:
         std::map<BNM_PTR, std::vector<IL2CPP::Il2CppClass *>> map;
     } BNMClassesMap;
 
-#define BNM_I2C_NEW(type, ...) new IL2CPP::type(__VA_ARGS__)
+#define BNM_I2C_NEW(type) (IL2CPP::type *) malloc(sizeof(IL2CPP::type))
 
     // Создать новый образ
     IL2CPP::Il2CppImage *makeImage(NEW_CLASSES::NewClass *cls) {
-
-        // Создать новый образ
         auto newImg = BNM_I2C_NEW(Il2CppImage);
 
-        // Создать имя без .dll
         auto dllName = cls->GetDllName();
-        auto nameLen = strlen(dllName) + 1;
-        newImg->nameNoExt = (char *) malloc(sizeof(char) * nameLen);
-        memset((void *)newImg->nameNoExt, 0, nameLen);
-        strcpy((char *)newImg->nameNoExt, dllName);
+        auto nameLen = strlen(dllName);
+        newImg->nameNoExt = (char *) malloc(nameLen + 1);
+        memcpy((void *)newImg->nameNoExt, (void *)dllName, nameLen);
+        ((char *)newImg->nameNoExt)[nameLen] = 0;
 
-
-        // Создать имя с .dll
-        auto extLen = nameLen + 4;
-        newImg->name = (char *) malloc(sizeof(char) * extLen);
-        memset((void *)newImg->name, 0, extLen);
-        strcpy((char *)newImg->name, dllName);
-        strcat((char *)newImg->name, OBFUSCATE_BNM(".dll"));
+        newImg->name = (char *) malloc(nameLen + 5);
+        memcpy((void *)newImg->name, (void *)dllName, nameLen);
+        auto nameEnd = ((char *)(newImg->name + nameLen));
+        nameEnd[0] = '.'; nameEnd[1] = 'd'; nameEnd[2] = 'l'; nameEnd[3] = 'l'; nameEnd[4] = 0;
 
 #if UNITY_VER > 182
         newImg->assembly = nullptr;
@@ -2390,9 +1244,9 @@ namespace BNM_Internal {
 #endif
 
 #if UNITY_VER > 201
-
         // Создать пустой Il2CppImageDefinition
-        auto handle = (IL2CPP::Il2CppImageDefinition *)malloc(sizeof(IL2CPP::Il2CppImageDefinition));
+        auto handle = (IL2CPP::Il2CppImageDefinition *) malloc(sizeof(IL2CPP::Il2CppImageDefinition));
+        memset(handle, 0, sizeof(IL2CPP::Il2CppImageDefinition));
         handle->typeStart = -1;
         handle->exportedTypeStart = -1;
         handle->typeCount = 0;
@@ -2439,42 +1293,33 @@ namespace BNM_Internal {
         // Добавить сборку в список
         Assembly$$GetAllAssemblies()->push_back(newAsm);
 
-        LOGIBNM(OBFUSCATE_BNM("Добавлена новая сборка: [%s]."), dllName);
+        BNM_LOG_INFO("Добавлена новая сборка: [%s].", dllName);
 
         return newImg;
     }
 
-    // Проверка, является ли тип класса созданным BNM
-    bool isBNMType(IL2CPP::Il2CppType *type) {
-        if (CheckObj(type->data.dummy)) return ((BNMTypeData *)type->data.dummy)->bnm == -0x424e4d;
-        return false;
-    }
-
     // Подмена `FromIl2CppType`, чтобы предотвратить вылет il2cpp при попытке получить класс из типа, созданного BNM
     IL2CPP::Il2CppClass *Class$$FromIl2CppType(IL2CPP::Il2CppType *type) {
-        // Проверить, верен ли тип
         if (!type) return nullptr;
 
         // Проверить, создан ли тип BNM
-        if (isBNMType(type)) return ((BNMTypeData *)type->data.dummy)->cls;
+        if (type->num_mods == 31) return (IL2CPP::Il2CppClass *)type->data.dummy;
 
         return old_Class$$FromIl2CppType(type);
     }
 
     // Подмена `GetClassOrElementClass`, чтобы предотвратить вылет il2cpp при попытке unity загрузить пакет с полем класс которого, создан BNM
     IL2CPP::Il2CppClass *Type$$GetClassOrElementClass(IL2CPP::Il2CppType *type) {
-        // Проверить, верен ли тип
         if (!type) return nullptr;
 
         // Проверить, создан ли тип BNM
-        if (isBNMType(type)) return ((BNMTypeData *) type->data.dummy)->cls;
+        if (type->num_mods == 31) return (IL2CPP::Il2CppClass *)type->data.dummy;
 
         return old_Type$$GetClassOrElementClass(type);
     }
 
     // Подмена `FromName`, чтобы предотвратить вылет il2cpp при попытке найти класс, созданный BNM
     IL2CPP::Il2CppClass *Class$$FromName(IL2CPP::Il2CppImage *image, const char *namespaze, const char *name) {
-        // Проверить, верен ли образ
         if (!image) return nullptr;
 
         IL2CPP::Il2CppClass *ret = nullptr;
@@ -2493,14 +1338,12 @@ namespace BNM_Internal {
                 return false;
             });
 
-        // Вернуть ничего или найденный класс
         return ret;
     }
 
     // Требуются, потому что в Unity 2017 и ниже в образах и сборках они хранятся по номерам
 #if UNITY_VER <= 174
     IL2CPP::Il2CppImage *new_GetImageFromIndex(IL2CPP::ImageIndex index) {
-
         // Номер меньше 0, значит, это сборка BNM
         if (index < 0) {
             IL2CPP::Il2CppImage *ret = nullptr;
@@ -2514,7 +1357,6 @@ namespace BNM_Internal {
                 return false;
             });
 
-            // Вернуть ничего или найденный образ
             return ret;
         }
 
@@ -2535,38 +1377,178 @@ namespace BNM_Internal {
             if (!strcmp(image->name, name) || !strcmp(image->nameNoExt, name)) return assembly;
         }
 
-        // Ничего не найдено
         return nullptr;
     }
 #endif
+
+    namespace NewOrModTypes_Internal {
+#pragma pack(push, 1)
+        struct NewMethodInfo {
+            IL2CPP::Il2CppMethodPointer address{};
+            IL2CPP::InvokerMethod invoker{};
+            std::string_view name;
+            std::vector<RuntimeTypeGetter> *argumentsTypes{};
+            RuntimeTypeGetter returnType;
+            uint8_t argumentsCount{};
+            uint8_t isStatic : 1{};
+        };
+#pragma pack(pop)
+        IL2CPP::MethodInfo *CreateMethod(NewMethodInfo &info) {
+            auto *myInfo = BNM_I2C_NEW(MethodInfo);
+            myInfo->methodPointer = info.address;
+            myInfo->invoker_method = info.invoker;
+            myInfo->parameters_count = info.argumentsCount;
+
+            auto name = (char *) malloc(info.name.size() + 1);
+            memcpy((void *)name, info.name.data(), info.name.size());
+            name[info.name.size()] = 0;
+            myInfo->name = name;
+
+            // Установить флаги метода
+            myInfo->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
+            if (info.isStatic) myInfo->flags |= 0x0010; // |= STATIC
+            if (info.name == constructorName) myInfo->flags |= 0x0800 | 0x1000; // |= SPECIAL_NAME | RT_SPECIAL_NAME
+
+            // BNM не поддерживает создание generic-методов
+            myInfo->is_generic = false;
+
+            // Установить возвращаемый тип
+            auto methodType = info.returnType.ToLC();
+            if (!methodType) methodType = vmData.Object;
+            myInfo->return_type = methodType.GetIl2CppType();
+
+            // Создать аргументы
+            auto argsCount = myInfo->parameters_count;
+            if (argsCount) {
+                auto &types = *info.argumentsTypes;
+#if UNITY_VER < 212
+                myInfo->parameters = (IL2CPP::ParameterInfo *)malloc(argsCount * sizeof(IL2CPP::ParameterInfo));
+                memset((void *)myInfo->parameters, 0, argsCount * sizeof(IL2CPP::ParameterInfo));
+
+                auto parameter = (IL2CPP::ParameterInfo *)myInfo->parameters;
+                for (uint8_t p = 0; p < argsCount; ++p) {
+#ifdef BNM_DEPRECATED
+                    auto stringIndex = std::to_string(p);
+
+                    parameter->name = (char *) malloc(1 + stringIndex.size() + 1);
+                    ((char *)parameter->name)[0] = 'a';
+                    memcpy((void *)(parameter->name + 1), (void *)stringIndex.data(), stringIndex.size());
+                    ((char *)parameter->name)[stringIndex.size() + 1] = 0;
+#else
+                    parameter->name = nullptr; // Имя параметра не интересует движок вообще никак
+#endif
+                    parameter->position = p;
+
+                    // Установить тип в любом случае
+                    auto type = p < types.size() ? types[p].ToLC() : vmData.Object;
+                    if (!type) type = vmData.Object;
+                    parameter->parameter_type = type.GetIl2CppType();
+                    parameter->token = parameter->parameter_type->attrs | p;
+
+                    ++parameter;
+                }
+#else
+
+                auto parameters = (IL2CPP::Il2CppType **) malloc(argsCount * sizeof(IL2CPP::Il2CppType *));
+
+                myInfo->parameters = (const IL2CPP::Il2CppType **) parameters;
+                for (uint8_t p = 0; p < argsCount; ++p) {
+                    auto parameter = BNM_I2C_NEW(Il2CppType);
+
+                    // Установить тип в любом случае
+                    auto type = p < types.size() ? types[p].ToLC() : vmData.Object;
+                    if (!type) type = vmData.Object;
+                    memcpy(parameter, type.GetIl2CppType(), sizeof(IL2CPP::Il2CppType));
+
+                    parameters[p] = parameter;
+                }
+#endif
+            }
+#if UNITY_VER >= 212
+            // Мы не можем без лишнего кода установить имена аргументов, потому что они перемещены в метаданные
+            myInfo->methodMetadataHandle = nullptr;
+#endif
+            return myInfo;
+        }
+        bool hasInterface(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface) {
+            if (!parent || !interface) return false;
+            for (uint16_t i = 0; i < parent->interfaces_count; ++i) if (parent->implementedInterfaces[i] == interface) return true;
+            if (parent->parent) return hasInterface(parent->parent, interface);
+            return false;
+        }
+    }
+
     void ModifyClasses() {
-        std::lock_guard<std::mutex> lock(modClass);
-        if (classes4Mod == nullptr) return;
-        for (auto& klass : *classes4Mod) {
-            auto lc = klass->GetTargetType().ToLC();
-            auto fields4Add = klass->GetFields();
-            auto methods4Add = klass->GetMethods();
+#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+        std::lock_guard<std::mutex> lock(modClassMutex);
+#endif
+        if (modClassesVector == nullptr) return;
+        for (auto modClass : *modClassesVector) {
+            auto type = modClass->GetTargetType();
+            auto lc = type.ToLC();
+            auto fields4Add = modClass->GetFields();
+            auto methods4Add = modClass->GetMethods();
 
             if (!lc) {
-                LOGWBNM("[ModifyClasses] Не удалось добавить %d методов и %d полей к классу.", methods4Add.size(), fields4Add.size());
+                BNM_LOG_WARN("[ModifyClasses] Не удалось добавить методов: %lu и полей: %lu к классу.", methods4Add.size(), fields4Add.size());
                 continue;
             }
 
-            auto cls = lc.GetIl2CppClass();
+            auto klass = lc.GetIl2CppClass();
             auto newMethodsCount = methods4Add.size();
             auto newFieldsCount = fields4Add.size();
-            auto targetModifier = klass->GetTargetModifier();
+            auto targetModifier = modClass->GetTargetModifier();
 
-            // Заменить родителя, если нужно
+            // Установить тип - родитель
             if (targetModifier.newParentGetter)
-                cls->parent = targetModifier.newParentGetter().ToIl2CppClass();
+                klass->parent = targetModifier.newParentGetter().ToIl2CppClass();
+
+            IL2CPP::Il2CppClass *owner = nullptr;
+            if (targetModifier.newOwnerGetter)
+                owner = targetModifier.newOwnerGetter().ToIl2CppClass();
+
+            // Установить тип - владелец
+            if (owner) {
+                auto oldOwner = klass->declaringType;
+                auto oldInnerList = owner->nestedTypes;
+
+                klass->declaringType = owner;
+
+                // Добавить класс в список нового владельца
+                auto newInnerList = (IL2CPP::Il2CppClass **) malloc(sizeof(IL2CPP::Il2CppClass) * (owner->nested_type_count + 1));
+                memcpy(newInnerList, owner->nestedTypes, sizeof(IL2CPP::Il2CppClass) * owner->nested_type_count);
+                newInnerList[owner->nested_type_count++] = klass;
+                owner->nestedTypes = newInnerList;
+
+                // Отметить класс, чтобы использовать меньше памяти
+                if ((owner->flags & 0x99000000) == 0x99000000) free(oldInnerList);
+                owner->flags |= 0x99000000;
+
+                // Удалить класс из списка старого владельца
+                if (oldOwner) {
+                    oldInnerList = oldOwner->nestedTypes;
+                    newInnerList = (IL2CPP::Il2CppClass **) malloc(sizeof(IL2CPP::Il2CppClass) * (oldOwner->nested_type_count - 1));
+                    uint8_t skipped = 0;
+                    for (uint16_t i = 0; i < oldOwner->nested_type_count; ++i) {
+                        if (skipped == 0) if (skipped = (oldInnerList[i] == klass); skipped) continue;
+                        newInnerList[i - skipped] = oldInnerList[i];
+                    }
+                    oldOwner->nestedTypes = newInnerList;
+                    --oldOwner->nested_type_count;
+
+                    // Отметить класс, чтобы использовать меньше памяти
+                    if ((oldOwner->flags & 0x99000000) == 0x99000000) free(oldInnerList);
+                    oldOwner->flags |= 0x99000000;
+                }
+            }
 
             if (newMethodsCount) {
-                auto oldCount = cls->method_count;
-                auto oldMethods = cls->methods;
+                auto oldCount = klass->method_count;
+                auto oldMethods = klass->methods;
 
                 // Создать новый список методов
-                auto newMethods = (IL2CPP::MethodInfo **) calloc(oldCount + newMethodsCount, sizeof(IL2CPP::MethodInfo *));
+                auto newMethods = (IL2CPP::MethodInfo **) malloc((oldCount + newMethodsCount) * sizeof(IL2CPP::MethodInfo *));
+                memset(newMethods, 0, (oldCount + newMethodsCount) * sizeof(IL2CPP::MethodInfo *));
 
                 // Копировать старые методы, если есть
                 if (oldCount) memcpy(newMethods, oldMethods, oldCount * sizeof(IL2CPP::MethodInfo *));
@@ -2575,212 +1557,91 @@ namespace BNM_Internal {
                 for (size_t i = 0; i < newMethodsCount; ++i, ++oldCount) {
                     auto &method = methods4Add[i];
 
-                    // Создать новый MethodInfo
-                    method->myInfo = BNM_I2C_NEW(MethodInfo);
+                    NewOrModTypes_Internal::NewMethodInfo info;
 
-                    // Установить адрес метода
-                    method->myInfo->methodPointer = (IL2CPP::Il2CppMethodPointer)method->GetAddress();
+                    info.address = (IL2CPP::Il2CppMethodPointer) method->GetAddress();
+                    info.invoker = (IL2CPP::InvokerMethod) method->GetInvoker();
+                    info.argumentsCount = method->GetArgsCount();
+                    info.name = method->GetName();
+                    info.isStatic = method->IsStatic();
+                    info.returnType = method->GetRetType();
 
-                    // Установить адрес инициатора вызова метода
-                    method->myInfo->invoker_method = (IL2CPP::InvokerMethod)method->GetInvoker();
+                    auto argumentsTypes = method->GetArgTypes();
+                    info.argumentsTypes = &argumentsTypes;
 
-                    // Установить кол-во аргументов
-                    method->myInfo->parameters_count = method->GetArgsCount();
+                    method->myInfo = NewOrModTypes_Internal::CreateMethod(info);
 
-                    // Создать имя метода
-                    auto name = method->GetName();
-                    auto len = strlen(name) + 1;
-                    method->myInfo->name = (char *) malloc(sizeof(char) * len);
-                    memset((void *)method->myInfo->name, 0, len);
-                    strcpy((char *)method->myInfo->name, name);
-
-                    // Установить флаги метода
-                    method->myInfo->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
-                    if (method->IsStatic()) method->myInfo->flags |= 0x0010; // |= STATIC
-
-                    // BNM не поддерживает generic-методы
-                    method->myInfo->is_generic = false;
-
-                    // Установить возвращаемый тип
-                    method->myInfo->return_type = method->GetRetType().ToIl2CppType();
-
-                    // Создать аргументы
-                    auto argsCount = method->GetArgsCount();
-                    if (argsCount) {
-                        auto types = method->GetArgTypes();
-#if UNITY_VER < 212
-                        // Создать новый массив аргументов
-                        method->myInfo->parameters = (IL2CPP::ParameterInfo *)calloc(argsCount, sizeof(IL2CPP::ParameterInfo));
-
-                        // Получить первый аргумент
-                        auto newParam = (IL2CPP::ParameterInfo *)method->myInfo->parameters;
-
-                        // Создать аргументы
-                        for (int p = 0; p < argsCount; ++p) {
-
-                            // Получить длину нового имени
-                            len = (OBFUSCATES_BNM("аргумент") + std::to_string(p)).size();
-
-                            // Создать имя
-                            newParam->name = (char *) malloc(sizeof(char) * len + 1);
-                            memset((void *)newParam->name, 0, len + 1);
-                            strcat((char *)newParam->name, OBFUSCATE_BNM("аргумент")); // Перевод чтобы был
-                            strcpy((char *)newParam->name, std::to_string(p).c_str());
-
-                            // Установить номер аргумента
-                            newParam->position = p;
-
-                            // Попытаться установить тип аргумента
-                            if (!types.empty() && p < types.size()) {
-                                newParam->parameter_type = types[p].ToIl2CppType();
-                                newParam->token = newParam->parameter_type->attrs | p;
-                            } else {
-                                newParam->parameter_type = nullptr;
-                                newParam->token = p;
-                            }
-                            // Следующий!
-                            ++newParam;
-                        }
-#else
-                        // Создать новый маcсив типов аргументов
-                        auto **params = new IL2CPP::Il2CppType*[argsCount];
-
-                        // Установить маcсив
-                        method->myInfo->parameters = (const IL2CPP::Il2CppType **)params;
-
-                        // Создать аргументы
-                        for (int p = 0; p < argsCount; ++p) {
-
-                            // Создать тип
-                            auto newParam = BNM_I2C_NEW(Il2CppType);
-
-                            // Копировать, если можно
-                            if (p < types.size())
-                                memcpy(newParam, types[p].ToIl2CppType(), sizeof(IL2CPP::Il2CppType));
-
-                            // Установить
-                            params[p] = newParam;
-                        }
-#endif
-                    }
-#if UNITY_VER >= 212
-                    else {
-                        // Мы не можем без лишнего кода установить имена аргументов, потому что они перемещены в метаданные
-                        method->myInfo->methodMetadataHandle = nullptr;
-                    }
-#endif
                     newMethods[oldCount] = method->myInfo;
-                    LOGDBNM(OBFUSCATE_BNM("[ModifyClasses] Добавлен %sметод %s %d к %s."), method->IsStatic() ? OBFUSCATE_BNM("статический ") : OBFUSCATE_BNM(""), name, argsCount, lc.str().c_str());
+                    BNM_LOG_DEBUG("[ModifyClasses] Добавлен %sметод %s %d к %s.", (info.isStatic == 1) ? "статический " : "", info.name.data(), info.argumentsCount, lc.str().c_str());
                 }
 
-                // Очистить methods4Add
-                methods4Add.clear(); methods4Add.shrink_to_fit();
-
-                // Заменить список методов
-                cls->methods = (const IL2CPP::MethodInfo **)newMethods;
-
-                // Увеличить кол-во методов
-                cls->method_count += newMethodsCount;
+                klass->methods = (const IL2CPP::MethodInfo **)newMethods;
+                klass->method_count += newMethodsCount;
             }
 
             if (newFieldsCount) {
-                // Данные для статических полей
-                int newStaticFieldsSize = 0;
-
-                auto oldCount = cls->field_count;
+                auto oldCount = klass->field_count;
 
                 // Создать новый список полей
-                auto newFields = (IL2CPP::FieldInfo *)calloc(oldCount + newFieldsCount, sizeof(IL2CPP::FieldInfo));
+                auto newFields = (IL2CPP::FieldInfo *)malloc((oldCount + newFieldsCount) * sizeof(IL2CPP::FieldInfo));
+                memset(newFields, 0, (oldCount + newFieldsCount) * sizeof(IL2CPP::FieldInfo));
 
                 // Копировать старые поля, если есть
-                if (oldCount) memcpy(newFields, cls->fields, oldCount * sizeof(IL2CPP::FieldInfo));
+                if (oldCount) memcpy(newFields, klass->fields, oldCount * sizeof(IL2CPP::FieldInfo));
 
                 // Адрес новых полей
-                auto currentAddress = (int) cls->instance_size;
+                auto currentAddress = klass->instance_size;
 
-                // Получить первое поле
                 IL2CPP::FieldInfo *newField = newFields + oldCount;
-                for (auto &field : fields4Add) {
-                    // Создать имя
+                for (auto field : fields4Add) {
                     auto name = field->GetName();
-                    auto len = strlen(name) + 1;
-                    newField->name = (char *) malloc(sizeof(char) * len);
-                    memset((void *)newField->name, 0, len);
-                    strcpy((char *)newField->name, name);
+                    auto len = strlen(name);
+                    newField->name = (char *) malloc(len + 1);
+                    memcpy((void *)newField->name, name, len);
+                    ((char *)newField->name)[len] = 0;
 
                     // Копировать тип
-                    newField->type = BNM_I2C_NEW(Il2CppType, *field->GetType().ToIl2CppType());
+                    newField->type = BNM_I2C_NEW(Il2CppType);
+                    auto fieldType = field->GetType().ToLC();
+                    if (!fieldType) fieldType = vmData.Object;
+                    memcpy((void *)newField->type, (void *)fieldType.GetIl2CppType(), sizeof(IL2CPP::Il2CppType));
 
-                    // Добавить флаги видимости
                     ((IL2CPP::Il2CppType*)newField->type)->attrs |= 0x0006; // PUBLIC
+                    newField->token = newField->type->attrs;
+                    newField->parent = klass;
 
-                    // Создать знак (token)
-                    newField->token = newField->type->attrs | 0x0006;
-
-                    // Установить новый класс
-                    newField->parent = cls;
-
-                    // Установить адрес
-                    field->offset = newField->offset = currentAddress;
+                    field->offset = currentAddress;
+                    newField->offset = (int32_t) currentAddress;
+                    field->myInfo = newField;
 
                     // Получить адрес следующего поля
                     currentAddress += field->GetSize();
 
-                    // Установить информацию
-                    field->myInfo = newField;
-
-                    // Следующий!
                     newField++;
-                    LOGDBNM(OBFUSCATE_BNM("[ModifyClasses] Добавлено поле %s к %s."), name, lc.str().c_str());
+                    BNM_LOG_DEBUG("[ModifyClasses] Добавлено поле %s к %s.", name, lc.str().c_str());
                 }
 
-                // Очистить fields4Add
-                fields4Add.clear(); fields4Add.shrink_to_fit();
-
-                // Заменить список полей
-                cls->fields = newFields;
-
-                // Увеличить кол-во полей
-                cls->field_count += newFieldsCount;
+                klass->fields = newFields;
+                klass->field_count += newFieldsCount;
 
                 // Увеличить размер класса
-                cls->instance_size = (uint) currentAddress;
-
-                if (newStaticFieldsSize) {
-                    auto oldSize = cls->static_fields_size;
-
-                    // Создать новые данные статических полей
-                    void *newStaticFields = malloc(oldSize + newStaticFieldsSize);
-
-                    // Копировать старые данные статических полей, если есть
-                    if (oldSize) memcpy(cls->static_fields, newStaticFields, oldSize);
-
-                    // Увеличить размер данных статических полей
-                    cls->static_fields_size += newStaticFieldsSize;
-
-                    // Заменить данные статических полей
-                    cls->static_fields = newStaticFields;
-                }
+                klass->instance_size = (uint32_t) currentAddress;
             }
-            LOGIBNM(OBFUSCATE_BNM("[ModifyClasses] Класс %s успешно изменён."), lc.str().c_str());
+            BNM_LOG_INFO("[ModifyClasses] Класс %s успешно изменён.", lc.str().c_str());
         }
 
-        // Очистить classes4Mod
-        classes4Mod->clear(); classes4Mod->shrink_to_fit();
-        delete classes4Mod;
-        classes4Mod = nullptr;
-    }
-    bool hasInterface(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface) {
-        for (auto i = 0; i < parent->interfaces_count; ++i) if (parent->implementedInterfaces[i] == interface) return true;
-        if (parent->parent) return hasInterface(parent->parent, interface);
-        return false;
+        // Очистить modClassesVector
+        modClassesVector->clear(); modClassesVector->shrink_to_fit();
+        delete modClassesVector;
+        modClassesVector = nullptr;
     }
     void InitNewClasses() {
-        std::lock_guard<std::mutex> lock(addClass);
-        if (!classes4Add) return;
-        DO_API(bool, il2cpp_type_equals, (const IL2CPP::Il2CppType * type, const IL2CPP::Il2CppType * otherType));
-        DO_API(IL2CPP::Il2CppImage *, il2cpp_assembly_get_image, (const IL2CPP::Il2CppAssembly *));
-        for (auto& klass : *classes4Add) {
+#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+        std::lock_guard<std::mutex> lock(addClassMutex);
+#endif
+        if (!newClassesVector) return;
+
+        for (auto klass : *newClassesVector) {
             IL2CPP::Il2CppImage *curImg = nullptr;
 
             auto className = klass->GetName();
@@ -2788,52 +1649,28 @@ namespace BNM_Internal {
 
             // Проверка, существует ли уже класс в il2cpp
             {
-                LoadClass existLS;
-
+                LoadClass existLS{};
 
                 auto assemblies = BNM_Internal::Assembly$$GetAllAssemblies();
 
                 // Попробовать найти образ
                 auto dllName = klass->GetDllName();
                 for (auto assembly : *assemblies) {
-                    auto image = il2cpp_assembly_get_image(assembly);
+                    auto image = il2cppMethods.il2cpp_assembly_get_image(assembly);
 
                     if (strcmp(dllName, image->nameNoExt) != 0) continue;
 
                     curImg = image;
                     break;
-
                 }
 
                 // Проверить, найден ли образ
-                if (curImg) {
-
-                    // Получить все классы образа
-                    ClassVector classes;
-                    BNM_Internal::Image$$GetTypes(curImg, false, &classes);
-
-                    // Попробовать найти класс
-                    for (auto cls : classes) {
-                        if (!cls) continue;
-
-                        // Попробовать инициализировать класс
-                        BNM_Internal::Class$$Init(cls);
-
-                        // Проверить, существует ли новый класс уже
-                        if (strcmp(cls->name, className) != 0 || strcmp(cls->namespaze, classNamespace) != 0) continue;
-
-                        existLS = cls;
-                        break;
-                    }
-
-                    // Очистить список классов
-                    classes.clear(); classes.shrink_to_fit();
-
-                } else curImg = makeImage(klass); // Создать новый образ для нового класса
+                if (curImg) existLS = TryGetClassInImage(curImg, classNamespace, className);
+                else curImg = makeImage(klass); // Создать новый образ для нового класса
 
                 // Если существует, предупредить и установить класс и тип
                 if (existLS) {
-                    LOGWBNM(OBFUSCATE_BNM("Класс %s уже существует, он не может быть добавлен в il2cpp! Пожалуйста, проверьте код."), existLS.str().c_str());
+                    BNM_LOG_WARN("Класс %s уже существует, он не может быть добавлен в il2cpp! Пожалуйста, проверьте код.", existLS.str().c_str());
                     // На всякий
                     klass->myClass = existLS.klass;
                     klass->type = existLS;
@@ -2841,34 +1678,25 @@ namespace BNM_Internal {
                 }
             }
 
-            // Создать типы для новых классов
-            auto typeByVal = BNM_I2C_NEW(Il2CppType);
-            memset(typeByVal, 0, sizeof(IL2CPP::Il2CppType));
-            typeByVal->type = IL2CPP::Il2CppTypeEnum::IL2CPP_TYPE_CLASS;
-            typeByVal->attrs = 0x1; // Public
-            typeByVal->pinned = 0;
-            typeByVal->byref = 0;
-            typeByVal->num_mods = 0;
+            // Создать тип для нового класса
+            IL2CPP::Il2CppType classType;
+            memset(&classType, 0, sizeof(IL2CPP::Il2CppType));
+            classType.type = IL2CPP::Il2CppTypeEnum::IL2CPP_TYPE_CLASS;
+            classType.attrs = 0x1; // Public
+            classType.pinned = 0;
+            classType.byref = 0;
+            classType.num_mods = 31;
 
-            auto typeThis = BNM_I2C_NEW(Il2CppType);
-            memset(typeThis, 0, sizeof(IL2CPP::Il2CppType));
-            typeThis->type = IL2CPP::Il2CppTypeEnum::IL2CPP_TYPE_CLASS;
-            typeThis->attrs = 0x1; // Public
-            typeThis->pinned = 0;
-            typeThis->byref = 1;
-            typeThis->num_mods = 0;
-
-            // Создать BNMTypeData для получения класса из типа
-            auto bnmTypeData = new BNMTypeData();
-            typeByVal->data.dummy = (void *)bnmTypeData; // Для il2cpp::vm::Class::FromIl2CppType
-            typeThis->data.dummy = (void *)bnmTypeData; // Для il2cpp::vm::Class::FromIl2CppType
-
-            // Получить родительский класс
+            // Получить родительский тип
             IL2CPP::Il2CppClass *parent = klass->GetBaseType().ToIl2CppClass();
-            if (!parent) parent = GetType<IL2CPP::Il2CppObject *>().ToIl2CppClass();
+            if (!parent) parent = vmData.Object.GetIl2CppClass();
 
-            // Требуется для интерфейсов, но они еще не полностью реализованы
-            std::vector<IL2CPP::Il2CppRuntimeInterfaceOffsetPair> newInterOffsets;
+            // Получить тип - владелец
+            IL2CPP::Il2CppClass *owner = nullptr;
+            auto ownerGetter = klass->GetOwnerGetter();
+            if (ownerGetter) owner = ownerGetter().ToIl2CppClass();
+
+            std::vector<IL2CPP::Il2CppRuntimeInterfaceOffsetPair> newInterOffsets{};
             if (parent->interfaceOffsets)
                 for (uint16_t i = 0; i < parent->interface_offsets_count; ++i)
                     newInterOffsets.push_back(parent->interfaceOffsets[i]);
@@ -2877,15 +1705,15 @@ namespace BNM_Internal {
 
             // Изучить интерфейсы
             auto allInterfaces = klass->GetInterfaces();
-            std::vector<IL2CPP::Il2CppClass *> interfaces;
-            if (!allInterfaces.empty()) for (auto &interface : allInterfaces)
-                if (auto cls = interface.ToIl2CppClass(); !hasInterface(parent, cls)) {
+            std::vector<IL2CPP::Il2CppClass *> interfaces{};
+            for (auto &interface : allInterfaces)
+                if (auto cls = interface.ToIl2CppClass(); !NewOrModTypes_Internal::hasInterface(parent, cls))
                     interfaces.push_back(cls);
-                }
+
             // Требуется для переопределения виртуальных методов
             std::vector<IL2CPP::VirtualInvokeData> newVTable(newVtableSize);
             for (uint16_t i = 0; i < parent->vtable_count; ++i) newVTable[i] = parent->vtable[i];
-            for (auto &interface : interfaces) {
+            for (auto interface : interfaces) {
                 newInterOffsets.push_back({interface, newVtableSize});
                 for (uint16_t i = 0; i < interface->method_count; ++i) {
                     auto v = interface->methods[i];
@@ -2893,238 +1721,147 @@ namespace BNM_Internal {
                     newVTable.push_back({nullptr, v});
                 }
             }
+
             // Создать все новые методы
             const IL2CPP::MethodInfo **methods = nullptr;
             auto methods4Add = klass->GetMethods();
-            if (!methods4Add.empty()) {
-                // Проверить, нужно ли добавлять обычный конструктор в класс
-                // Обычный конструктор вызывается в il2cpp::vm::Runtime::ObjectInitException
-                bool needDefaultConstructor = std::none_of(methods4Add.begin(), methods4Add.end(), [](NEW_CLASSES::NewMethod *met) {
-                    return !strcmp(met->GetName(), OBFUSCATE_BNM(".ctor")) && met->GetArgsCount() == 0;
-                });
+            uint8_t hasFinalize = 0;
 
-                // Создать маcсив методов
-                methods = (const IL2CPP::MethodInfo **) calloc(methods4Add.size() + needDefaultConstructor, sizeof(IL2CPP::MethodInfo *));
+            // Проверить, нужно ли добавлять обычный конструктор в класс
+            // Обычный конструктор вызывается в il2cpp::vm::Runtime::ObjectInitException
+            bool needDefaultConstructor = methods4Add.empty() || std::none_of(methods4Add.begin(), methods4Add.end(), [](NEW_CLASSES::NewMethod *met) {
+                return constructorName == met->GetName() && met->GetArgsCount() == 0;
+            });
 
-                // Создать все методы
-                for (int i = 0; i < methods4Add.size(); ++i) {
-                    auto &method = methods4Add[i];
-                    // Создать новый MethodInfo
-                    method->myInfo = BNM_I2C_NEW(MethodInfo);
+            // Создать массив методов
+            methods = (const IL2CPP::MethodInfo **) malloc((methods4Add.size() + needDefaultConstructor) * sizeof(IL2CPP::MethodInfo *));
+            memset(methods, 0, (methods4Add.size() + needDefaultConstructor) * sizeof(IL2CPP::MethodInfo *));
 
-                    // Установить адрес метода
-                    method->myInfo->methodPointer = (IL2CPP::Il2CppMethodPointer)method->GetAddress();
+            // Создать все методы
+            for (size_t i = 0; i < methods4Add.size(); ++i) {
+                auto &method = methods4Add[i];
 
-                    // Установить адрес инициатора вызова метода
-                    method->myInfo->invoker_method = (IL2CPP::InvokerMethod)method->GetInvoker();
+                NewOrModTypes_Internal::NewMethodInfo info;
 
-                    // Установить кол-во аргументов
-                    method->myInfo->parameters_count = method->GetArgsCount();
+                info.address = (IL2CPP::Il2CppMethodPointer) method->GetAddress();
+                info.invoker = (IL2CPP::InvokerMethod) method->GetInvoker();
+                info.argumentsCount = method->GetArgsCount();
+                info.name = method->GetName();
+                info.isStatic = method->IsStatic();
+                info.returnType = method->GetRetType();
 
-                    // Создать имя метода
-                    auto name = method->GetName();
-                    auto len = strlen(name) + 1;
-                    method->myInfo->name = (char *) malloc(sizeof(char) * len);
-                    memset((void *)method->myInfo->name, 0, len);
-                    strcpy((char *)method->myInfo->name, name);
+                auto argumentsTypes = method->GetArgTypes();
+                info.argumentsTypes = &argumentsTypes;
 
-                    // Замена методов в таблице
-                    auto types = method->GetArgTypes();
-                    for (uint16_t v = 0; v < newVtableSize; ++v) {
-                        auto &vTable = newVTable[v];
-                        auto count = vTable.method->parameters_count;
+                method->myInfo = NewOrModTypes_Internal::CreateMethod(info);
 
-                        if (!strcmp(vTable.method->name, method->myInfo->name) && count == method->myInfo->parameters_count && types.size() == count) {
-                            bool same = true;
-                            for (uint8_t p = 0; p < count; ++p) {
+                // Замена методов в таблице виртуальных методов
+                for (uint16_t v = 0; v < newVtableSize; ++v) {
+                    auto &vTable = newVTable[v];
+                    auto count = vTable.method->parameters_count;
+
+                    if (!strcmp(vTable.method->name, method->myInfo->name) && count == method->myInfo->parameters_count && argumentsTypes.size() == count) {
+                        bool same = true;
+                        for (uint8_t p = 0; p < count; ++p) {
 #if UNITY_VER < 212
-                                auto type = (vTable.method->parameters + p)->parameter_type;
+                            auto type = (vTable.method->parameters + p)->parameter_type;
 #else
-                                auto type = vTable.method->parameters[p];
+                            auto type = vTable.method->parameters[p];
 #endif
-                                if (il2cpp_type_equals(type, types[p])) continue;
+                            if (LoadClass(type).GetIl2CppClass() == argumentsTypes[p].ToIl2CppClass()) continue;
 
-                                same = false;
-                                break;
-
-                            }
-                            if (!same) break;
-
-                            vTable.method = method->myInfo;
-                            vTable.methodPtr = method->myInfo->methodPointer;
+                            same = false;
                             break;
 
                         }
+                        if (!same) break;
+                        if (!hasFinalize) hasFinalize = v == finalizerSlot;
+                        vTable.method = method->myInfo;
+                        vTable.methodPtr = method->myInfo->methodPointer;
+                        break;
+
                     }
-
-                    // Установить флаги метода
-                    method->myInfo->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
-                    if (method->IsStatic()) method->myInfo->flags |= 0x0010; // |= STATIC
-
-                    // BNM не поддерживает generic-методы
-                    method->myInfo->is_generic = false;
-
-                    // Установить возвращаемый тип
-                    method->myInfo->return_type = method->GetRetType().ToIl2CppType();
-
-                    // Создать аргументы
-                    auto argsCount = method->GetArgsCount();
-                    if (argsCount) {
-#if UNITY_VER < 212
-                        // Создать новый массив аргументов
-                        method->myInfo->parameters = (IL2CPP::ParameterInfo *)calloc(argsCount, sizeof(IL2CPP::ParameterInfo));
-
-                        // Получить первый аргумент
-                        auto newParam = (IL2CPP::ParameterInfo *)method->myInfo->parameters;
-
-                        // Создать аргументы
-                        for (int p = 0; p < argsCount; ++p) {
-
-                            // Получить длину нового имени
-                            len = (OBFUSCATES_BNM("аргумент") + std::to_string(p)).size();
-
-                            // Создать имя
-                            newParam->name = (char *) malloc(sizeof(char) * len + 1);
-                            memset((void *)newParam->name, 0, len + 1);
-                            strcat((char *)newParam->name, OBFUSCATE_BNM("аргумент")); // Перевод чтобы был
-                            strcpy((char *)newParam->name, std::to_string(p).c_str());
-
-                            // Установить номер аргумента
-                            newParam->position = p;
-
-                            // Попытаться установить тип аргумента
-                            if (!types.empty() && p < types.size()) {
-                                newParam->parameter_type = types[p].ToIl2CppType();
-                                newParam->token = newParam->parameter_type->attrs | p;
-                            } else {
-                                newParam->parameter_type = nullptr;
-                                newParam->token = p;
-                            }
-                            // Следующий!
-                            ++newParam;
-                        }
-#else
-                        // Создать новый маcсив типов аргументов
-                        auto **params = new IL2CPP::Il2CppType*[argsCount];
-
-                        // Установить маcсив
-                        method->myInfo->parameters = (const IL2CPP::Il2CppType **)params;
-
-                        // Создать аргументы
-                        for (int p = 0; p < argsCount; ++p) {
-
-                            // Создать тип
-                            auto newParam = BNM_I2C_NEW(Il2CppType);
-
-                            // Копировать, если можно
-                            if (p < types.size())
-                                memcpy(newParam, types[p].ToIl2CppType(), sizeof(IL2CPP::Il2CppType));
-
-                            // Установить
-                            params[p] = newParam;
-                        }
-#endif
-                    }
-#if UNITY_VER >= 212
-                    else {
-                        // Мы не можем без лишнего кода установить имена аргументов, потому что они перемещены в метаданные
-                        method->myInfo->methodMetadataHandle = nullptr;
-                    }
-#endif
-                    types.clear(); types.shrink_to_fit();
-                    methods[i] = method->myInfo;
                 }
-                // Создать обычный конструктор
-                if (needDefaultConstructor) {
-                    auto method = BNM_I2C_NEW(MethodInfo);
-                    method->name = (char *) malloc(sizeof(char) * 6);
-                    memset((void *)method->name, 0, 6);
-                    strcpy((char *)method->name, OBFUSCATE_BNM(".ctor"));
-                    method->parameters_count = 0;
-                    method->parameters = nullptr;
-                    method->return_type = GetType<void>().ToIl2CppType();
-                    method->is_generic = false;
-                    method->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
-                    method->methodPointer = (IL2CPP::Il2CppMethodPointer) DefaultConstructor;
-                    method->invoker_method = (IL2CPP::InvokerMethod) DefaultConstructorInvoke;
-                    methods[methods4Add.size()] = method;
-                }
+
+                methods[i] = method->myInfo;
             }
-#if UNITY_VER > 174
-#define kls klass
-#define typeSymbol *
-#else
-#define kls declaring_type
-#define typeSymbol
-#endif
+
+            // Создать обычный конструктор
+            if (needDefaultConstructor) {
+                auto method = BNM_I2C_NEW(MethodInfo);
+                method->name = (char *) malloc(6);
+                memcpy((void *)method->name, constructorName.data(), 5);
+                ((char *)method->name)[5] = 0;
+                method->parameters_count = 0;
+                method->parameters = nullptr;
+                method->return_type = GetType<void>().ToIl2CppType();
+                method->is_generic = false;
+                method->flags = 0x0006 | 0x0080 | 0x0800 | 0x1000; // PUBLIC | HIDE_BY_SIG | SPECIAL_NAME | RT_SPECIAL_NAME
+                method->methodPointer = (IL2CPP::Il2CppMethodPointer) DefaultConstructor;
+                method->invoker_method = (IL2CPP::InvokerMethod) DefaultConstructorInvoke;
+                methods[methods4Add.size()] = method;
+            }
 
             // Создать новый класс
             klass->myClass = (IL2CPP::Il2CppClass *)malloc(sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
             memset(klass->myClass, 0, sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
-            uint8_t hasFinalize = 0;
-            // Установить методы, если они существуют
-            if (!methods4Add.empty()) {
-                // Установить новый созданный класс
-                for (int i = 0; i < methods4Add.size(); ++i) {
-                    if (!hasFinalize) hasFinalize = !strcmp(methods[i]->name, OBFUSCATE_BNM("Finalize"));
-                    ((IL2CPP::MethodInfo *)methods[i])->kls = klass->myClass;
-                }
-
-                // Установить кол-во методов
-                klass->myClass->method_count = methods4Add.size();
-
-                // Установить массив методов
-                klass->myClass->methods = methods;
-
-                // Очистить methods4Add
-                methods4Add.clear(); methods4Add.shrink_to_fit();
-            } else {
-                klass->myClass->method_count = 0;
-                klass->myClass->methods = nullptr;
-            }
-            // Установить родителя
             klass->myClass->parent = parent;
 
+            // Добавить класс к владельцу
+            klass->myClass->declaringType = owner;
+            if (owner) {
+                auto oldInnerList = owner->nestedTypes;
+                auto newInnerList = (IL2CPP::Il2CppClass **) malloc(sizeof(IL2CPP::Il2CppClass) * (owner->nested_type_count + 1));
+                memcpy(newInnerList, owner->nestedTypes, sizeof(IL2CPP::Il2CppClass) * owner->nested_type_count);
+                newInnerList[owner->nested_type_count++] = klass->myClass;
+                owner->nestedTypes = newInnerList;
+
+                // Отметить класс, чтобы использовать меньше памяти
+                if ((owner->flags & 0x99000000) == 0x99000000) free(oldInnerList);
+                owner->flags |= 0x99000000;
+            }
+
+#if UNITY_VER > 174
+#define kls klass
+#else
+#define kls declaring_type
+#endif
+            // Завершение создания методов
+            for (size_t i = 0; i < methods4Add.size(); ++i) ((IL2CPP::MethodInfo *)methods[i])->kls = klass->myClass;
+#undef kls
+            klass->myClass->method_count = methods4Add.size() + needDefaultConstructor;
+            klass->myClass->methods = methods;
+
+            // Завершение создания полей
             auto fields4Add = klass->GetFields();
             klass->myClass->field_count = fields4Add.size();
             if (klass->myClass->field_count > 0) {
                 // Создать список полей
-                auto fields = (IL2CPP::FieldInfo *)calloc(klass->myClass->field_count, sizeof(IL2CPP::FieldInfo));
+                auto fields = (IL2CPP::FieldInfo *)malloc(klass->myClass->field_count * sizeof(IL2CPP::FieldInfo));
+                memset(fields, 0, klass->myClass->field_count * sizeof(IL2CPP::FieldInfo));
 
                 // Получить первое поле
                 IL2CPP::FieldInfo *newField = fields;
-                if (!fields4Add.empty()) {
-                    for (auto &field : fields4Add) {
-                        // Создать имя
-                        auto name = field->GetName();
-                        auto len = strlen(name) + 1;
-                        newField->name = (char *) malloc(sizeof(char) * len);
-                        memset((void *)newField->name, 0, len);
-                        strcpy((char *)newField->name, name);
+                for (auto field : fields4Add) {
+                    auto name = field->GetName();
+                    auto len = strlen(name);
+                    newField->name = (char *) malloc(len + 1);
+                    memcpy((void *)newField->name, name, len);
+                    ((char *)newField->name)[len] = 0;
 
-                        // Копировать тип
-                        newField->type = BNM_I2C_NEW(Il2CppType, *field->GetType().ToIl2CppType());
+                    // Копировать тип
+                    newField->type = BNM_I2C_NEW(Il2CppType);
+                    auto fieldType = field->GetType().ToLC();
+                    if (!fieldType) fieldType = vmData.Object;
+                    memcpy((void *)newField->type, (void *)fieldType.GetIl2CppType(), sizeof(IL2CPP::Il2CppType));
 
-                        // Добавить флаги видимости
-                        ((IL2CPP::Il2CppType*)newField->type)->attrs |= field->GetAttributes(); // PUBLIC
+                    ((IL2CPP::Il2CppType*)newField->type)->attrs |= field->GetAttributes(); // PUBLIC
+                    newField->token = newField->type->attrs;
+                    newField->parent = klass->myClass;
+                    newField->offset = (int32_t) field->GetOffset();
+                    field->myInfo = newField;
 
-                        // Создать знак (token)
-                        newField->token = newField->type->attrs;
-
-                        // Установить новый класс
-                        newField->parent = klass->myClass;
-
-                        // Установить адрес
-                        newField->offset = field->GetOffset();
-
-                        // Установить информацию
-                        field->myInfo = newField;
-
-                        // Следующий!
-                        newField++;
-                    }
-                    // Очистить fields4Add
-                    fields4Add.clear(); fields4Add.shrink_to_fit();
+                    newField++;
                 }
                 klass->myClass->fields = fields;
             } else {
@@ -3135,32 +1872,36 @@ namespace BNM_Internal {
 
             // Создать иерархию типов
             klass->myClass->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
-            klass->myClass->typeHierarchy = (IL2CPP::Il2CppClass **)calloc(klass->myClass->typeHierarchyDepth, sizeof(IL2CPP::Il2CppClass *));
+            klass->myClass->typeHierarchy = (IL2CPP::Il2CppClass **)malloc(klass->myClass->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
+            memset(klass->myClass->typeHierarchy, 0, klass->myClass->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
             klass->myClass->typeHierarchy[klass->myClass->typeHierarchyDepth - 1] = klass->myClass;
             memcpy(klass->myClass->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
 
             // Установить образ
             klass->myClass->image = curImg;
 
-            // Создать имя
-            auto len = strlen(className) + 1;
-            klass->myClass->name = (char *) malloc(sizeof(char) * len);
-            memset((void *)klass->myClass->name, 0, len);
-            strcpy((char *)klass->myClass->name, className);
+            auto len = strlen(className);
+            klass->myClass->name = (char *) malloc(len + 1);
+            memcpy((void *)klass->myClass->name, className, len);
+            ((char *)klass->myClass->name)[len] = 0;
 
-            // Создать имя пространства имён
-            len = strlen(classNamespace) + 1;
-            klass->myClass->namespaze = (char *) malloc(sizeof(char) * len);
-            memset((void *)klass->myClass->namespaze, 0, len);
-            strcpy((char *)klass->myClass->namespaze, classNamespace);
+            len = strlen(classNamespace);
+            klass->myClass->namespaze = (char *) malloc(len + 1);
+            memcpy((void *)klass->myClass->namespaze, classNamespace, len);
+            ((char *)klass->myClass->namespaze)[len] = 0;
 
             // Установить типы
-            klass->myClass->byval_arg = typeSymbol typeByVal;
-            klass->myClass->this_arg = typeSymbol typeThis;
-#undef kls
-#undef typeSymbol
-            // Это для внутренних классов, но BNM не может создавать внутренние классы
-            klass->myClass->declaringType = nullptr;
+            classType.data.dummy = klass->myClass;
+#if UNITY_VER > 174
+            klass->myClass->this_arg = klass->myClass->byval_arg = classType;
+            klass->myClass->this_arg.byref = 1;
+#else
+            klass->myClass->byval_arg = BNM_I2C_NEW(Il2CppType);
+            memcpy((void *)klass->myClass->byval_arg, &type, sizeof(IL2CPP::Il2CppType));
+            klass->myClass->this_arg = BNM_I2C_NEW(Il2CppType);
+            type.byref = 1;
+            memcpy((void *)klass->myClass->this_arg, &type, sizeof(IL2CPP::Il2CppType));
+#endif
 
             // Копировать флаги родителя и убрать ABSTRACT флаг, если существует
             klass->myClass->flags = klass->myClass->parent->flags & ~0x00000080; // TYPE_ATTRIBUTE_ABSTRACT
@@ -3176,23 +1917,22 @@ namespace BNM_Internal {
             klass->myClass->element_size = 0;
             klass->myClass->instance_size = klass->myClass->actualSize = klass->GetSize();
 
-            // Установить виртуальную таблицу
+            // Установить таблицу виртуальных методов
             klass->myClass->vtable_count = newVTable.size();
-            for (int i = 0; i < newVTable.size(); ++i) klass->myClass->vtable[i] = newVTable[i];
-            newVTable.clear(); newVTable.shrink_to_fit();
+            for (size_t i = 0; i < newVTable.size(); ++i) klass->myClass->vtable[i] = newVTable[i];
 
             // Установить адреса интерфейсов
             klass->myClass->interface_offsets_count = newInterOffsets.size();
-            klass->myClass->interfaceOffsets = (IL2CPP::Il2CppRuntimeInterfaceOffsetPair *)(calloc(newInterOffsets.size(), sizeof(IL2CPP::Il2CppRuntimeInterfaceOffsetPair)));
-            for (int i = 0; i < newInterOffsets.size(); ++i) klass->myClass->interfaceOffsets[i] = newInterOffsets[i];
-            newInterOffsets.clear(); newInterOffsets.shrink_to_fit();
+            klass->myClass->interfaceOffsets = (IL2CPP::Il2CppRuntimeInterfaceOffsetPair *)malloc(newInterOffsets.size() * sizeof(IL2CPP::Il2CppRuntimeInterfaceOffsetPair));
+            memset(klass->myClass->interfaceOffsets, 0, newInterOffsets.size() * sizeof(IL2CPP::Il2CppRuntimeInterfaceOffsetPair));
+            for (size_t i = 0; i < newInterOffsets.size(); ++i) klass->myClass->interfaceOffsets[i] = newInterOffsets[i];
 
             // Добавить интерфейсы
             if (!interfaces.empty()) {
                 klass->myClass->interfaces_count = interfaces.size();
-                klass->myClass->implementedInterfaces = (IL2CPP::Il2CppClass **)calloc(interfaces.size(), sizeof(IL2CPP::Il2CppClass *));
-                for (int i = 0; i < interfaces.size(); ++i) klass->myClass->implementedInterfaces[i] = interfaces[i];
-                interfaces.clear(); interfaces.shrink_to_fit();
+                klass->myClass->implementedInterfaces = (IL2CPP::Il2CppClass **)malloc(interfaces.size() * sizeof(IL2CPP::Il2CppClass *));
+                memset(klass->myClass->implementedInterfaces, 0, interfaces.size() * sizeof(IL2CPP::Il2CppClass *));
+                for (size_t i = 0; i < interfaces.size(); ++i) klass->myClass->implementedInterfaces[i] = interfaces[i];
             } else {
                 klass->myClass->interfaces_count = 0;
                 klass->myClass->implementedInterfaces = nullptr;
@@ -3201,11 +1941,31 @@ namespace BNM_Internal {
             // Запретить il2cpp вызывать LivenessState::TraverseGCDescriptor для класса
             klass->myClass->gc_desc = nullptr;
 
+
             // BNM не поддерживает создание generic классов
             klass->myClass->generic_class = nullptr;
             klass->myClass->genericRecursionDepth = 1;
+#if UNITY_VER < 202
+            klass->myClass->genericContainerIndex = -1;
+#else
+            klass->myClass->genericContainerHandle = nullptr;
+            klass->myClass->typeMetadataHandle = nullptr;
+#endif
 
-            // Остальная инициализация
+#if UNITY_VER < 211
+            klass->myClass->valuetype = 1;
+#endif
+            // BNM не поддерживает создание конструктора статических полей (.cctor). Il2Cpp устроен так, что его не вызовет никогда, да и BNM не позволяет создавать статических полей
+            klass->myClass->has_cctor = 0;
+
+            // Остальные переменные, которые необходимо установить
+            klass->myClass->interopData = nullptr;
+            klass->myClass->nestedTypes = nullptr;
+            klass->myClass->properties = nullptr;
+            klass->myClass->rgctx_data = nullptr;
+            klass->myClass->has_references = 0;
+            klass->myClass->has_finalize = hasFinalize;
+            klass->myClass->size_inited = klass->myClass->is_vtable_initialized = 1;
             klass->myClass->initialized = 1;
 #if UNITY_VER > 182
             klass->myClass->initialized_and_no_error = 1;
@@ -3222,26 +1982,6 @@ namespace BNM_Internal {
 #endif
 #endif
             klass->myClass->init_pending = 0;
-#if UNITY_VER < 202
-            // Отсутствует поддержка generic
-            klass->myClass->genericContainerIndex = -1;
-#else
-            // Отсутствует поддержка generic
-            klass->myClass->genericContainerHandle = nullptr;
-            klass->myClass->typeMetadataHandle = nullptr;
-#endif
-#if UNITY_VER < 211
-            klass->myClass->valuetype = 1;
-#endif
-            // Остальные переменные, которые необходимо установить
-            klass->myClass->interopData = nullptr;
-            klass->myClass->nestedTypes = nullptr;
-            klass->myClass->properties = nullptr;
-            klass->myClass->rgctx_data = nullptr;
-            klass->myClass->has_references = 0;
-            klass->myClass->has_finalize = 0;
-            klass->myClass->size_inited = klass->myClass->is_vtable_initialized = 1;
-            klass->myClass->has_cctor = 0;
             klass->myClass->enumtype = 0;
             klass->myClass->minimumAlignment = 8;
             klass->myClass->is_generic = 0;
@@ -3253,13 +1993,12 @@ namespace BNM_Internal {
 #if UNITY_VER >= 203 && (UNITY_VER != 211 || UNITY_PATCH_VER >= 24)
             klass->myClass->size_init_pending = 0;
 #endif
-#if UNITY_VER < 212
-            klass->myClass->cctor_finished = 0;
+#if UNITY_VER >= 212
+            klass->myClass->cctor_finished_or_no_cctor = 1;
+#else
+            klass->myClass->cctor_finished = 1;
 #endif
             klass->myClass->cctor_thread = 0;
-
-            // Установить класс в bnmTypeData для получения его из типа
-            bnmTypeData->cls = klass->myClass;
 
             // Добавить класс к списку созданных классов
             BNMClassesMap.addClass(curImg, klass->myClass);
@@ -3267,43 +2006,78 @@ namespace BNM_Internal {
             // Получить С#-тип
             klass->type = LoadClass(klass->myClass);
 
-            LOGIBNM(OBFUSCATE_BNM("[InitNewClasses] Добавлен новый класс (%p) [%s]::[%s], родитель которого - [%s]::[%s], в [%s]."), klass->myClass, klass->myClass->namespaze, klass->myClass->name, parent->namespaze, parent->name, klass->myClass->image->name);
+            BNM_LOG_INFO("[InitNewClasses] Добавлен новый класс (%p) [%s]::[%s], родитель которого - [%s]::[%s], в [%s].", klass->myClass, klass->myClass->namespaze, klass->myClass->name, parent->namespaze, parent->name, klass->myClass->image->name);
         }
-        // Очистить classes4Add
-        classes4Add->clear(); classes4Add->shrink_to_fit();
-        delete classes4Add;
-        classes4Add = nullptr;
+        // Очистить newClassesVector
+        newClassesVector->clear(); newClassesVector->shrink_to_fit();
+        delete newClassesVector;
+        newClassesVector = nullptr;
     }
-#endif
-    void Image$$GetTypes(IL2CPP::Il2CppImage *image, bool, ClassVector *target) {
-        bnm_shared_lock lock(findClasses);
 
+#undef BNM_I2C_NEW
+
+#endif
+    IL2CPP::Il2CppClass *TryGetClassInImage(const IL2CPP::Il2CppImage *image, const std::string_view &namespaze, const std::string_view &name) {
+        if (!image) return nullptr;
+
+#if !BNM_DISABLE_NEW_CLASSES
+        // Получить BNM-классы
+        if (image->nameToClassHashTable == (decltype(image->nameToClassHashTable))-0x424e4d) {
+            IL2CPP::Il2CppClass *result = nullptr;
+
+            BNMClassesMap.forEachByImage(image, [&namespaze, &name, &result](IL2CPP::Il2CppClass *BNM_class) -> bool {
+                if (namespaze != BNM_class->namespaze || name != BNM_class->name) return false;
+
+                result = BNM_class;
+                return true;
+            });
+
+            return result;
+        }
+#endif
+
+        if (BNM_Internal::il2cppMethods.il2cpp_image_get_class) {
+            size_t typeCount = image->typeCount;
+            for (size_t i = 0; i < typeCount; ++i) {
+                auto cls = il2cppMethods.il2cpp_image_get_class(image, i);
+                if (strcmp(OBFUSCATE_BNM("<Module>"), cls->name) == 0 || cls->declaringType) continue;
+                if (namespaze == cls->namespaze && name == cls->name) return cls;
+            }
+
+            return nullptr;
+        }
+        ClassVector classes{};
+        BNM_Internal::Image$$GetTypes(image, false, &classes);
+
+        for (auto cls : classes) {
+            if (!cls) continue;
+            BNM_Internal::Class$$Init(cls);
+            if (cls->declaringType) continue;
+            if (cls->namespaze == namespaze && cls->name == name) return cls;
+        }
+        return nullptr;
+    }
+
+    void Image$$GetTypes(const IL2CPP::Il2CppImage *image, bool, ClassVector *target) {
+#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+        std::shared_lock<std::shared_mutex> lock(findClassesMutex);
+#endif
         // Проверить образ и цель (target)
         if (!image || !target) return;
 
         // Получить не BNM-классы
         if (image->nameToClassHashTable != (decltype(image->nameToClassHashTable))-0x424e4d) {
-            if (HasImageGetCls) {
-                // BNM предпочитает использовать il2cpp_image_get_class
-                // Проще получить его, чем найти Image$$GetTypes
-                DO_API(IL2CPP::Il2CppClass *, il2cpp_image_get_class, (IL2CPP::Il2CppImage *, decltype(image->typeCount)));
-
+            if (il2cppMethods.il2cpp_image_get_class) {
                 auto typeCount = image->typeCount;
-
-                for (decltype(image->typeCount) i = 0; i < typeCount; ++i) {
-                    // Получить класс
-                    auto type = il2cpp_image_get_class(image, i);
-
-                    // Пропустить <Module>
-                    if (OBFUSCATES_BNM("<Module>") == type->name) continue;
-
-                    // Добавить класс
+                for (uint32_t i = 0; i < typeCount; ++i) {
+                    auto type = il2cppMethods.il2cpp_image_get_class(image, i);
+                    if (strcmp(OBFUSCATE_BNM("<Module>"), type->name) == 0) continue;
                     target->push_back(type);
                 }
             } else old_Image$$GetTypes(image, false, target);
         }
 
-#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
+#if !BNM_DISABLE_NEW_CLASSES
         // Получить BNM-классы
         BNMClassesMap.forEachByImage(image, [&target](IL2CPP::Il2CppClass *BNM_class) -> bool {
             target->push_back(BNM_class);
@@ -3312,8 +2086,7 @@ namespace BNM_Internal {
 #endif
     }
 
-    // Найти некоторые методы и подменить их
-    void InitIl2cppMethods() {
+    void SetupBNM() {
 #if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
         int count = 1;
 #elif defined(__i386__) || defined(__x86_64__)
@@ -3321,30 +2094,45 @@ namespace BNM_Internal {
         int count = 2;
 #endif
 
-
-        //! il2cpp::vm::Class::Init ПОЛУЧИТЬ
+        //! il2cpp::vm::Class::Init
         if (!Class$$Init) {
             // Путь:
             // il2cpp_array_new_specific ->
             // il2cpp::vm::Array::NewSpecific ->
             // il2cpp::vm::Class::Init
-            Class$$Init = (decltype(Class$$Init))  HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_array_new_specific")), count), count);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::Init в библиотеке: %p."), offsetInLib((void *)Class$$Init));
+            Class$$Init = (decltype(Class$$Init)) HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_array_new_specific")), count), count);
+            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Class::Init в библиотеке: %p.", Utils::OffsetInLib((void *)Class$$Init));
         }
 
+#define INIT_IL2CPP_API(name) il2cppMethods.name = (decltype(il2cppMethods.name)) BNM_dlsym(BNM_Internal::il2cppLibraryHandle, OBFUSCATE_BNM(#name))
 
-        //! il2cpp_image_get_class ПРОВЕРИТЬ (Unity 2018+)
-        {
-            DO_API(void,il2cpp_image_get_class,());
-            HasImageGetCls = il2cpp_image_get_class != nullptr;
-        }
+        INIT_IL2CPP_API(il2cpp_image_get_class);
+        INIT_IL2CPP_API(il2cpp_get_corlib);
+        INIT_IL2CPP_API(il2cpp_class_from_name);
+        INIT_IL2CPP_API(il2cpp_assembly_get_image);
+        INIT_IL2CPP_API(il2cpp_image_get_class);
+        INIT_IL2CPP_API(il2cpp_method_get_param_name);
+        INIT_IL2CPP_API(il2cpp_class_from_il2cpp_type);
+        INIT_IL2CPP_API(il2cpp_array_class_get);
+        INIT_IL2CPP_API(il2cpp_type_get_object);
+        INIT_IL2CPP_API(il2cpp_object_new);
+        INIT_IL2CPP_API(il2cpp_value_box);
+        INIT_IL2CPP_API(il2cpp_array_new);
+        INIT_IL2CPP_API(il2cpp_field_static_get_value);
+        INIT_IL2CPP_API(il2cpp_field_static_set_value);
+        INIT_IL2CPP_API(il2cpp_string_new);
+        INIT_IL2CPP_API(il2cpp_resolve_icall);
 
-
-        //! il2cpp::vm::Image::GetTypes ПОДМЕНИТЬ И ПОЛУЧИТЬ (ИЛИ ТОЛЬКО ПОЛУЧИТЬ)
-        if (!old_Image$$GetTypes && !HasImageGetCls) {
-            DO_API(const IL2CPP::Il2CppImage *, il2cpp_get_corlib, ());
-            DO_API(IL2CPP::Il2CppClass *, il2cpp_class_from_name, (const IL2CPP::Il2CppImage *, const char *, const char *));
-            auto assemblyClass = il2cpp_class_from_name(il2cpp_get_corlib(), OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("Assembly"));
+#ifdef BNM_DEPRECATED
+        INIT_IL2CPP_API(il2cpp_domain_get);
+        INIT_IL2CPP_API(il2cpp_thread_attach);
+        INIT_IL2CPP_API(il2cpp_thread_current);
+        INIT_IL2CPP_API(il2cpp_thread_detach);
+#endif
+#undef INIT_IL2CPP_API
+        //! il2cpp::vm::Image::GetTypes
+        if (!old_Image$$GetTypes && il2cppMethods.il2cpp_image_get_class == nullptr) {
+            auto assemblyClass = il2cppMethods.il2cpp_class_from_name(il2cppMethods.il2cpp_get_corlib(), OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("Assembly"));
             BNM_PTR GetTypesAdr = LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetTypes"), 1).GetOffset();
             const int sCount
 #if UNITY_VER >= 211
@@ -3360,92 +2148,78 @@ namespace BNM_Internal {
             // il2cpp::icalls::mscorlib::System::Module::InternalGetTypes ->
             // il2cpp::vm::Image::GetTypes
             auto Image$$GetTypes_t = HexUtils::FindNextJump(HexUtils::FindNextJump(HexUtils::FindNextJump(GetTypesAdr, count), sCount), count);
-#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
+#if !BNM_DISABLE_NEW_CLASSES
             HOOK(Image$$GetTypes_t, Image$$GetTypes, old_Image$$GetTypes);
 #else
             old_Image$$GetTypes = (decltype(old_Image$$GetTypes)) Image$$GetTypes_t;
 #endif
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Image::GetTypes в библиотеке: %p."), offsetInLib((void *)Image$$GetTypes_t));
-        } else if (HasImageGetCls) {
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] в коде есть il2cpp_image_get_class. BNM будет использовать его."));
+            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Image::GetTypes в библиотеке: %p.", Utils::OffsetInLib((void *)Image$$GetTypes_t));
+        } else if (il2cppMethods.il2cpp_image_get_class != nullptr) {
+            BNM_LOG_DEBUG("[SetupBNM] в коде есть il2cpp_image_get_class. BNM будет использовать его.");
         }
-#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
+#if !BNM_DISABLE_NEW_CLASSES
 
-        //! il2cpp::vm::Class::FromIl2CppType ПОДМЕНИТЬ
+        //! il2cpp::vm::Class::FromIl2CppType
         if (!old_Class$$FromIl2CppType) {
             // Путь:
             // il2cpp_class_from_type ->
             // il2cpp::vm::Class::FromIl2CppType
-            auto from_type_adr = HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_class_from_type")), count);
+            auto from_type_adr = HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_class_from_type")), count);
             HOOK(from_type_adr, Class$$FromIl2CppType, old_Class$$FromIl2CppType);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Class::FromIl2CppType в библиотеке: %p."), offsetInLib((void *)from_type_adr));
+            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Class::FromIl2CppType в библиотеке: %p.", Utils::OffsetInLib((void *)from_type_adr));
         }
 
-        //! il2cpp::vm::Type::GetClassOrElementClass ПОДМЕНИТЬ
+        //! il2cpp::vm::Type::GetClassOrElementClass
         if (!old_Type$$GetClassOrElementClass) {
             // Путь:
             // il2cpp_type_get_class_or_element_class ->
             // il2cpp::vm::Type::GetClassOrElementClass
-            auto from_type_adr = HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_type_get_class_or_element_class")), count);
+            auto from_type_adr = HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_type_get_class_or_element_class")), count);
             HOOK(from_type_adr, Type$$GetClassOrElementClass, old_Type$$GetClassOrElementClass);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Type::GetClassOrElementClass в библиотеке: %p."), offsetInLib((void *)from_type_adr));
+            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Type::GetClassOrElementClass в библиотеке: %p.", Utils::OffsetInLib((void *)from_type_adr));
         }
 
-        //! il2cpp::vm::Image::ClassFromName ПОДМЕНИТЬ
+        //! il2cpp::vm::Image::ClassFromName
         if (!old_Class$$FromName) {
             // Путь:
             // il2cpp_class_from_name ->
             // il2cpp::vm::Class::FromName ->
             // il2cpp::vm::Image::ClassFromName
-            auto from_name_adr = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_class_from_name")), count), count);
+            auto from_name_adr = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) il2cppMethods.il2cpp_class_from_name, count), count);
             HOOK(from_name_adr, Class$$FromName, old_Class$$FromName);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Image::FromName в библиотеке: %p."), offsetInLib((void *)from_name_adr));
+            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Image::FromName в библиотеке: %p.", Utils::OffsetInLib((void *)from_name_adr));
         }
-#ifdef BNM_IL2CPP_ZERO_PTR
-        //! il2cpp::vm::Object::NewAllocSpecific ПОДМЕНИТЬ
-        if (!old_Object$$NewAllocSpecific) {
-            // Путь:
-            // il2cpp_object_new ->
-            // il2cpp::vm::Object::New ->
-            // il2cpp::vm::Object::NewAllocSpecific
-            auto alloc_specific_adr = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_object_new")), count), count);
-            HOOK(alloc_specific_adr, Object$$NewAllocSpecific, old_Object$$NewAllocSpecific);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Object::NewAllocSpecific в библиотеке: %p."), offsetInLib((void *)alloc_specific_adr));
-        }
-#endif
 #if UNITY_VER <= 174
 
-        //! il2cpp::vm::MetadataCache::GetImageFromIndex ПОДМЕНИТЬ
+        //! il2cpp::vm::MetadataCache::GetImageFromIndex
         if (!old_GetImageFromIndex) {
             // Путь:
             // il2cpp_assembly_get_image ->
             // il2cpp::vm::Assembly::GetImage ->
             // il2cpp::vm::MetadataCache::GetImageFromIndex
-            auto GetImageFromIndexOffset = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR)BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_assembly_get_image")), count), count);
+            auto GetImageFromIndexOffset = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) il2cppMethods.il2cpp_assembly_get_image, count), count);
             HOOK(GetImageFromIndexOffset, new_GetImageFromIndex, old_GetImageFromIndex);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::MetadataCache::GetImageFromIndex в библиотеке: %p."), offsetInLib((void *)GetImageFromIndexOffset));
+            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::MetadataCache::GetImageFromIndex в библиотеке: %p.", Utils::OffsetInLib((void *)GetImageFromIndexOffset));
         }
 
-        //! il2cpp::vm::Assembly::Load ЗАМЕНИТЬ
+        //! il2cpp::vm::Assembly::Load
         static void *old_AssemblyLoad = nullptr;
         if (!old_AssemblyLoad) {
             // Путь:
             // il2cpp_domain_assembly_open ->
             // il2cpp::vm::Assembly::Load
-            BNM_PTR AssemblyLoadOffset = HexUtils::FindNextJump((BNM_PTR)BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
+            BNM_PTR AssemblyLoadOffset = HexUtils::FindNextJump((BNM_PTR)BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
             HOOK(AssemblyLoadOffset, Assembly$$Load, old_AssemblyLoad);
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::Load в библиотеке: %p."), offsetInLib((void *)AssemblyLoadOffset));
+            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::Load в библиотеке: %p.", Utils::OffsetInLib((void *)AssemblyLoadOffset));
         }
 
 #endif
 #endif
 
-        //! il2cpp::vm::Assembly::GetAllAssemblies ПОЛУЧИТЬ
+        //! il2cpp::vm::Assembly::GetAllAssemblies
         if (!Assembly$$GetAllAssemblies) {
 #ifdef BNM_USE_APPDOMAIN
-            DO_API(IL2CPP::Il2CppImage *, il2cpp_get_corlib, ());
-            DO_API(IL2CPP::Il2CppClass *, il2cpp_class_from_name, (IL2CPP::Il2CppImage *, const char *, const char *));
-            auto assemblyClass = il2cpp_class_from_name(il2cpp_get_corlib(), OBFUSCATE_BNM("System"), OBFUSCATE_BNM("AppDomain"));
+            auto assemblyClass = il2cppMethods.il2cpp_class_from_name(il2cppMethods.il2cpp_get_corlib(), OBFUSCATE_BNM("System"), OBFUSCATE_BNM("AppDomain"));
             auto getAssembly = LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetAssemblies"), 1);
             if (getAssembly) {
                 const int sCount
@@ -3460,51 +2234,110 @@ namespace BNM_Internal {
                 // il2cpp::vm::Assembly::GetAllAssemblies
                 BNM_PTR GetAssembliesAdr = HexUtils::FindNextJump(getAssembly.GetOffset(), count);
                 Assembly$$GetAllAssemblies = (AssemblyVector *(*)())(HexUtils::FindNextJump(GetAssembliesAdr, sCount));
-                LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies через AppDomain в библиотеке: %p."), offsetInLib((void *)Assembly$$GetAllAssemblies));
+                BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::GetAllAssemblies через AppDomain в библиотеке: %p.", Utils::OffsetInLib((void *)Assembly$$GetAllAssemblies));
             } else {
 #endif
             // Путь:
             // il2cpp_domain_get_assemblies ->
             // il2cpp::vm::Assembly::GetAllAssemblies
-            auto adr = (BNM_PTR) BNM_dlsym(dlLib, OBFUSCATE_BNM("il2cpp_domain_get_assemblies"));
+            auto adr = (BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_domain_get_assemblies"));
             Assembly$$GetAllAssemblies = (AssemblyVector *(*)())(HexUtils::FindNextJump(adr, count));
-            LOGDBNM(OBFUSCATE_BNM("[InitIl2cppMethods] il2cpp::vm::Assembly::GetAllAssemblies через domain в библиотеке: %p."), offsetInLib((void *)Assembly$$GetAllAssemblies));
+            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::GetAllAssemblies через domain в библиотеке: %p.", Utils::OffsetInLib((void *)Assembly$$GetAllAssemblies));
 #ifdef BNM_USE_APPDOMAIN
             }
 #endif
         }
+        auto mscorlib = il2cppMethods.il2cpp_get_corlib();
+        auto typeClass = LoadClass(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("Type"), mscorlib);
+        auto stringClass = LoadClass(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("String"), mscorlib);
+        auto monoMethodClass = LoadClass(OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("MonoMethod"), mscorlib);
+        auto interlockedClass = LoadClass(OBFUSCATE_BNM("System.Threading"), OBFUSCATE_BNM("Interlocked"), mscorlib);
+        auto objectClass = LoadClass(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("Object"), mscorlib);
+        for (uint16_t slot = 0; slot < objectClass.klass->vtable_count; slot++) {
+            const BNM::IL2CPP::MethodInfo* vmethod = objectClass.klass->vtable[slot].method;
+            if (strcmp(vmethod->name, OBFUSCATE_BNM("Finalize")) != 0) continue;
+            finalizerSlot = slot;
+            break;
+        }
+        vmData.Object = objectClass;
+        vmData.Interlocked$$CompareExchange = interlockedClass.GetMethodByName(OBFUSCATE_BNM("CompareExchange"), {objectClass, objectClass, objectClass});
+        vmData.Type$$MakeGenericType = typeClass.GetMethodByName(OBFUSCATE_BNM("MakeGenericType"));
+        vmData.Type$$MakePointerType = typeClass.GetMethodByName(OBFUSCATE_BNM("MakePointerType"));
+        vmData.Type$$MakeByRefType = typeClass.GetMethodByName(OBFUSCATE_BNM("MakeByRefType"));
+        vmData.MonoMethod$$MakeGenericMethod_impl = monoMethodClass.GetMethodByName(OBFUSCATE_BNM("MakeGenericMethod_impl"));
+        vmData.String$$Empty = stringClass.GetFieldByName(OBFUSCATE_BNM("Empty")).cast<Mono::monoString *>().GetPointer();
+
+
+        auto listClass = LoadClass(OBFUSCATE_BNM("System.Collections.Generic"), OBFUSCATE_BNM("List`1"));
+        auto cls = listClass.klass;
+        auto size = sizeof(IL2CPP::Il2CppClass) + cls->vtable_count * sizeof(IL2CPP::VirtualInvokeData);
+        listClass.klass = (IL2CPP::Il2CppClass *) malloc(size);
+        memcpy(listClass.klass, cls, size);
+        listClass.klass->has_finalize = 0;
+        listClass.klass->instance_size = sizeof(Mono::monoList<void*>);
+
+        // Обход создания статического поля _emptyArray, потому что его не может существовать
+        listClass.klass->has_cctor = 0;
+        listClass.klass->cctor_started = 0;
+#if UNITY_VER >= 212
+        listClass.klass->cctor_finished_or_no_cctor = 1;
+#else
+        listClass.klass->cctor_finished = 1;
+#endif
+
+        auto constructor = listClass.GetMethodByName(BNM_Internal::constructorName, 0).myInfo;
+
+        auto newMethods = (IL2CPP::MethodInfo **) malloc(sizeof(IL2CPP::MethodInfo *) * listClass.klass->method_count);
+        memcpy(newMethods, listClass.klass->methods, sizeof(IL2CPP::MethodInfo *) * listClass.klass->method_count);
+
+        auto newConstructor = (IL2CPP::MethodInfo *) malloc(sizeof(IL2CPP::MethodInfo));
+        memcpy(newConstructor, constructor, sizeof(IL2CPP::MethodInfo));
+        newConstructor->methodPointer = (decltype(newConstructor->methodPointer)) BNM_Internal::Empty;
+        newConstructor->invoker_method = (decltype(newConstructor->invoker_method)) BNM_Internal::Empty;
+
+        for (uint16_t i = 0; i < listClass.klass->method_count; ++i) {
+            if (listClass.klass->methods[i] == constructor) {
+                newMethods[i] = newConstructor;
+                continue;
+            }
+
+            newMethods[i] = (IL2CPP::MethodInfo *) listClass.klass->methods[i];
+        }
+        listClass.klass->methods = (const IL2CPP::MethodInfo **) newMethods;
+        customListTemplateClass = listClass;
     }
+
     void BNM_il2cpp_init(const char *domain_name) {
         old_BNM_il2cpp_init(domain_name);
 
-
-        InitIl2cppMethods(); // Найти некоторые методы и подменить их
-#if __cplusplus >= 201703 && !BNM_DISABLE_NEW_CLASSES
-        InitNewClasses(); // Создать новые классы и добавить их в il2cpp
-        ModifyClasses(); // Изменить существующие классы
+        // Загрузить BNM
+        SetupBNM();
+#if !BNM_DISABLE_NEW_CLASSES
+        InitNewClasses();
+        ModifyClasses();
 #endif
-        LibLoaded = true; // Установить LibLoaded в значение "истина"
+        bnmLoaded = true;
 
         // Вызвать все события после загрузки il2cpp
-        auto events = GetEvents();
+        auto &events = GetEvents();
         for (auto event : events) if (event) event();
         events.clear();
     }
 
 #ifndef BNM_DISABLE_AUTO_LOAD
-    [[maybe_unused]] __attribute__((constructor))
+    __attribute__((constructor))
     void PrepareBNM() {
         // Попробовать получить libil2cpp.so во время загрузки библиотеки
         auto lib = BNM_dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
-        if (InitDlLib(lib)) return;
+        if (InitLibraryHandle(lib)) return;
         else BNM_dlclose(lib);
 
         // Попробовать получить libil2cpp.so на фоне
         BNM_thread loader([]() {
             do {
-                if (hardBypass) break;
+                if (bnmLoaded) break;
                 auto lib = BNM_dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
-                if (InitDlLib(lib)) break;
+                if (InitLibraryHandle(lib)) break;
                 else BNM_dlclose(lib);
             } while (true);
         });
@@ -3513,33 +2346,101 @@ namespace BNM_Internal {
 #endif
 
     // Проверка, действительна ли библиотека
-    bool InitDlLib(void *dl, const char* path, bool external) {
-        if (!dl) return false;
-        void *init = BNM_dlsym(dl, OBFUSCATE_BNM("il2cpp_init"));
-        // Проверить il2cpp_init
-        if (init) {
-            Dl_info info;
-            int ret = BNM_dladdr(init, &info);
-            if (!ret) return false;
-            // Информация о библиотеке
-            if (!path) {
-                auto l = strlen(info.dli_fname) + 1;
-                auto s = (char *) malloc(sizeof(char) * l);
-                memset((void *)s, 0, l);
-                strcpy(s, info.dli_fname);
-                LibAbsolutePath = s;
-            } else LibAbsolutePath = path;
+    bool InitLibraryHandle(void *handle, const char *path, bool external) {
+        if (!handle) return false;
+        void *init = BNM_dlsym(handle, OBFUSCATE_BNM("il2cpp_init"));
+        if (!init) return false;
 
-            // Установить LibAbsoluteAddress
-            LibAbsoluteAddress = (BNM_PTR)info.dli_fbase;
+        Dl_info info{};
+        int ret = BNM_dladdr(init, &info);
+        if (!ret) return false;
 
-            // Подменить il2cpp_init, если BNM используется внутренне
-            if (!external) HOOK(init, BNM_il2cpp_init, old_BNM_il2cpp_init);
+        if (!path) {
+            auto len = strlen(info.dli_fname);
+            path = (char *) malloc(len + 1);
+            memcpy((void *) path, (void *) info.dli_fname, len);
+            ((char *)path)[len] = 0;
+            il2cppLibraryAbsolutePath = path;
+        } else il2cppLibraryAbsolutePath = path;
 
-            // Установить dlLib
-            dlLib = dl;
-        }
-        return init;
+        il2cppLibraryAbsoluteAddress = (BNM_PTR)info.dli_fbase;
+
+        // Подменить il2cpp_init, если BNM используется внутренне
+        if (!external) HOOK(init, BNM_il2cpp_init, old_BNM_il2cpp_init);
+
+        il2cppLibraryHandle = handle;
+        return true;
     }
 }
-#undef DO_API
+
+namespace BNM::Structures::Unity {
+    void *RaycastHit::GetCollider() const {
+        if (!m_Collider || (BNM_PTR) m_Collider < 0) return {};
+#if UNITY_VER > 174
+        static void * (*FromId)(int);
+        if (!FromId) InitResolveFunc(FromId, OBFUSCATE_BNM("UnityEngine.Object::FindObjectFromInstanceID"));
+        return FromId(m_Collider);
+#else
+        return m_Collider;
+#endif
+    }
+    const float Vector4::infinity = std::numeric_limits<float>::infinity();
+    const Vector4 Vector4::infinityVec = {std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()};
+    const Vector4 Vector4::zero = {0, 0, 0, 0};
+    const Vector4 Vector4::one = {1, 1, 1, 1};
+    const Vector3 Vector3::back = {0.f, 0.f, -1.f};
+    const Vector3 Vector3::down = {0.f, -1.f, 0.f};
+    const Vector3 Vector3::forward = {0.f, 0.f, 1.f};
+    const float Vector3::kEpsilon = 1E-05f;
+    const float Vector3::kEpsilonNormalSqrt = 1E-15f;
+    const Vector3 Vector3::left = {-1.f, 0.f, 0.f};
+    const Vector3 Vector3::negativeInfinity = {-INFINITY, -INFINITY, -INFINITY};
+    const Vector3 Vector3::one = {1.f, 1.f, 1.f};
+    const Vector3 Vector3::positiveInfinity = {INFINITY, INFINITY, INFINITY};
+    const Vector3 Vector3::right = {1.f, 0.f, 0.f};
+    const Vector3 Vector3::up = {0.f, 1.f, 0.f};
+    const Vector3 Vector3::zero = {0.f, 0.f, 0.f};
+    const Matrix4x4 Matrix4x4::identity(kIdentity);
+
+    Matrix3x3& Matrix3x3::operator=(const Matrix4x4& other) {
+        m_Data[0] = other.m_Data[0];
+        m_Data[1] = other.m_Data[1];
+        m_Data[2] = other.m_Data[2];
+        m_Data[3] = other.m_Data[4];
+        m_Data[4] = other.m_Data[5];
+        m_Data[5] = other.m_Data[6];
+        m_Data[6] = other.m_Data[8];
+        m_Data[7] = other.m_Data[9];
+        m_Data[8] = other.m_Data[10];
+        return *this;
+    }
+    Matrix3x3::Matrix3x3(const Matrix4x4& other) {
+        m_Data[0] = other.m_Data[0];
+        m_Data[1] = other.m_Data[1];
+        m_Data[2] = other.m_Data[2];
+        m_Data[3] = other.m_Data[4];
+        m_Data[4] = other.m_Data[5];
+        m_Data[5] = other.m_Data[6];
+        m_Data[6] = other.m_Data[8];
+        m_Data[7] = other.m_Data[9];
+        m_Data[8] = other.m_Data[10];
+    }
+    Matrix3x3& Matrix3x3::operator*=(const Matrix4x4& inM) {
+        for (int i = 0; i < 3; i++) {
+            float v[3] = {Get(i, 0), Get(i, 1), Get(i, 2)};
+            Get(i, 0) = v[0] * inM.Get(0, 0) + v[1] * inM.Get(1, 0) + v[2] * inM.Get(2, 0);
+            Get(i, 1) = v[0] * inM.Get(0, 1) + v[1] * inM.Get(1, 1) + v[2] * inM.Get(2, 1);
+            Get(i, 2) = v[0] * inM.Get(0, 2) + v[1] * inM.Get(1, 2) + v[2] * inM.Get(2, 2);
+        }
+        return *this;
+    }
+    bool Matrix3x3::Invert() {
+        Matrix4x4 m = *this;
+        bool success = InvertMatrix4x4_Full(m.GetPtr(), m.GetPtr());
+        *this = m;
+        return success;
+    }
+    Vector2::operator Vector3() const {
+        return {x, y, 0};
+    }
+}
