@@ -768,7 +768,7 @@ namespace BNM {
         init = (BNM::CheckObj(info) != nullptr);
         if (init) {
             isStatic = info->flags & 0x0010;
-            isVirtual = info->slot != IL2CPP::kInvalidIl2CppMethodSlot;
+            isVirtual = info->slot != 65535;
             myInfo = (decltype(myInfo)) info;
         }
     }
@@ -1897,10 +1897,10 @@ namespace BNM_Internal {
             klass->myClass->this_arg.byref = 1;
 #else
             klass->myClass->byval_arg = BNM_I2C_NEW(Il2CppType);
-            memcpy((void *)klass->myClass->byval_arg, &type, sizeof(IL2CPP::Il2CppType));
+            memcpy((void *)klass->myClass->byval_arg, &classType, sizeof(IL2CPP::Il2CppType));
             klass->myClass->this_arg = BNM_I2C_NEW(Il2CppType);
-            type.byref = 1;
-            memcpy((void *)klass->myClass->this_arg, &type, sizeof(IL2CPP::Il2CppType));
+            classType.byref = 1;
+            memcpy((void *)klass->myClass->this_arg, &classType, sizeof(IL2CPP::Il2CppType));
 #endif
 
             // Копировать флаги родителя и убрать ABSTRACT флаг, если существует

@@ -378,11 +378,12 @@ namespace BNM {
              *  Заменить таблицу виртуальных методов т. к. оригинальная - пустая.
              *  Так же это нужно для типов, которых нет в игре (не факт, что игра и без смогла бы их использовать, но код есть)
              */
-            constexpr auto RemoveAt = &monoList<T>::RemoveAt; constexpr auto GetSize = &monoList<T>::GetSize; constexpr auto Clear = &monoList<T>::Clear;
-            constexpr auto get_Item = &monoList<T>::get_Item; constexpr auto set_Item = &monoList<T>::set_Item; constexpr auto IndexOf = &monoList<T>::IndexOf;
-            constexpr auto Insert = &monoList<T>::Insert; constexpr auto get_false = &monoList<T>::get_false; constexpr auto Add = &monoList<T>::Add;
-            constexpr auto Contains = &monoList<T>::Contains; constexpr auto CopyTo = &monoList<T>::CopyTo; constexpr auto Remove = &monoList<T>::Remove;
-            constexpr auto GetEnumerator = &monoList<T>::GetEnumerator; constexpr auto get_SyncRoot = &monoList<T>::get_SyncRoot;
+            using Type = std::conditional_t<std::is_pointer_v<T>, void*, T>;
+            constexpr auto RemoveAt = &monoList<Type>::RemoveAt; constexpr auto GetSize = &monoList<Type>::GetSize; constexpr auto Clear = &monoList<Type>::Clear;
+            constexpr auto get_Item = &monoList<Type>::get_Item; constexpr auto set_Item = &monoList<Type>::set_Item; constexpr auto IndexOf = &monoList<Type>::IndexOf;
+            constexpr auto Insert = &monoList<Type>::Insert; constexpr auto get_false = &monoList<Type>::get_false; constexpr auto Add = &monoList<Type>::Add;
+            constexpr auto Contains = &monoList<Type>::Contains; constexpr auto CopyTo = &monoList<Type>::CopyTo; constexpr auto Remove = &monoList<Type>::Remove;
+            constexpr auto GetEnumerator = &monoList<Type>::GetEnumerator; constexpr auto get_SyncRoot = &monoList<Type>::get_SyncRoot;
             static std::array<MethodData, 16> namesMap = {
                     MethodData{OBFUSCATE_BNM("RemoveAt"), *(void **)&RemoveAt}, MethodData{OBFUSCATE_BNM("get_Count"), *(void **)&GetSize},
                     MethodData{OBFUSCATE_BNM("Clear"), *(void **)&Clear}, MethodData{OBFUSCATE_BNM("get_Item"), *(void **)&get_Item},
@@ -393,7 +394,7 @@ namespace BNM {
                     MethodData{OBFUSCATE_BNM("CopyTo"), *(void **)&CopyTo}, MethodData{OBFUSCATE_BNM("Remove"), *(void **)&Remove},
                     MethodData{OBFUSCATE_BNM("GetEnumerator"), *(void **)&GetEnumerator}, MethodData{OBFUSCATE_BNM("get_SyncRoot"), *(void **)&get_SyncRoot}
             };
-            list->klass = TryGetMonoListClass(HashedTypeName<T>(), namesMap);
+            list->klass = TryGetMonoListClass(HashedTypeName<Type>(), namesMap);
         }
     }
     // Просто определение структур для LoadClass
