@@ -267,6 +267,7 @@ void hack_thread() {
     BNM::HOOK(FPSController.GetMethodByName(OBFUSCATE_BNM("Update"), 0), Update, old_Update);
 
     LoadClass Physics = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Physics"));
+
     //! Find method by name and parameters names
     /** 
     In UnityEngine.Physics we have 16 Raycast methods

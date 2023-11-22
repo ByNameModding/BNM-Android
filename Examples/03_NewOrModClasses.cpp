@@ -15,12 +15,9 @@ using namespace BNM::Structures::Mono;
         };
     };
 */
-
 //! BNM::IL2CPP::Il2CppObject is needed if the object inherits from System.Object or nothing
 //! BNM::UnityEngine::Object is needed if the object inherits from UnityEngine.MonoBehaviour or UnityEngine.ScriptableObject
 struct BNM_ExampleObject : public BNM::UnityEngine::Object {
-
-    // Code to initialize the new class
     BNM_NewClassInit("BNM_Example_03", BNM_ExampleObject, {
         // Code to find the parent class
         //! BNM::LoadClass takes the dll name as the 3rd argument (can include '.dll' or not)
@@ -31,7 +28,6 @@ struct BNM_ExampleObject : public BNM::UnityEngine::Object {
     );
 
     int Value;
-
     void Start() {
         BNM_LOG_INFO("BNM_ExampleObject::Start!");
     }
@@ -48,7 +44,6 @@ struct BNM_ExampleObject : public BNM::UnityEngine::Object {
                       BNM::GetType<bool>());
 
     BNM_NewMethodInit(BNM::GetType<void>(), Start, 0);
-
     BNM_NewFieldInit(Value, BNM::GetType<int>());
 
     // All possible parameters
@@ -61,6 +56,12 @@ struct BNM_ExampleObject : public BNM::UnityEngine::Object {
     // BNM_NewStaticMethodInitCustomName - static method
     // BNM_NewFieldInit - field
     //! BNM_NewOwnerInit - class owner
+    /**
+       public class Owner {
+            public class YourClass {
+            };
+       };
+    */
 };
 
 //! Modify the Player class
@@ -81,14 +82,10 @@ class Player {
     BNM_ModClassInit(Player, {
         return BNM::LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("Player"));
     });
-
     void Start() {
         BNM_LOG_INFO("Player::Start!");
-        BNM::LoadClass((BNM::IL2CPP::Il2CppObject *)this)
-            .GetFieldByName(OBFUSCATE_BNM("Coins"))
-            .cast<int>()[(void *)this] = 2147483647;
+        BNM::LoadClass((BNM::IL2CPP::Il2CppObject *)this).GetFieldByName(OBFUSCATE_BNM("Coins")) .cast<int>()[(void *)this] = 2147483647;
     }
-
     BNM_ModAddMethod(BNM::GetType<void>(), Start, 0);
 
     // All possible parameters
@@ -107,7 +104,6 @@ void OnLoaded_Example_03() {
     // or
     LoadClass BNM_ExampleObjectClass = BNM_ExampleObject::BNMClass.myClass;
 }
-
 
 
 [[maybe_unused]] __attribute__((constructor))

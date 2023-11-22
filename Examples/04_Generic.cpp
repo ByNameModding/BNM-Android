@@ -17,7 +17,6 @@ void OnLoaded_Example_04() {
 
     BNM_LOG_INFO("GameObject::GetComponent<T>: 0x%lX", (BNM_PTR)BNM::Utils::OffsetInLib((void*)GetComponent.GetOffset()));
     BNM_LOG_INFO("GameObject::GetComponent<object>: 0x%lX", (BNM_PTR)BNM::Utils::OffsetInLib((void*)GetComponentObject.GetOffset()));
-
     // There is:
     /**
      public struct ExposedReference<T> where T : Object {
@@ -34,6 +33,7 @@ void OnLoaded_Example_04() {
     BNM_LOG_INFO("ExposedReference<T>::Resolve: 0x%lX", (BNM_PTR)BNM::Utils::OffsetInLib((void*)ExposedReference.GetMethodByName("Resolve").GetOffset()));
     BNM_LOG_INFO("ExposedReference<GameObject>::Resolve: 0x%lX", (BNM_PTR)BNM::Utils::OffsetInLib((void*)ExposedReference_GameObject.GetMethodByName("Resolve").GetOffset()));
 }
+
 
 [[maybe_unused]] __attribute__((constructor))
 void Example_04_main() {
