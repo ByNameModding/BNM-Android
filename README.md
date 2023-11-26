@@ -5,7 +5,7 @@ Requires C++20 minimum.
 
 ### What you can do with BNM?
 + [Finding everything by names](Examples/01_Basics.cpp) (classes, methods, fields ane etc.)
-+ Finding [Genetic](Examples/04_Generic.cpp) classes and methods.
++ Finding [Generic](Examples/04_Generic.cpp) classes and methods.
 + Adding [your own classes](Examples/03_NewOrModClasses.cpp) to game that work even with AssetBundles!
 + [Change game classes](Examples/03_NewOrModClasses.cpp) by addeding fields and methods.
 + Use [basic C# structs](Examples/02_OtherStructures.cpp) like string (monoString), array (monoArray), dictionary (monoDictionary) that fully work.

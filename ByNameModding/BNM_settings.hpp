@@ -25,7 +25,7 @@ static_assert(false, "ByNameModding requre C++20 and upper!");
 
 #define UNITY_PATCH_VER 11 // For some special cases
 
-// Allow to use deprecated methods
+//! Allow to use deprecated methods
 // #define BNM_DEPRECATED
 
 //! Allow use GetOffset
@@ -37,6 +37,22 @@ static_assert(false, "ByNameModding requre C++20 and upper!");
 //! Recommended for internal use
 // #define BNM_DISABLE_MULTI_THREADING_SYNC
 
+//! For System.Collections.Generic.Dictionary (monoDictionary)
+//! If the game uses .NET 3.5 uncomment this define
+//! .NET 3.5 is deprecated but some old games use it
+// #define BNM_DOTNET35
+
+//! Disabling BNM automatic loading when your lib loaded
+//! Define it when you using BNM::HardBypass to speed up loading or when you externally loading BNM
+#define BNM_DISABLE_AUTO_LOAD
+
+//! Disable code for creating new classes and modifying old
+#define BNM_DISABLE_NEW_CLASSES 0
+
+//! Use System.AppDomain to find il2cpp::vm::Assembly::GetAllAssemblies
+//! Can make game crashes on arm64
+// #define BNM_USE_APPDOMAIN
+
 #ifndef NDEBUG
 
 //! Methods str() in structures
@@ -44,9 +60,6 @@ static_assert(false, "ByNameModding requre C++20 and upper!");
 
 //! Use signal in IsAllocated
 #define BNM_ALLOW_SAFE_IS_ALLOCATED
-
-//! Use signal when trying to find a generic object
-#define BNM_ALLOW_SAFE_GENERIC_CREATION
 
 //! Проверять объекты MONO_STRUCTS в их методах
 #define BNM_ALLOW_SELF_CHECKS
@@ -95,13 +108,6 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
         DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
 }
 
-// For System.Collections.Generic.Dictionary (monoDictionary)
-
-// If the game uses .NET 3.5 uncomment this define
-// .NET 3.5 is deprecated but some old games use it
-
-// #define BNM_DOTNET35
-
 // If you need hide dl calls or use custom dl for external BNM initialization
 #define BNM_dlopen dlopen
 #define BNM_dlsym dlsym
@@ -110,14 +116,6 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
 
 #include <thread>
 #define BNM_thread std::thread
-
-// Disabling BNM automatic loading when your lib loaded
-// Define it when you using BNM::HardBypass to speed up loading or when you externally loading BNM
-#define BNM_DISABLE_AUTO_LOAD
-#define BNM_DISABLE_NEW_CLASSES 0
-
-// Can make game crashes on arm64
-// #define BNM_USE_APPDOMAIN // Use System.AppDomain to find il2cpp::vm::Assembly::GetAllAssemblies
 
 
 /********** USER AREA **************/
@@ -160,4 +158,4 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
 #define BNM_LOG_WARN_IF(condition, ...) ((void)0)
 #endif
 
-#define BNM_VER "1.1"
+#define BNM_VER "1.2"
