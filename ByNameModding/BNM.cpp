@@ -25,10 +25,10 @@ namespace BNM_Internal {
     struct {
         BNM::LoadClass Object;
         BNM::Method<void *> Interlocked$$CompareExchange{};
-        BNM::Method<BNM::MonoType *> Type$$MakeGenericType{};
-        BNM::Method<BNM::MonoType *> Type$$MakePointerType{};
-        BNM::Method<BNM::MonoType *> Type$$MakeByRefType{};
-        BNM::Method<IL2CPP::Il2CppReflectionMethod *> MonoMethod$$MakeGenericMethod_impl{};
+        BNM::Method<BNM::MonoType *> RuntimeType$$MakeGenericType{};
+        BNM::Method<BNM::MonoType *> RuntimeType$$MakePointerType{};
+        BNM::Method<BNM::MonoType *> RuntimeType$$make_byref_type{};
+        BNM::Method<IL2CPP::Il2CppReflectionMethod *> RuntimeMethodInfo$$MakeGenericMethod_impl{};
         Mono::monoString **String$$Empty{};
     } vmData;
 #pragma pack(pop)
@@ -47,7 +47,7 @@ namespace BNM_Internal {
         IL2CPP::Il2CppArray *(*il2cpp_array_new)(const IL2CPP::Il2CppClass *, IL2CPP::il2cpp_array_size_t){};
         void (*il2cpp_field_static_get_value)(const IL2CPP::FieldInfo *, void *){};
         void (*il2cpp_field_static_set_value)(const IL2CPP::FieldInfo *, void *){};
-        Mono::monoString *(*il2cpp_string_new)(const char *str){};
+        Mono::monoString *(*il2cpp_string_new)(const char *){};
         void *(*il2cpp_resolve_icall)(const char *){};
 
 #ifdef BNM_DEPRECATED
@@ -65,7 +65,7 @@ namespace BNM_Internal {
     std::list<void(*)()> onIl2CppLoaded{};
     std::list<void(*)()> &GetEvents() { return onIl2CppLoaded; }
 
-    std::string_view constructorName = ".ctor";
+    std::string_view constructorName = OBFUSCATE_BNM(".ctor");
     BNM::LoadClass customListTemplateClass{};
     std::map<uint32_t, BNM::LoadClass> customListsMap{};
     int32_t finalizerSlot = -1;
@@ -83,12 +83,6 @@ namespace BNM_Internal {
 
     // Список со всеми классами, которые BNM должен изменить
     std::vector<MODIFY_CLASSES::TargetClass *> *modClassesVector = nullptr;
-
-    // Конструктор, который вызывает базовый конструктор
-    void DefaultConstructor(IL2CPP::Il2CppObject* instance) {
-        LoadClass(instance->klass->parent).GetMethodByName(constructorName, 0).cast<void>()[instance]();
-    }
-    void DefaultConstructorInvoke(IL2CPP::Il2CppMethodPointer, IL2CPP::MethodInfo*, IL2CPP::Il2CppObject *instance, void**, void*) { DefaultConstructor(instance); }
 
     IL2CPP::Il2CppClass *(*old_Class$$FromIl2CppType)(IL2CPP::Il2CppType *type){};
     IL2CPP::Il2CppClass *Class$$FromIl2CppType(IL2CPP::Il2CppType *type);
@@ -147,65 +141,31 @@ namespace BNM_Internal {
 
     IL2CPP::Il2CppClass *TryGetClassInImage(const IL2CPP::Il2CppImage *image, const std::string_view &namespaze, const std::string_view &name);
 
-#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
-    struct {
-        jmp_buf jump{};
-    } _genericCreation;
-    void _genericHandler(int) { longjmp(_genericCreation.jump, 1); }
-#endif
+
     LoadClass TryMakeGenericClass(LoadClass genericType, const std::vector<RuntimeTypeGetter> &templateTypes) {
         using namespace BNM::Operators;
-        if (!vmData.Type$$MakeGenericType) return {};
+        if (!vmData.RuntimeType$$MakeGenericType) return {};
         auto monoType = genericType.GetMonoType();
         auto monoGenericsList = Mono::monoArray<MonoType *>::Create(templateTypes.size());
         for (size_t i = 0; i < templateTypes.size(); ++i) (*monoGenericsList)[i] = templateTypes[i].ToLC().GetMonoType();
 
-        LoadClass typedGenericType;
+        LoadClass typedGenericType = vmData.RuntimeType$$MakeGenericType(monoType, monoGenericsList);
 
-#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
-        volatile char c;
-        bool ok = true;
-        sighandler_t old_handler = signal(SIGSEGV, _genericHandler);
-        if (!setjmp (_genericCreation.jump))
-#endif
-        typedGenericType = (monoType->*vmData.Type$$MakeGenericType)(monoGenericsList);
-
-#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
-        else typedGenericType = {};
-        signal(SIGSEGV, old_handler);
-#endif
         monoGenericsList->Destroy();
 
         return typedGenericType;
     }
-#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
-    struct {
-        jmp_buf jump{};
-    } _genericMethodCreation;
-    void _genericMethodHandler(int) { longjmp(_genericMethodCreation.jump, 1); }
-#endif
+
     MethodBase TryMakeGenericMethod(const MethodBase &genericMethod, const std::vector<RuntimeTypeGetter> &templateTypes) {
         using namespace BNM::Operators;
-        if (!vmData.MonoMethod$$MakeGenericMethod_impl || !genericMethod.GetInfo()->is_generic) return {};
+        if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl || !genericMethod.GetInfo()->is_generic) return {};
         IL2CPP::Il2CppReflectionMethod reflectionMethod;
         reflectionMethod.method = genericMethod.GetInfo();
         auto monoGenericsList = Mono::monoArray<MonoType *>::Create(templateTypes.size());
         for (size_t i = 0; i < templateTypes.size(); ++i) (*monoGenericsList)[i] = templateTypes[i].ToLC().GetMonoType();
 
-        MethodBase typedGenericMethod;
+        MethodBase typedGenericMethod = ((&reflectionMethod)->*vmData.RuntimeMethodInfo$$MakeGenericMethod_impl)(monoGenericsList)->method;
 
-#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
-        volatile char c;
-        bool ok = true;
-        sighandler_t old_handler = signal(SIGSEGV, _genericMethodHandler);
-        if (!setjmp (_genericMethodCreation.jump))
-#endif
-        typedGenericMethod = ((&reflectionMethod)->*vmData.MonoMethod$$MakeGenericMethod_impl)(monoGenericsList)->method;
-
-#ifdef BNM_ALLOW_SAFE_GENERIC_CREATION
-        else typedGenericMethod = {};
-        signal(SIGSEGV, old_handler);
-#endif
         monoGenericsList->Destroy();
 
         return typedGenericMethod;
@@ -213,14 +173,14 @@ namespace BNM_Internal {
 
     LoadClass GetPointer(LoadClass target) {
         using namespace BNM::Operators;
-        if (!vmData.Type$$MakePointerType) return {};
-        return (target.GetMonoType()->*vmData.Type$$MakePointerType)();
+        if (!vmData.RuntimeType$$MakePointerType) return {};
+        return vmData.RuntimeType$$MakePointerType(target.GetMonoType());
     }
 
     LoadClass GetReference(LoadClass target) {
         using namespace BNM::Operators;
-        if (!vmData.Type$$MakeByRefType) return {};
-        return (target.GetMonoType()->*vmData.Type$$MakeByRefType)();
+        if (!vmData.RuntimeType$$make_byref_type) return {};
+        return (target.GetMonoType()->*vmData.RuntimeType$$make_byref_type)();
     }
 
     template <class CompareMethod>
@@ -286,6 +246,10 @@ namespace BNM {
             return false;
         }
 #endif
+        void monoString::Destroy() {
+            length = 0;
+            free(this);
+        }
     }
 
     /*** LoadClass ***/
@@ -545,13 +509,7 @@ namespace BNM {
     LoadClass LoadClass::GetGeneric(const std::vector<RuntimeTypeGetter> &templateTypes) const {
         if (!klass) return {};
         TryInit();
-        auto ret = BNM_Internal::TryMakeGenericClass(*this, templateTypes);
-        if (ret) return ret;
-#ifdef BNM_WARNING
-        BNM_LOG_WARN("Не удалось получить %s с:", str().c_str());
-        for (auto &type : templateTypes) BNM_LOG_WARN("\t%s", type.ToLC().str().c_str());
-#endif
-        return {};
+        return BNM_Internal::TryMakeGenericClass(*this, templateTypes);
     }
 
     IL2CPP::Il2CppType *LoadClass::GetIl2CppType() const {
@@ -577,19 +535,7 @@ namespace BNM {
 
     BNM::RuntimeTypeGetter LoadClass::GetRuntimeType() const {
         TryInit();
-#if UNITY_VER > 174
-#define typeGet .
-#else
-#define typeGet ->
-#endif
-        return {nullptr, nullptr,
-                !Valid() ? RuntimeTypeGetter::RuntimeModifier::None :
-                klass->byval_arg typeGet type == IL2CPP::IL2CPP_TYPE_ARRAY ? RuntimeTypeGetter::RuntimeModifier::Array :
-                klass->byval_arg typeGet type == IL2CPP::IL2CPP_TYPE_PTR ? RuntimeTypeGetter::RuntimeModifier::Pointer :
-                klass->byval_arg typeGet type == IL2CPP::IL2CPP_TYPE_BYREF ? RuntimeTypeGetter::RuntimeModifier::Reference :
-                RuntimeTypeGetter::RuntimeModifier::None,
-                *this};
-#undef typeGet
+        return {nullptr, nullptr, RuntimeTypeGetter::RuntimeModifier::None, *this};
     }
 
     LoadClass::operator BNM::RuntimeTypeGetter() const { return GetRuntimeType(); }
@@ -767,7 +713,7 @@ namespace BNM {
     MethodBase::MethodBase(const IL2CPP::MethodInfo *info)  {
         init = (BNM::CheckObj(info) != nullptr);
         if (init) {
-            isStatic = info->flags & 0x0010;
+            isStatic = (info->flags & 0x0010) == 0x0010;
             isVirtual = info->slot != 65535;
             myInfo = (decltype(myInfo)) info;
         }
@@ -808,13 +754,7 @@ namespace BNM {
     MethodBase MethodBase::GetGeneric(const std::vector<RuntimeTypeGetter> &templateTypes) const {
         BNM_LOG_WARN_IF(!myInfo->is_generic, "Метод %s не generic!", str().c_str());
         if (!myInfo->is_generic) return {};
-        auto method = BNM_Internal::TryMakeGenericMethod(*this, templateTypes);
-        if (method) return method;
-#ifdef BNM_WARNING
-        BNM_LOG_WARN("Не удалось получить %s с:", str().c_str());
-        for (auto &type : templateTypes) BNM_LOG_WARN("\t%s", type.ToLC().str().c_str());
-#endif
-        return {};
+        return BNM_Internal::TryMakeGenericMethod(*this, templateTypes);
     }
 
     PropertyBase::PropertyBase(const IL2CPP::PropertyInfo *info) {
@@ -1786,19 +1726,18 @@ namespace BNM_Internal {
                 methods[i] = method->myInfo;
             }
 
-            // Создать обычный конструктор
+            // Создать конструктор-ссылку на обычный конструктор родителя
             if (needDefaultConstructor) {
+                auto parentConstructor = LoadClass(parent).GetMethodByName(constructorName, 0).GetInfo();
                 auto method = BNM_I2C_NEW(MethodInfo);
-                method->name = (char *) malloc(6);
-                memcpy((void *)method->name, constructorName.data(), 5);
-                ((char *)method->name)[5] = 0;
+                method->name = parentConstructor->name;
                 method->parameters_count = 0;
                 method->parameters = nullptr;
-                method->return_type = GetType<void>().ToIl2CppType();
+                method->return_type = parentConstructor->return_type;
                 method->is_generic = false;
                 method->flags = 0x0006 | 0x0080 | 0x0800 | 0x1000; // PUBLIC | HIDE_BY_SIG | SPECIAL_NAME | RT_SPECIAL_NAME
-                method->methodPointer = (IL2CPP::Il2CppMethodPointer) DefaultConstructor;
-                method->invoker_method = (IL2CPP::InvokerMethod) DefaultConstructorInvoke;
+                method->methodPointer = parentConstructor->methodPointer;
+                method->invoker_method = parentConstructor->invoker_method;
                 methods[methods4Add.size()] = method;
             }
 
@@ -1953,7 +1892,7 @@ namespace BNM_Internal {
 #endif
 
 #if UNITY_VER < 211
-            klass->myClass->valuetype = 1;
+            klass->myClass->valuetype = 0;
 #endif
             // BNM не поддерживает создание конструктора статических полей (.cctor). Il2Cpp устроен так, что его не вызовет никогда, да и BNM не позволяет создавать статических полей
             klass->myClass->has_cctor = 0;
@@ -2248,9 +2187,13 @@ namespace BNM_Internal {
 #endif
         }
         auto mscorlib = il2cppMethods.il2cpp_get_corlib();
-        auto typeClass = LoadClass(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("Type"), mscorlib);
+
+        auto runtimeMethodInfoClassPtr = TryGetClassInImage(mscorlib, OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("RuntimeMethodInfo"));
+        if (!runtimeMethodInfoClassPtr) runtimeMethodInfoClassPtr = TryGetClassInImage(mscorlib, OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("MonoMethod"));
+        auto runtimeMethodInfoClass = LoadClass(runtimeMethodInfoClassPtr);
+
+        auto runtimeTypeClass = LoadClass(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("RuntimeType"), mscorlib);
         auto stringClass = LoadClass(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("String"), mscorlib);
-        auto monoMethodClass = LoadClass(OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("MonoMethod"), mscorlib);
         auto interlockedClass = LoadClass(OBFUSCATE_BNM("System.Threading"), OBFUSCATE_BNM("Interlocked"), mscorlib);
         auto objectClass = LoadClass(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("Object"), mscorlib);
         for (uint16_t slot = 0; slot < objectClass.klass->vtable_count; slot++) {
@@ -2261,10 +2204,10 @@ namespace BNM_Internal {
         }
         vmData.Object = objectClass;
         vmData.Interlocked$$CompareExchange = interlockedClass.GetMethodByName(OBFUSCATE_BNM("CompareExchange"), {objectClass, objectClass, objectClass});
-        vmData.Type$$MakeGenericType = typeClass.GetMethodByName(OBFUSCATE_BNM("MakeGenericType"));
-        vmData.Type$$MakePointerType = typeClass.GetMethodByName(OBFUSCATE_BNM("MakePointerType"));
-        vmData.Type$$MakeByRefType = typeClass.GetMethodByName(OBFUSCATE_BNM("MakeByRefType"));
-        vmData.MonoMethod$$MakeGenericMethod_impl = monoMethodClass.GetMethodByName(OBFUSCATE_BNM("MakeGenericMethod_impl"));
+        vmData.RuntimeType$$MakeGenericType = runtimeTypeClass.GetMethodByName(OBFUSCATE_BNM("MakeGenericType"), 2);
+        vmData.RuntimeType$$MakePointerType = runtimeTypeClass.GetMethodByName(OBFUSCATE_BNM("MakePointerType"), 1);
+        vmData.RuntimeType$$make_byref_type = runtimeTypeClass.GetMethodByName(OBFUSCATE_BNM("make_byref_type"), 0);
+        vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = runtimeMethodInfoClass.GetMethodByName(OBFUSCATE_BNM("MakeGenericMethod_impl"));
         vmData.String$$Empty = stringClass.GetFieldByName(OBFUSCATE_BNM("Empty")).cast<Mono::monoString *>().GetPointer();
 
 

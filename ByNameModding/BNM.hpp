@@ -172,6 +172,7 @@ namespace BNM {
 #ifdef BNM_ALLOW_SELF_CHECKS
             bool SelfCheck() volatile const;
 #endif
+            void Destroy();
         };
         template<typename T>
         struct monoArray : BNM::IL2CPP::Il2CppObject  {
@@ -1138,15 +1139,6 @@ namespace BNM {
                 } else return PackArg(func(instance, UnpackArg<ArgsT>(args[As])...));
             }
             static void *invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *m, void *obj, void **args) {
-#if UNITY_VER < 211
-#if UNITY_VER > 174
-#define kls klass
-#else
-#define kls declaring_type
-#endif
-                if (m->kls->valuetype) obj = static_cast<IL2CPP::Il2CppObject *>(obj) + 1;
-#undef kls
-#endif
                 auto func = (RetT(*)(T*, ArgsT...))(ptr);
                 auto instance = (T *)(obj);
                 auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
@@ -1166,9 +1158,6 @@ namespace BNM {
                 } else return func(UnpackArg<ArgsT>(args[As])...);
             }
             static void *invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *m, void *obj, void **args) {
-#if UNITY_VER < 211
-                if (m->klass->valuetype) obj = (IL2CPP::Il2CppObject *)obj + 1;
-#endif
                 auto func = (RetT(*)(ArgsT...))(ptr);
                 auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
                 return InvokeMethod(func, args, seq);
@@ -1185,7 +1174,6 @@ namespace BNM {
                 } else return func(nullptr, UnpackArg<ArgsT>(args[As])...);
             }
             static void *invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *m, void *obj, void **args) {
-                if (m->declaring_type->valuetype) obj = static_cast<IL2CPP::Il2CppObject *>(obj) + 1;
                 auto func = (RetT(*)(void *, ArgsT...))(ptr);
                 auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
                 return InvokeMethod(func, args, seq);

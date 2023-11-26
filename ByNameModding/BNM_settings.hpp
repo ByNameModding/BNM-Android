@@ -37,6 +37,22 @@ static_assert(false, "ByNameModding требуется C++20 и выше!");
 //! Рекомендуется при внутреннем использовании
 // #define BNM_DISABLE_MULTI_THREADING_SYNC
 
+//! Для System.Collections.Generic.Dictionary (monoDictionary)
+//! Если игра использует .NET 3.5 раскоментируйте этот define
+//! .NET 3.5 устарел, но часть старых игр используют его
+// #define BNM_DOTNET35
+
+//! Отключение автоматической загрузки BNM при загрузке вашей библиотеки
+//! Раскоментируйте его, когда вы используете BNM::TryForceLoadIl2CppByPath для увелечения скорости загрузки или когда вы загружаете BNM извне
+#define BNM_DISABLE_AUTO_LOAD
+
+//! Отключить код создания новых классов и модификации старых
+#define BNM_DISABLE_NEW_CLASSES 0
+
+//! Использовать System.AppDomain для получения il2cpp::vm::Assembly::GetAllAssemblies
+//! Может привести к сбоям игры на arm64
+// #define BNM_USE_APPDOMAIN
+
 #ifndef NDEBUG
 
 //! Методы str() в структурах
@@ -44,9 +60,6 @@ static_assert(false, "ByNameModding требуется C++20 и выше!");
 
 //! Использовать signal в IsAllocated
 #define BNM_ALLOW_SAFE_IS_ALLOCATED
-
-//! Использовать signal при попытки поиска generic объекта
-#define BNM_ALLOW_SAFE_GENERIC_CREATION
 
 //! Проверять объекты MONO_STRUCTS в их методах
 #define BNM_ALLOW_SELF_CHECKS
@@ -95,13 +108,6 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
         DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
 }
 
-// Для System.Collections.Generic.Dictionary (monoDictionary)
-
-// Если игра использует .NET 3.5 раскоментируйте этот define
-// .NET 3.5 устарел, но часть старых игр используют его
-
-// #define BNM_DOTNET35
-
 // Если вам нужно скрыть вызовы dlfcn или использовать ваш dl для загрузки BNM в игре извне
 #define BNM_dlopen dlopen
 #define BNM_dlsym dlsym
@@ -110,14 +116,6 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
 
 #include <thread>
 #define BNM_thread std::thread
-
-// Отключение автоматической загрузки BNM при загрузке вашей библиотеки
-// Раскоментируйте его, когда вы используете BNM::HardBypass для увелечения скорости загрузки или когда вы загружаете BNM извне
-#define BNM_DISABLE_AUTO_LOAD
-#define BNM_DISABLE_NEW_CLASSES 0
-
-// Может привести к сбоям игры на arm64
-// #define BNM_USE_APPDOMAIN // Использовать System.AppDomain для получения il2cpp::vm::Assembly::GetAllAssemblies
 
 
 /********** ОБЛАСТЬ ПОЛЬЗОВАТЕЛЯ **************/
@@ -160,4 +158,4 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
 #define BNM_LOG_WARN_IF(condition, ...) ((void)0)
 #endif
 
-#define BNM_VER "1.1"
+#define BNM_VER "1.2"
