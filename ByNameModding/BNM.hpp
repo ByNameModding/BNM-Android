@@ -150,6 +150,7 @@ namespace BNM {
             return *this;
         }
     };
+
     // Обычные классы C# (строка, массив, список) (string, [], List)
     namespace Structures::Mono {
         template<typename T> struct monoList;
@@ -619,7 +620,6 @@ namespace BNM {
             return *this;
         }
     };
-
 
     struct MethodBase {
         IL2CPP::MethodInfo *myInfo{};
