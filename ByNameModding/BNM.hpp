@@ -213,7 +213,7 @@ namespace BNM {
                 monoArr->CopyFrom(arr, size);
                 return monoArr;
             }
-            // Only for arrays created via BNM!
+            // Only for arrays created using BNM!
             inline void Destroy() { if (!klass) free(this); }
 #ifdef BNM_ALLOW_SELF_CHECKS
             bool SelfCheck() volatile const {

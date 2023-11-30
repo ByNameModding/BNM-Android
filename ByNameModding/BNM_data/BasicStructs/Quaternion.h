@@ -199,16 +199,16 @@ namespace BNM::Structures::Unity {
         float sR(sin(roll / 2.0f));
 
         /*
-        Упрощённое перемножение этих данных:
+        Simplified multiplication of this data:
           Quaternion qX(sY, 0.0F, 0.0F, cY);
           Quaternion qY(0.0F, sP, 0.0F, cP);
           Quaternion qZ(0.0F, 0.0F, sR, cR);
           (qY * qX) * qZ;
         */
-        return {sY * cP * cR + cY * sP * sR,
-                cY * sP * cR - sY * cP * sR,
-                cY * cP * sR + sY * sP * cR,
-                cY * cP * cR - sY * sP * sR};
+        return {cP * sY * cR + sP * cY * sR,
+                sP * cY * cR - cP * sY * sR,
+                cP * cY * sR - sP * sY * cR,
+                cP * cY * cR + sP * sY * sR};
     }
 
     Vector3 Quaternion::ToEuler(Quaternion q, bool toDeg) {

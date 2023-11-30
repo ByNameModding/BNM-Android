@@ -33,9 +33,9 @@ static_assert(false, "ByNameModding requre C++20 and upper!");
 //! Wrong usage can increase the risk of errors
 // #define BNM_ALLOW_GET_OFFSET
 
-//! Remove the use of code to synchronize threads
-//! Recommended for internal use
-// #define BNM_DISABLE_MULTI_THREADING_SYNC
+//! Allow use of code to synchronize threads
+//! Recommended disable for internal use
+#define BNM_ALLOW_MULTI_THREADING_SYNC
 
 //! For System.Collections.Generic.Dictionary (monoDictionary)
 //! If the game uses .NET 3.5 uncomment this define
@@ -158,4 +158,4 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
 #define BNM_LOG_WARN_IF(condition, ...) ((void)0)
 #endif
 
-#define BNM_VER "1.2"
+#define BNM_VER "1.3"
