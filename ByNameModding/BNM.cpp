@@ -1515,6 +1515,14 @@ namespace BNM_Internal {
 
                     method->myInfo = NewOrModTypes_Internal::CreateMethod(info);
 
+#if UNITY_VER > 174
+#define kls klass
+#else
+#define kls declaring_type
+#endif
+                    method->myInfo->kls = klass;
+#undef kls
+
                     newMethods[oldCount] = method->myInfo;
                     BNM_LOG_DEBUG("[ModifyClasses] Added %smethod %s %d to %s.", (info.isStatic == 1) ? "статический " : "", info.name.data(), info.argumentsCount, lc.str().c_str());
                 }
@@ -2167,9 +2175,16 @@ namespace BNM_Internal {
         }
         auto mscorlib = il2cppMethods.il2cpp_get_corlib();
 
+        // Get MakeGenericMethod_impl. Depending on Unity version, it may be in different classes.
         auto runtimeMethodInfoClassPtr = TryGetClassInImage(mscorlib, OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("RuntimeMethodInfo"));
-        if (!runtimeMethodInfoClassPtr) runtimeMethodInfoClassPtr = TryGetClassInImage(mscorlib, OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("MonoMethod"));
-        auto runtimeMethodInfoClass = LoadClass(runtimeMethodInfoClassPtr);
+        if (runtimeMethodInfoClassPtr) {
+            BNM_Internal::Class$$Init(runtimeMethodInfoClassPtr);
+            vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = BNM::MethodBase(IterateMethods(runtimeMethodInfoClassPtr, [](const MethodBase &methodBase) {
+                return !strcmp(methodBase.myInfo->name, OBFUSCATE_BNM("MakeGenericMethod_impl"));
+            }));
+        }
+        if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl)
+            vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = LoadClass(OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("MonoMethod"), mscorlib).GetMethodByName(OBFUSCATE_BNM("MakeGenericMethod_impl"));
 
         auto runtimeTypeClass = LoadClass(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("RuntimeType"), mscorlib);
         auto stringClass = LoadClass(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("String"), mscorlib);
@@ -2186,9 +2201,7 @@ namespace BNM_Internal {
         vmData.RuntimeType$$MakeGenericType = runtimeTypeClass.GetMethodByName(OBFUSCATE_BNM("MakeGenericType"), 2);
         vmData.RuntimeType$$MakePointerType = runtimeTypeClass.GetMethodByName(OBFUSCATE_BNM("MakePointerType"), 1);
         vmData.RuntimeType$$make_byref_type = runtimeTypeClass.GetMethodByName(OBFUSCATE_BNM("make_byref_type"), 0);
-        vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = runtimeMethodInfoClass.GetMethodByName(OBFUSCATE_BNM("MakeGenericMethod_impl"));
         vmData.String$$Empty = stringClass.GetFieldByName(OBFUSCATE_BNM("Empty")).cast<Mono::monoString *>().GetPointer();
-
 
         auto listClass = LoadClass(OBFUSCATE_BNM("System.Collections.Generic"), OBFUSCATE_BNM("List`1"));
         auto cls = listClass.klass;
