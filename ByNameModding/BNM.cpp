@@ -99,7 +99,7 @@ namespace BNM_Internal {
 #if UNITY_VER <= 174
     // Требуются, потому что в Unity 2017 и ниже в образах (image) и сборках (assembly) они хранятся по номерам
 
-    IL2CPP::Il2CppImage *(*old_GetImageFromIndex)(IL2CPP::ImageIndex index);
+    IL2CPP::Il2CppImage *(*old_GetImageFromIndex)(IL2CPP::ImageIndex index){};
     IL2CPP::Il2CppImage *new_GetImageFromIndex(IL2CPP::ImageIndex index);
 
     IL2CPP::Il2CppAssembly *Assembly$$Load(const char *name);
@@ -107,7 +107,7 @@ namespace BNM_Internal {
 
 #endif
 
-    void (*old_Image$$GetTypes)(const IL2CPP::Il2CppImage *image, bool exportedOnly, ClassVector *target){};
+    void (*orig_Image$$GetTypes)(const IL2CPP::Il2CppImage *image, bool exportedOnly, ClassVector *target){};
     void Image$$GetTypes(const IL2CPP::Il2CppImage *image, bool exportedOnly, ClassVector *target);
 
     void (*Class$$Init)(IL2CPP::Il2CppClass *klass){};
@@ -605,11 +605,11 @@ namespace BNM {
 
             if (methodInfo == nullptr) {
                 methodInfo = (IL2CPP::MethodInfo *) malloc(sizeof(IL2CPP::MethodInfo));
-                memcpy((void *) methodInfo, (void *) cur.methodPtr, sizeof(IL2CPP::MethodInfo));
+                memcpy((void *) methodInfo, (void *) cur.method, sizeof(IL2CPP::MethodInfo));
                 methodInfo->methodPointer = (decltype(methodInfo->methodPointer)) iterator->ptr;
             }
             cur.method = methodInfo;
-            cur.methodPtr = cur.method->methodPointer;
+            cur.methodPtr = methodInfo->methodPointer;
         }
         klass = typedClass;
         return klass;
@@ -759,6 +759,38 @@ namespace BNM {
         return BNM_Internal::TryMakeGenericMethod(*this, templateTypes);
     }
 
+    MethodBase MethodBase::Virtualize() const {
+        if (!init || isStatic) return {};
+        if (!BNM::CheckObj(instance)) {
+            BNM_LOG_WARN("Failed to get virtual version of %s method - the object is not set", str().c_str());
+            return {};
+        }
+
+        auto klass = instance->klass;
+        uint16_t i = 0;
+        NEXT:
+        for (; i < klass->vtable_count; ++i) {
+            auto &vTable = klass->vtable[i];
+            auto count = vTable.method->parameters_count;
+
+            if (strcmp(vTable.method->name, myInfo->name) || count != myInfo->parameters_count) continue;
+
+            for (uint8_t p = 0; p < count; ++p) {
+#if UNITY_VER < 212
+                auto type = (vTable.method->parameters + p)->parameter_type;
+                auto type2 = (myInfo->parameters + p)->parameter_type;
+#else
+                auto type = vTable.method->parameters[p];
+                auto type2 = myInfo->parameters[p];
+#endif
+
+                if (LoadClass(type).GetIl2CppClass() != LoadClass(type2).GetIl2CppClass()) goto NEXT;
+            }
+            return vTable.method;
+        }
+        return {};
+    }
+
     PropertyBase::PropertyBase(const IL2CPP::PropertyInfo *info) {
         if (!info) return;
         hasGetter = hasSetter = false;
@@ -850,31 +882,31 @@ namespace BNM {
 
     bool VirtualHookImpl(BNM::LoadClass targetClass, IL2CPP::MethodInfo *m, void *newMet, void **oldMet) {
         if (!m || !targetClass) return false;
-        for (uint16_t i = 0; i < targetClass.klass->vtable_count; ++i) {
+        uint16_t i = 0;
+        NEXT:
+        for (; i < targetClass.klass->vtable_count; ++i) {
             auto &vTable = targetClass.klass->vtable[i];
             auto count = vTable.method->parameters_count;
 
-            if (!strcmp(vTable.method->name, m->name) && count == m->parameters_count) {
-                bool same = true;
-                for (uint8_t p = 0; p < count; ++p) {
+            if (strcmp(vTable.method->name, m->name) || count != m->parameters_count) continue;
+
+            for (uint8_t p = 0; p < count; ++p) {
 #if UNITY_VER < 212
-                    auto type = (vTable.method->parameters + p)->parameter_type;
-                    auto type2 = (m->parameters + p)->parameter_type;
+                auto type = (vTable.method->parameters + p)->parameter_type;
+                auto type2 = (m->parameters + p)->parameter_type;
 #else
-                    auto type = vTable.method->parameters[p];
-                    auto type2 = m->parameters[p];
+                auto type = vTable.method->parameters[p];
+                auto type2 = m->parameters[p];
 #endif
 
-                    if (LoadClass(type).GetIl2CppClass() == LoadClass(type2).GetIl2CppClass()) continue;
-                    same = false;
-                    break;
-                }
-                if (!same) break;
-                if (oldMet) *oldMet = (void *) vTable.methodPtr;
-                vTable.methodPtr = (void(*)()) newMet;
-                return true;
+                if (LoadClass(type).GetIl2CppClass() != LoadClass(type2).GetIl2CppClass()) goto NEXT;
 
             }
+
+            if (oldMet) *oldMet = (void *) vTable.methodPtr;
+            vTable.methodPtr = (void(*)()) newMet;
+            return true;
+
         }
         return false;
     }
@@ -1054,8 +1086,8 @@ namespace BNM {
         if (!BNM_Internal::InitLibraryHandle(handle, fileCopy)) {
             BNM_LOG_ERR_IF(isLibrariesExtracted, "Failed to load libil2cpp.so by path!");
             free(fileCopy);
-        } else goto END;
-        if (isLibrariesExtracted) goto END;
+        } else goto FINISH;
+        if (isLibrariesExtracted) goto FINISH;
         file.clear();
 
         // From split_config.arch.apk /data/app/.../the package name is.../split_config.arch.apk!/lib/arch/libil2cpp.so
@@ -1069,7 +1101,7 @@ namespace BNM {
             free(fileCopy);
         }
 
-        END:
+        FINISH:
         env->ReleaseStringUTFChars(jDir, cDir.data()); env->DeleteLocalRef(jDir);
     }
 #undef CURRENT_ARCH
@@ -1128,7 +1160,7 @@ namespace BNM_Internal {
         }
 
         void addClass(BNM_PTR image, IL2CPP::Il2CppClass *cls) {
-#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
             std::shared_lock lock(classesFindAccessMutex);
 #endif
             map[image].emplace_back(cls);
@@ -1136,14 +1168,14 @@ namespace BNM_Internal {
 
         // Iterate all classes added to image
         void forEachByImage(const IL2CPP::Il2CppImage *image, const std::function<bool(IL2CPP::Il2CppClass *)> &func) {
-#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
             std::shared_lock lock(classesFindAccessMutex);
 #endif
             return forEachByImage((BNM_PTR)image, func);
         }
 
         void forEachByImage(BNM_PTR image, const std::function<bool(IL2CPP::Il2CppClass *)> &func) {
-#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
             std::shared_lock lock(classesFindAccessMutex);
 #endif
             for (auto item : map[image]) if (func(item)) break;
@@ -1151,7 +1183,7 @@ namespace BNM_Internal {
 
         // Iterate all images and classes added to it
         void forEach(const std::function<bool(IL2CPP::Il2CppImage *, std::vector<IL2CPP::Il2CppClass *>)> &func) {
-#ifndef BNM_DISABLE_MULTI_THREADING_SYNC
+#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
             std::shared_lock lock(classesFindAccessMutex);
 #endif
             for (auto &[img, classes] : map)
@@ -1216,18 +1248,22 @@ namespace BNM_Internal {
         // Set assembly and image
         newAsm->image = newImg;
         newAsm->image->assembly = newAsm;
-        newAsm->aname.name = newImg->name;
+        auto &aname = newAsm->aname;
+        aname.name = newImg->name;
+        aname.culture = nullptr;
+        aname.public_key = nullptr;
 #else
         // Negative value for disabling parsing by il2cpp
         static int newAsmCount = 1;
         newImg->assemblyIndex = newAsm->imageIndex = -newAsmCount;
         newAsmCount++;
+        aname.publicKeyIndex = aname.hashValueIndex = aname.nameIndex = 0;
+        aname.cultureIndex = -1;
 #endif
         // Initialize these variables just in case
-        newAsm->aname.major = 0;
-        newAsm->aname.minor = 0;
-        newAsm->aname.build = 0;
-        newAsm->aname.revision = 0;
+        aname.revision = aname.build = aname.minor = aname.major = 0;
+        aname.public_key_token[0] = aname.hash_len = 0;
+        aname.hash_alg = aname.flags = 0;
         newAsm->referencedAssemblyStart = -1;
         newAsm->referencedAssemblyCount = 0;
 
@@ -1367,7 +1403,6 @@ namespace BNM_Internal {
                 auto &types = *info.argumentsTypes;
 #if UNITY_VER < 212
                 myInfo->parameters = (IL2CPP::ParameterInfo *)malloc(argsCount * sizeof(IL2CPP::ParameterInfo));
-                memset((void *)myInfo->parameters, 0, argsCount * sizeof(IL2CPP::ParameterInfo));
 
                 auto parameter = (IL2CPP::ParameterInfo *)myInfo->parameters;
                 for (uint8_t p = 0; p < argsCount; ++p) {
@@ -1701,25 +1736,21 @@ namespace BNM_Internal {
                 method->myInfo = NewOrModTypes_Internal::CreateMethod(info);
 
                 // Replacing methods in virtual table
-                for (uint16_t v = 0; v < newVtableSize; ++v) {
+                uint16_t v = 0;
+                NEXT:
+                for (; v < newVtableSize; ++v) {
                     auto &vTable = newVTable[v];
                     auto count = vTable.method->parameters_count;
 
                     if (!strcmp(vTable.method->name, method->myInfo->name) && count == method->myInfo->parameters_count && argumentsTypes.size() == count) {
-                        bool same = true;
                         for (uint8_t p = 0; p < count; ++p) {
 #if UNITY_VER < 212
                             auto type = (vTable.method->parameters + p)->parameter_type;
 #else
                             auto type = vTable.method->parameters[p];
 #endif
-                            if (LoadClass(type).GetIl2CppClass() == argumentsTypes[p].ToIl2CppClass()) continue;
-
-                            same = false;
-                            break;
-
+                            if (LoadClass(type).GetIl2CppClass() != argumentsTypes[p].ToIl2CppClass()) goto NEXT;
                         }
-                        if (!same) break;
                         if (!hasFinalize) hasFinalize = v == finalizerSlot;
                         vTable.method = method->myInfo;
                         vTable.methodPtr = method->myInfo->methodPointer;
@@ -1904,16 +1935,18 @@ namespace BNM_Internal {
 #endif
 #if UNITY_VER < 222
             klass->myClass->naturalAligment = 0;
+#else
+            klass->myClass->stack_slot_size = sizeof(void *);
 #endif
 #endif
             klass->myClass->init_pending = 0;
             klass->myClass->enumtype = 0;
-            klass->myClass->minimumAlignment = 8;
+            klass->myClass->minimumAlignment = sizeof(void *);
             klass->myClass->is_generic = 0;
             klass->myClass->rank = 0;
             klass->myClass->nested_type_count = 0;
             klass->myClass->thread_static_fields_offset = 0;
-            klass->myClass->thread_static_fields_size = -1;
+            klass->myClass->thread_static_fields_size = 0;
             klass->myClass->cctor_started = 0;
 #if UNITY_VER >= 203 && (UNITY_VER != 211 || UNITY_PATCH_VER >= 24)
             klass->myClass->size_init_pending = 0;
@@ -1923,6 +1956,7 @@ namespace BNM_Internal {
 #else
             klass->myClass->cctor_finished = 1;
 #endif
+
             klass->myClass->cctor_thread = 0;
 
             // Add a class to the list of created classes
@@ -1988,20 +2022,9 @@ namespace BNM_Internal {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
         std::shared_lock<std::shared_mutex> lock(findClassesMutex);
 #endif
-        // Check the image and target
-        if (!image || !target) return;
-
         // Get non BNM classes
-        if (image->nameToClassHashTable != (decltype(image->nameToClassHashTable))-0x424e4d) {
-            if (il2cppMethods.il2cpp_image_get_class) {
-                auto typeCount = image->typeCount;
-                for (uint32_t i = 0; i < typeCount; ++i) {
-                    auto type = il2cppMethods.il2cpp_image_get_class(image, i);
-                    if (strcmp(OBFUSCATE_BNM("<Module>"), type->name) == 0) continue;
-                    target->push_back(type);
-                }
-            } else old_Image$$GetTypes(image, false, target);
-        }
+        if (image->nameToClassHashTable != (decltype(image->nameToClassHashTable))-0x424e4d)
+            orig_Image$$GetTypes(image, false, target);
 
 #if !BNM_DISABLE_NEW_CLASSES
         // Get BNM classes
@@ -2021,14 +2044,13 @@ namespace BNM_Internal {
 #endif
 
         //! il2cpp::vm::Class::Init
-        if (!Class$$Init) {
-            // Path:
-            // il2cpp_array_new_specific ->
-            // il2cpp::vm::Array::NewSpecific ->
-            // il2cpp::vm::Class::Init
-            Class$$Init = (decltype(Class$$Init)) HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_array_new_specific")), count), count);
-            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Class::Init in lib: %p.", Utils::OffsetInLib((void *)Class$$Init));
-        }
+        // Путь:
+        // il2cpp_array_new_specific ->
+        // il2cpp::vm::Array::NewSpecific ->
+        // il2cpp::vm::Class::Init
+        Class$$Init = (decltype(Class$$Init)) HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_array_new_specific")), count), count);
+        BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Class::Init in lib: %p.", Utils::OffsetInLib((void *)Class$$Init));
+
 
 #define INIT_IL2CPP_API(name) il2cppMethods.name = (decltype(il2cppMethods.name)) BNM_dlsym(BNM_Internal::il2cppLibraryHandle, OBFUSCATE_BNM(#name))
 
@@ -2057,7 +2079,7 @@ namespace BNM_Internal {
 #endif
 #undef INIT_IL2CPP_API
         //! il2cpp::vm::Image::GetTypes
-        if (!old_Image$$GetTypes && il2cppMethods.il2cpp_image_get_class == nullptr) {
+        if (il2cppMethods.il2cpp_image_get_class == nullptr) {
             auto assemblyClass = il2cppMethods.il2cpp_class_from_name(il2cppMethods.il2cpp_get_corlib(), OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("Assembly"));
             BNM_PTR GetTypesAdr = LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetTypes"), 1).GetOffset();
             const int sCount
@@ -2073,95 +2095,80 @@ namespace BNM_Internal {
             // il2cpp::icalls::mscorlib::System::Reflection::Assembly::GetTypes ->
             // il2cpp::icalls::mscorlib::System::Module::InternalGetTypes ->
             // il2cpp::vm::Image::GetTypes
-            auto Image$$GetTypes_t = HexUtils::FindNextJump(HexUtils::FindNextJump(HexUtils::FindNextJump(GetTypesAdr, count), sCount), count);
-#if !BNM_DISABLE_NEW_CLASSES
-            HOOK(Image$$GetTypes_t, Image$$GetTypes, old_Image$$GetTypes);
-#else
-            old_Image$$GetTypes = (decltype(old_Image$$GetTypes)) Image$$GetTypes_t;
-#endif
+            orig_Image$$GetTypes = (decltype(orig_Image$$GetTypes)) HexUtils::FindNextJump(HexUtils::FindNextJump(HexUtils::FindNextJump(GetTypesAdr, count), sCount), count);
+
             BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Image::GetTypes in lib: %p.", Utils::OffsetInLib((void *)Image$$GetTypes_t));
-        } else if (il2cppMethods.il2cpp_image_get_class != nullptr) {
+        } else {
             BNM_LOG_DEBUG("[SetupBNM] code has il2cpp_image_get_class. BNM will use it.");
         }
 #if !BNM_DISABLE_NEW_CLASSES
 
         //! il2cpp::vm::Class::FromIl2CppType
-        if (!old_Class$$FromIl2CppType) {
-            // Path:
-            // il2cpp_class_from_type ->
-            // il2cpp::vm::Class::FromIl2CppType
-            auto from_type_adr = HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_class_from_type")), count);
-            HOOK(from_type_adr, Class$$FromIl2CppType, old_Class$$FromIl2CppType);
-            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Class::FromIl2CppType in lib: %p.", Utils::OffsetInLib((void *)from_type_adr));
-        }
+        // Path:
+        // il2cpp_class_from_type ->
+        // il2cpp::vm::Class::FromIl2CppType
+        auto from_type_adr = HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_class_from_type")), count);
+        HOOK(from_type_adr, Class$$FromIl2CppType, old_Class$$FromIl2CppType);
+        BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Class::FromIl2CppType in lib: %p.", Utils::OffsetInLib((void *)from_type_adr));
+        
 
         //! il2cpp::vm::Type::GetClassOrElementClass
-        if (!old_Type$$GetClassOrElementClass) {
-            // Path:
-            // il2cpp_type_get_class_or_element_class ->
-            // il2cpp::vm::Type::GetClassOrElementClass
-            auto from_type_adr = HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_type_get_class_or_element_class")), count);
-            HOOK(from_type_adr, Type$$GetClassOrElementClass, old_Type$$GetClassOrElementClass);
-            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Type::GetClassOrElementClass in lib: %p.", Utils::OffsetInLib((void *)from_type_adr));
-        }
+        // Path:
+        // il2cpp_type_get_class_or_element_class ->
+        // il2cpp::vm::Type::GetClassOrElementClass
+        auto type_get_class_adr = HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_type_get_class_or_element_class")), count);
+        HOOK(type_get_class_adr, Type$$GetClassOrElementClass, old_Type$$GetClassOrElementClass);
+        BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Type::GetClassOrElementClass in lib: %p.", Utils::OffsetInLib((void *)type_get_class_adr));
 
         //! il2cpp::vm::Image::ClassFromName
-        if (!old_Class$$FromName) {
-            // Path:
-            // il2cpp_class_from_name ->
-            // il2cpp::vm::Class::FromName ->
-            // il2cpp::vm::Image::ClassFromName
-            auto from_name_adr = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) il2cppMethods.il2cpp_class_from_name, count), count);
-            HOOK(from_name_adr, Class$$FromName, old_Class$$FromName);
-            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Image::FromName in lib: %p.", Utils::OffsetInLib((void *)from_name_adr));
-        }
+        // Path:
+        // il2cpp_class_from_name ->
+        // il2cpp::vm::Class::FromName ->
+        // il2cpp::vm::Image::ClassFromName
+        auto from_name_adr = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) il2cppMethods.il2cpp_class_from_name, count), count);
+        HOOK(from_name_adr, Class$$FromName, old_Class$$FromName);
+        BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Image::FromName in lib: %p.", Utils::OffsetInLib((void *)from_name_adr));
 #if UNITY_VER <= 174
 
         //! il2cpp::vm::MetadataCache::GetImageFromIndex
-        if (!old_GetImageFromIndex) {
-            // Path:
-            // il2cpp_assembly_get_image ->
-            // il2cpp::vm::Assembly::GetImage ->
-            // il2cpp::vm::MetadataCache::GetImageFromIndex
-            auto GetImageFromIndexOffset = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) il2cppMethods.il2cpp_assembly_get_image, count), count);
-            HOOK(GetImageFromIndexOffset, new_GetImageFromIndex, old_GetImageFromIndex);
-            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::MetadataCache::GetImageFromIndex in lib: %p.", Utils::OffsetInLib((void *)GetImageFromIndexOffset));
-        }
+        // Path:
+        // il2cpp_assembly_get_image ->
+        // il2cpp::vm::Assembly::GetImage ->
+        // il2cpp::vm::MetadataCache::GetImageFromIndex
+        auto GetImageFromIndexOffset = HexUtils::FindNextJump(HexUtils::FindNextJump((BNM_PTR) il2cppMethods.il2cpp_assembly_get_image, count), count);
+        HOOK(GetImageFromIndexOffset, new_GetImageFromIndex, old_GetImageFromIndex);
+        BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::MetadataCache::GetImageFromIndex in lib: %p.", Utils::OffsetInLib((void *)GetImageFromIndexOffset));
 
         //! il2cpp::vm::Assembly::Load
-        static void *old_AssemblyLoad = nullptr;
-        if (!old_AssemblyLoad) {
-            // Path:
-            // il2cpp_domain_assembly_open ->
-            // il2cpp::vm::Assembly::Load
-            BNM_PTR AssemblyLoadOffset = HexUtils::FindNextJump((BNM_PTR)BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
-            HOOK(AssemblyLoadOffset, Assembly$$Load, old_AssemblyLoad);
-            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::Load in lib: %p.", Utils::OffsetInLib((void *)AssemblyLoadOffset));
-        }
+        // Path:
+        // il2cpp_domain_assembly_open ->
+        // il2cpp::vm::Assembly::Load
+        BNM_PTR AssemblyLoadOffset = HexUtils::FindNextJump((BNM_PTR)BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
+        HOOK(AssemblyLoadOffset, Assembly$$Load, nullptr);
+        BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::Load in lib: %p.", Utils::OffsetInLib((void *)AssemblyLoadOffset));
 
 #endif
 #endif
 
         //! il2cpp::vm::Assembly::GetAllAssemblies
-        if (!Assembly$$GetAllAssemblies) {
 #ifdef BNM_USE_APPDOMAIN
-            auto assemblyClass = il2cppMethods.il2cpp_class_from_name(il2cppMethods.il2cpp_get_corlib(), OBFUSCATE_BNM("System"), OBFUSCATE_BNM("AppDomain"));
-            auto getAssembly = LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetAssemblies"), 1);
-            if (getAssembly) {
-                const int sCount
+        auto assemblyClass = il2cppMethods.il2cpp_class_from_name(il2cppMethods.il2cpp_get_corlib(), OBFUSCATE_BNM("System"), OBFUSCATE_BNM("AppDomain"));
+        auto getAssembly = LoadClass(assemblyClass).GetMethodByName(OBFUSCATE_BNM("GetAssemblies"), 1);
+        if (getAssembly) {
+            const int sCount
 #if !defined(__aarch64__) && UNITY_VER >= 211
-                    = count;
+                = count;
 #else
-                    = count + 1;
+                = count + 1;
 #endif
-                // Path:
-                // System.AppDomain.GetAssemblies(bool) ->
-                // il2cpp::icalls::mscorlib::System::AppDomain::GetAssemblies ->
-                // il2cpp::vm::Assembly::GetAllAssemblies
-                BNM_PTR GetAssembliesAdr = HexUtils::FindNextJump(getAssembly.GetOffset(), count);
-                Assembly$$GetAllAssemblies = (AssemblyVector *(*)())(HexUtils::FindNextJump(GetAssembliesAdr, sCount));
-                BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::GetAllAssemblies using AppDomain in lib: %p.", Utils::OffsetInLib((void *)Assembly$$GetAllAssemblies));
-            } else {
+            // Path:
+            // System.AppDomain.GetAssemblies(bool) ->
+            // il2cpp::icalls::mscorlib::System::AppDomain::GetAssemblies ->
+            // il2cpp::vm::Assembly::GetAllAssemblies
+            BNM_PTR GetAssembliesAdr = HexUtils::FindNextJump(getAssembly.GetOffset(), count);
+            Assembly$$GetAllAssemblies = (AssemblyVector *(*)())(HexUtils::FindNextJump(GetAssembliesAdr, sCount));
+            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::GetAllAssemblies using AppDomain in lib: %p.", Utils::OffsetInLib((void *)Assembly$$GetAllAssemblies));
+        } else {
 #endif
             // Path:
             // il2cpp_domain_get_assemblies ->
@@ -2170,9 +2177,9 @@ namespace BNM_Internal {
             Assembly$$GetAllAssemblies = (AssemblyVector *(*)())(HexUtils::FindNextJump(adr, count));
             BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::GetAllAssemblies using domain in lib: %p.", Utils::OffsetInLib((void *)Assembly$$GetAllAssemblies));
 #ifdef BNM_USE_APPDOMAIN
-            }
-#endif
         }
+#endif
+
         auto mscorlib = il2cppMethods.il2cpp_get_corlib();
 
         // Get MakeGenericMethod_impl. Depending on Unity version, it may be in different classes.
@@ -2191,8 +2198,8 @@ namespace BNM_Internal {
         auto interlockedClass = LoadClass(OBFUSCATE_BNM("System.Threading"), OBFUSCATE_BNM("Interlocked"), mscorlib);
         auto objectClass = LoadClass(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("Object"), mscorlib);
         for (uint16_t slot = 0; slot < objectClass.klass->vtable_count; slot++) {
-            const BNM::IL2CPP::MethodInfo* vmethod = objectClass.klass->vtable[slot].method;
-            if (strcmp(vmethod->name, OBFUSCATE_BNM("Finalize")) != 0) continue;
+            const BNM::IL2CPP::MethodInfo* vMethod = objectClass.klass->vtable[slot].method;
+            if (strcmp(vMethod->name, OBFUSCATE_BNM("Finalize")) != 0) continue;
             finalizerSlot = slot;
             break;
         }

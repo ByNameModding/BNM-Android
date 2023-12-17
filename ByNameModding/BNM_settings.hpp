@@ -88,6 +88,16 @@ static_assert(false, "ByNameModding requre C++20 and upper!");
 #include <And64InlineHook/And64InlineHook.hpp>
 #endif
 template<typename PTR_T, typename NEW_T, typename OLD_T>
+inline void HOOK(PTR_T ptr, NEW_T newMethod, OLD_T& oldBytes) {
+    if (ptr != 0){
+#if defined(__aarch64__)
+        A64HookFunction((void *)ptr, (void *) newMethod, (void **) &oldBytes);
+#else
+        MSHookFunction((void *)ptr, (void *) newMethod, (void **) &oldBytes);
+#endif
+    }
+};
+template<typename PTR_T, typename NEW_T, typename OLD_T>
 inline void HOOK(PTR_T ptr, NEW_T newMethod, OLD_T&& oldBytes) {
     if (ptr != 0){
 #if defined(__aarch64__)
@@ -104,6 +114,11 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, OLD_T&& oldBytes) {
 
 template<typename PTR_T, typename NEW_T, typename T_OLD>
 inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
+    if (((void *)ptr) != nullptr)
+        DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
+}
+template<typename PTR_T, typename NEW_T, typename T_OLD>
+inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
     if (((void *)ptr) != nullptr)
         DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
 }
@@ -158,4 +173,4 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
 #define BNM_LOG_WARN_IF(condition, ...) ((void)0)
 #endif
 
-#define BNM_VER "1.4"
+#define BNM_VER "1.5"

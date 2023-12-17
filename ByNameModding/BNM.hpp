@@ -84,13 +84,20 @@ namespace BNM {
         return nullptr;
     }
     namespace UnityEngine {
-        // Should be used for NewClass if Base type is UnityEngine.Object, MonoBehaviour, ScriptableObject
+        // Should be used for NewClass if Base type is UnityEngine.Object, ScriptableObject
         // For System.Object use BNM::IL2CPP::Il2CppObject
         struct Object : public BNM::IL2CPP::Il2CppObject {
             BNM_INT_PTR m_CachedPtr = 0;
             inline bool Alive() { return BNM::CheckObj((void *)this) && (BNM_PTR)m_CachedPtr; }
             inline bool Same(void *object) { return Same((Object *)object); }
             inline bool Same(Object *object) { return (!Alive() && !object->Alive()) || (Alive() && object->Alive() && m_CachedPtr == object->m_CachedPtr); }
+        };
+
+        // Should be used for NewClass if Base type is MonoBehaviour
+        struct MonoBehaviour : public Object {
+#if UNITY_VER >= 222
+            void *m_CancellationTokenSource{};
+#endif
         };
     }
 
@@ -642,6 +649,9 @@ namespace BNM {
         // If method is `generic`, you can try get it with specific set of types
         MethodBase GetGeneric(const std::vector<RuntimeTypeGetter> &templateTypes) const;
 
+        // Get virtual version of method from setted object. Only for non-static methods.
+        MethodBase Virtualize() const;
+
         // Fast set instance
         inline MethodBase &operator[](void *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
         inline MethodBase &operator[](IL2CPP::Il2CppObject *val) { SetInstance(val); return *this;}
@@ -700,8 +710,6 @@ namespace BNM {
                 if constexpr (std::is_same_v<Ret, void>) return; else return {};
             }
             auto method = myInfo;
-            if (isVirtual && !isStatic) method = (IL2CPP::MethodInfo *)instance->klass->vtable[myInfo->slot].method;
-            if (!method || strcmp(method->name, myInfo->name)) method = myInfo;
             if (!isStatic) {
                 if (canInfo) return (((Ret(*)(IL2CPP::Il2CppObject *, Args..., IL2CPP::MethodInfo *)) method->methodPointer)(instance, args..., method));
                 return (((Ret(*)(IL2CPP::Il2CppObject *, Args...)) method->methodPointer)(instance, args...));
@@ -851,7 +859,7 @@ namespace BNM {
         auto name = OBFUSCATE_BNM(".ctor");
         auto method = arg_names.empty() ? GetMethodByName(name, args_count) : GetMethodByName(name, arg_names);
         auto instance = CreateNewInstance();
-        method.cast<void>()[instance](args...);
+        method.template cast<void>()[instance](args...);
         return instance;
     }
 
@@ -1222,7 +1230,14 @@ namespace BNM {
         return false;
     }
     template<typename T_NEW, typename T_OLD>
+    bool InvokeHook(const BNM::MethodBase &targetMethod, T_NEW newMet, T_OLD &&oldMet) {
+        if (targetMethod.Initialized()) return InvokeHookImpl(targetMethod.myInfo, (void *)newMet, (void **)&oldMet);
+        return false;
+    }
+    template<typename T_NEW, typename T_OLD>
     bool InvokeHook(IL2CPP::MethodInfo *m, T_NEW newMet, T_OLD &oldMet) { return InvokeHookImpl(m, (void *)newMet, (void **)&oldMet); }
+    template<typename T_NEW, typename T_OLD>
+    bool InvokeHook(IL2CPP::MethodInfo *m, T_NEW newMet, T_OLD &&oldMet) { return InvokeHookImpl(m, (void *)newMet, (void **)&oldMet); }
 
     // Hook method by changing the table of virtual methods of a class
     bool VirtualHookImpl(BNM::LoadClass targetClass, IL2CPP::MethodInfo *m, void *newMet, void **oldMet);
@@ -1233,7 +1248,16 @@ namespace BNM {
         return false;
     }
     template<typename T_NEW, typename T_OLD>
+    bool VirtualHook(BNM::LoadClass targetClass, const BNM::MethodBase &targetMethod, T_NEW newMet, T_OLD &&oldMet) {
+        if (targetClass && targetMethod.Initialized()) return VirtualHookImpl(targetClass, targetMethod.myInfo, (void *)newMet, (void **)&oldMet);
+        return false;
+    }
+    template<typename T_NEW, typename T_OLD>
     bool VirtualHook(BNM::LoadClass targetClass, IL2CPP::MethodInfo *m, T_NEW newMet, T_OLD &oldMet) {
+        return VirtualHookImpl(targetClass, m, (void *)newMet, (void **)&oldMet);
+    }
+    template<typename T_NEW, typename T_OLD>
+    bool VirtualHook(BNM::LoadClass targetClass, IL2CPP::MethodInfo *m, T_NEW newMet, T_OLD &&oldMet) {
         return VirtualHookImpl(targetClass, m, (void *)newMet, (void **)&oldMet);
     }
 
@@ -1253,7 +1277,10 @@ namespace BNM {
     void HOOK(const BNM::MethodBase &targetMethod, NEW_T newMethod, T_OLD &oldBytes) {
         if (targetMethod.Initialized()) ::HOOK<void *, NEW_T, T_OLD>((void *) targetMethod.myInfo->methodPointer, newMethod, oldBytes);
     };
-    // Try bypass any protection by getting full lib path (INTERNAL ONLY)
+    template<typename NEW_T, typename T_OLD>
+    void HOOK(const BNM::MethodBase &targetMethod, NEW_T newMethod, T_OLD &&oldBytes) {
+        if (targetMethod.Initialized()) ::HOOK<void *, NEW_T, T_OLD>((void *) targetMethod.myInfo->methodPointer, newMethod, oldBytes);
+    };
     void TryForceLoadIl2CppByPath(JNIEnv *env, jobject context = nullptr);
     namespace External {
         bool TryInitHandle(void *handle, const char *path = nullptr, bool external = true);
