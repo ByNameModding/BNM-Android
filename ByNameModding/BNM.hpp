@@ -1146,7 +1146,7 @@ namespace BNM {
                     return nullptr;
                 } else return PackArg(func(instance, UnpackArg<ArgsT>(args[As])...));
             }
-            static void *invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *m, void *obj, void **args) {
+            static void *invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *, void *obj, void **args) {
                 auto func = (RetT(*)(T*, ArgsT...))(ptr);
                 auto instance = (T *)(obj);
                 auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
@@ -1165,7 +1165,7 @@ namespace BNM {
                     return nullptr;
                 } else return func(UnpackArg<ArgsT>(args[As])...);
             }
-            static void *invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *m, void *obj, void **args) {
+            static void *invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *, void *, void **args) {
                 auto func = (RetT(*)(ArgsT...))(ptr);
                 auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
                 return InvokeMethod(func, args, seq);

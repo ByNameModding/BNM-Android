@@ -117,10 +117,6 @@ namespace BNM_Internal {
 
     void SetupBNM();
 
-#ifndef BNM_DISABLE_AUTO_LOAD
-    __attribute__((constructor)) void PrepareBNM();
-#endif
-
     bool InitLibraryHandle(void *handle, const char *path = nullptr, bool external = false);
 
     // Методы для конвертации C#-строк (monoString)
@@ -216,7 +212,7 @@ namespace BNM {
             BNM_CHECK_SELF(0);
             const IL2CPP::Il2CppChar *p = chars;
             unsigned int h = 0;
-            for (int i = 0; i < length; ++i) h = (h << 5) - h + *p; p++;
+            for (int i = 0; i < length; ++i) { h = (h << 5) - h + *p; p++; }
             return h;
         }
 
@@ -731,7 +727,7 @@ namespace BNM {
 
     MethodBase &MethodBase::SetInstance(IL2CPP::Il2CppObject *val)  {
         if (!init) return *this;
-        if (init && isStatic) {
+        if (isStatic) {
             BNM_LOG_WARN("Попытка установить объект статическому методу %s. Пожалуйста, уберите вызов SetInstance в коде.", str().c_str());
             return *this;
         }
@@ -1245,11 +1241,11 @@ namespace BNM_Internal {
 
         // Создать новую сборку для образа
         auto newAsm = BNM_I2C_NEW(Il2CppAssembly);
+        auto &aname = newAsm->aname;
 #if UNITY_VER > 174
         // Установить образ и сборку
         newAsm->image = newImg;
         newAsm->image->assembly = newAsm;
-        auto &aname = newAsm->aname;
         aname.name = newImg->name;
         aname.culture = nullptr;
         aname.public_key = nullptr;
@@ -1263,7 +1259,12 @@ namespace BNM_Internal {
 #endif
         // Инициализировать эти переменные на всякий случай
         aname.revision = aname.build = aname.minor = aname.major = 0;
+#if UNITY_VER > 174
         aname.public_key_token[0] = aname.hash_len = 0;
+#else
+        aname.publicKeyToken[0] = aname.hash_len = 0;
+#endif
+
         aname.hash_alg = aname.flags = 0;
         newAsm->referencedAssemblyStart = -1;
         newAsm->referencedAssemblyCount = 0;
@@ -2119,7 +2120,7 @@ namespace BNM_Internal {
         // il2cpp::vm::Type::GetClassOrElementClass
         auto type_get_class_adr = HexUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_type_get_class_or_element_class")), count);
         HOOK(type_get_class_adr, Type$$GetClassOrElementClass, old_Type$$GetClassOrElementClass);
-        BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Type::GetClassOrElementClass в библиотеке: %p.", Utils::OffsetInLib((void *)from_type_adr));   
+        BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Type::GetClassOrElementClass в библиотеке: %p.", Utils::OffsetInLib((void *)type_get_class_adr));   
 
         //! il2cpp::vm::Image::ClassFromName
         // Путь:
@@ -2265,27 +2266,6 @@ namespace BNM_Internal {
         for (auto event : events) if (event) event();
         events.clear();
     }
-
-#ifndef BNM_DISABLE_AUTO_LOAD
-    __attribute__((constructor))
-    void PrepareBNM() {
-        // Попробовать получить libil2cpp.so во время загрузки библиотеки
-        auto lib = BNM_dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
-        if (InitLibraryHandle(lib)) return;
-        else BNM_dlclose(lib);
-
-        // Попробовать получить libil2cpp.so на фоне
-        BNM_thread loader([]() {
-            do {
-                if (bnmLoaded) break;
-                auto lib = BNM_dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
-                if (InitLibraryHandle(lib)) break;
-                else BNM_dlclose(lib);
-            } while (true);
-        });
-        loader.detach();
-    }
-#endif
 
     // Проверка, действительна ли библиотека
     bool InitLibraryHandle(void *handle, const char *path, bool external) {

@@ -98,9 +98,3 @@ void OnLoaded_Example_02() {
     //! В методе описан monoDictionary
     // MonoDictionary();
 }
-
-[[maybe_unused]] __attribute__((constructor))
-void Example_02_main() {
-    // Запуск сразу после того как il2cpp загрузится из его потока
-    BNM::AddOnLoadedEvent(OnLoaded_Example_02);
-}

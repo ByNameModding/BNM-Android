@@ -303,6 +303,7 @@ void hack_thread() {
     auto HatManager_c = HatManager.GetInnerClass(OBFUSCATE_BNM("<>c"));
     BNM_LOG_INFO("HatManager_c указатель: %p", HatManager_c.GetIl2CppClass());
 }
+
 // Пример использования BNM::HardBypass
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
     JNIEnv *env;
@@ -310,15 +311,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
 
     // BNM может работать без HardBypass, но нужно загрузить ваш код до загрузки игры, для обхода защит
     BNM::TryForceLoadIl2CppByPath(env);
-    return JNI_VERSION_1_6;
-}
 
-#include <thread>
-[[maybe_unused]] __attribute__((constructor))
-void lib_main() {
     // Запуск сразу после того как il2cpp загрузится из его потока
     BNM::AddOnLoadedEvent(hack_thread);
-
-    // Можно использовать std::thread
-    // std::thread(hack_thread).detach();
+    return JNI_VERSION_1_6;
 }

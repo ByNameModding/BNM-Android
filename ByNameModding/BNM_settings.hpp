@@ -38,13 +38,9 @@ static_assert(false, "ByNameModding требуется C++20 и выше!");
 #define BNM_ALLOW_MULTI_THREADING_SYNC
 
 //! Для System.Collections.Generic.Dictionary (monoDictionary)
-//! Если игра использует .NET 3.5 раскоментируйте этот define
+//! Если игра использует .NET 3.5 раскомментируйте этот define
 //! .NET 3.5 устарел, но часть старых игр используют его
 // #define BNM_DOTNET35
-
-//! Отключение автоматической загрузки BNM при загрузке вашей библиотеки
-//! Раскоментируйте его, когда вы используете BNM::TryForceLoadIl2CppByPath для увелечения скорости загрузки или когда вы загружаете BNM извне
-#define BNM_DISABLE_AUTO_LOAD
 
 //! Отключить код создания новых классов и модификации старых
 #define BNM_DISABLE_NEW_CLASSES 0
@@ -173,4 +169,4 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
 #define BNM_LOG_WARN_IF(condition, ...) ((void)0)
 #endif
 
-#define BNM_VER "1.5"
+#define BNM_VER "1.6"

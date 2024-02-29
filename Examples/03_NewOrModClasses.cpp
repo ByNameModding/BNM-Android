@@ -105,10 +105,4 @@ void OnLoaded_Example_03() {
     LoadClass BNM_ExampleObjectClass = BNM_ExampleObject::BNMClass.myClass;
 }
 
-
-[[maybe_unused]] __attribute__((constructor))
-void Example_03_main() {
-    BNM::AddOnLoadedEvent(OnLoaded_Example_03);
-}
-
 #endif
