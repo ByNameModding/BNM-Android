@@ -24,6 +24,17 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 */
 #pragma once
+/*
+To control the C++ language version used by the library, you can define UTF_CPP_CPLUSPLUS macro
+and set it to one of the values used by the __cplusplus predefined macro.
+
+For instance,
+    #define UTF_CPP_CPLUSPLUS 199711L
+will cause the UTF-8 CPP library to use only types and language features available in the C++ 98 standard.
+Some library features will be disabled.
+
+If you leave UTF_CPP_CPLUSPLUS undefined, it will be internally assigned to __cplusplus.
+*/
 
 #include "utf8/checked.h"
 #include "utf8/unchecked.h"

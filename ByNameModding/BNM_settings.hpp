@@ -42,10 +42,6 @@ static_assert(false, "ByNameModding requre C++20 and upper!");
 //! .NET 3.5 is deprecated but some old games use it
 // #define BNM_DOTNET35
 
-//! Disabling BNM automatic loading when your lib loaded
-//! Define it when you using BNM::HardBypass to speed up loading or when you externally loading BNM
-#define BNM_DISABLE_AUTO_LOAD
-
 //! Disable code for creating new classes and modifying old
 #define BNM_DISABLE_NEW_CLASSES 0
 
@@ -173,4 +169,4 @@ inline void HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
 #define BNM_LOG_WARN_IF(condition, ...) ((void)0)
 #endif
 
-#define BNM_VER "1.5"
+#define BNM_VER "1.6"

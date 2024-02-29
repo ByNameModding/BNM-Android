@@ -117,10 +117,6 @@ namespace BNM_Internal {
 
     void SetupBNM();
 
-#ifndef BNM_DISABLE_AUTO_LOAD
-    __attribute__((constructor)) void PrepareBNM();
-#endif
-
     bool InitLibraryHandle(void *handle, const char *path = nullptr, bool external = false);
 
     // Methods for converting C# strings (monoString)
@@ -216,7 +212,7 @@ namespace BNM {
             BNM_CHECK_SELF(0);
             const IL2CPP::Il2CppChar *p = chars;
             unsigned int h = 0;
-            for (int i = 0; i < length; ++i) h = (h << 5) - h + *p; p++;
+            for (int i = 0; i < length; ++i) { h = (h << 5) - h + *p; p++; }
             return h;
         }
 
@@ -731,7 +727,7 @@ namespace BNM {
 
     MethodBase &MethodBase::SetInstance(IL2CPP::Il2CppObject *val)  {
         if (!init) return *this;
-        if (init && isStatic) {
+        if (isStatic) {
             BNM_LOG_WARN("Trying to set an object to the static field %s. Please remove SetInstance call in the code.", str().c_str());
             return *this;
         }
@@ -1028,6 +1024,7 @@ namespace BNM {
         // Add a class to all target classes
         BNM_Internal::modClassesVector->push_back(klass);
     }
+
     void NEW_CLASSES::AddNewClass(NewClass *klass) {
         if (!BNM_Internal::newClassesVector) BNM_Internal::newClassesVector = new std::vector<NewClass *>();
         // Add class to all new classes list
@@ -1244,11 +1241,11 @@ namespace BNM_Internal {
 
         // Create a new assembly for the image
         auto newAsm = BNM_I2C_NEW(Il2CppAssembly);
+        auto &aname = newAsm->aname;
 #if UNITY_VER > 174
         // Set assembly and image
         newAsm->image = newImg;
         newAsm->image->assembly = newAsm;
-        auto &aname = newAsm->aname;
         aname.name = newImg->name;
         aname.culture = nullptr;
         aname.public_key = nullptr;
@@ -1262,7 +1259,12 @@ namespace BNM_Internal {
 #endif
         // Initialize these variables just in case
         aname.revision = aname.build = aname.minor = aname.major = 0;
+#if UNITY_VER > 174
         aname.public_key_token[0] = aname.hash_len = 0;
+#else
+        aname.publicKeyToken[0] = aname.hash_len = 0;
+#endif
+
         aname.hash_alg = aname.flags = 0;
         newAsm->referencedAssemblyStart = -1;
         newAsm->referencedAssemblyCount = 0;
@@ -2097,7 +2099,7 @@ namespace BNM_Internal {
             // il2cpp::vm::Image::GetTypes
             orig_Image$$GetTypes = (decltype(orig_Image$$GetTypes)) HexUtils::FindNextJump(HexUtils::FindNextJump(HexUtils::FindNextJump(GetTypesAdr, count), sCount), count);
 
-            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Image::GetTypes in lib: %p.", Utils::OffsetInLib((void *)Image$$GetTypes_t));
+            BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Image::GetTypes in lib: %p.", Utils::OffsetInLib((void *)orig_Image$$GetTypes));
         } else {
             BNM_LOG_DEBUG("[SetupBNM] code has il2cpp_image_get_class. BNM will use it.");
         }
@@ -2264,27 +2266,6 @@ namespace BNM_Internal {
         for (auto event : events) if (event) event();
         events.clear();
     }
-
-#ifndef BNM_DISABLE_AUTO_LOAD
-    __attribute__((constructor))
-    void PrepareBNM() {
-        // Try get libil2cpp.so at library load time
-        auto lib = BNM_dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
-        if (InitLibraryHandle(lib)) return;
-        else BNM_dlclose(lib);
-
-        // Try get libil2cpp.so at background
-        BNM_thread loader([]() {
-            do {
-                if (bnmLoaded) break;
-                auto lib = BNM_dlopen(OBFUSCATE_BNM("libil2cpp.so"), RTLD_LAZY);
-                if (InitLibraryHandle(lib)) break;
-                else BNM_dlclose(lib);
-            } while (true);
-        });
-        loader.detach();
-    }
-#endif
 
     // Checking if library is valid
     bool InitLibraryHandle(void *handle, const char *path, bool external) {

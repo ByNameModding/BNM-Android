@@ -145,9 +145,3 @@ void OnLoaded_Example_01() {
     InvokeHook(Update, PlayerUpdate, old_PlayerUpdate);
     InvokeHook(Start, PlayerStart, old_PlayerStart);
 }
-
-[[maybe_unused]] __attribute__((constructor))
-void Example_01_main() {
-    // Runs immediately after il2cpp loads from its thread
-    BNM::AddOnLoadedEvent(OnLoaded_Example_01);
-}

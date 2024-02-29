@@ -69,6 +69,8 @@ void Update(void *instance) {
         void *myPlayer_Transform = get_Transform(myPlayer);
         transformPosition[myPlayer_Transform] = Vector3(0, 0, 0);
         Vector3 pos(0, 0, 0);
+        // You can't just use Vector3 in methods where `ref` or `out` is written before the argument, you need a pointer to Vector3
+        // Therefore &pos
         set_position_Injected(myPlayer_Transform, &pos); // You can't use Vector3 in Injected, you need pointer to Vector3
 
         //! Get and Set player name
@@ -122,7 +124,11 @@ namespace BNM {
     };
     class BNM_DllExampleClass : public BNM::IL2CPP::Il2CppObject { // Il2CppObject - due System.Object, null parent class namespace and parent class name = System.Object
     // BNM_NewClassWithDllInit(dll, namespace, class, parent class namespace (maybe ""), parent class name (maybe ""));
-    BNM_NewClassWithDllInit("mscorlib", "BNM", BNM_DllExampleClass, { return {}; });
+    BNM_NewClassWithDllInit("mscorlib", "BNM", BNM_DllExampleClass, { 
+        // Code for getting a parent
+        // You can return the "brackets", and then the parent will automatically set as System.Object
+        return {}; 
+    });
         void Start() {
             BNM_LOG_INFO(OBFUSCATE_BNM("BNM::BNM_DllExampleClass::Start called!"));
         }
@@ -163,8 +169,10 @@ namespace ClassModify {
         string myBankPassword;
     }
     */
+    // There is no way to get data from it, but you can change it
     class SeceretDataClass {
     BNM_ModClassInit(SeceretDataClass, {
+        // Code for getting a class
         return BNM::LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("SeceretDataClass"));
     });
 
@@ -256,6 +264,7 @@ void hack_thread() {
 
     //! Allow hook virtual methods in class
     VirtualHook(FPSController, FPSController.GetMethodByName(OBFUSCATE_BNM("ToString")), FPS$$ToString, old_FPS$$ToString);
+
     PlayerName = FPSController.GetFieldByName(OBFUSCATE_BNM("PlayerName")); // Field, Methods, Properties can automatically cast type
     LocalPlayer = FPSController.GetFieldByName(OBFUSCATE_BNM("LocalPlayer"));
     Players = FPSController.GetFieldByName(OBFUSCATE_BNM("Players"));
@@ -299,16 +308,11 @@ void hack_thread() {
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
     JNIEnv *env;
     vm->GetEnv((void **) &env, JNI_VERSION_1_6);
-    BNM::TryForceLoadIl2CppByPath(env); // BNM can work without this, but need to load lib before game loads to bypass some protections
-    return JNI_VERSION_1_6;
-}
 
-#include <thread>
-[[maybe_unused]] __attribute__((constructor))
-void lib_main() {
-    // Starting immediately after il2cpp is loaded from its thread
+     // BNM can work without this, but need to load lib before game loads to bypass some protections
+    BNM::TryForceLoadIl2CppByPath(env);
+
+    // Start immediately after il2cpp is loaded from its thread
     BNM::AddOnLoadedEvent(hack_thread);
-
-    // You can use std::thread
-    // std::thread(hack_thread).detach();
+    return JNI_VERSION_1_6;
 }
