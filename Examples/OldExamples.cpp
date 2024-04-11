@@ -1,4 +1,14 @@
-#include "../ByNameModding/BNM.hpp"
+#include <BNM/UserSettings/GlobalSettings.hpp>
+#include <BNM/Class.hpp>
+#include <BNM/Utils.hpp>
+#include <BNM/UnityStructures.hpp>
+#include <BNM/BasicMonoStructures.hpp>
+#include <BNM/ComplexMonoStructures.hpp>
+#include <BNM/Field.hpp>
+#include <BNM/Method.hpp>
+#include <BNM/Property.hpp>
+#include <BNM/ClassesManagement.hpp>
+
 using namespace BNM::Structures::Unity; // Vector3, Vector2 и т. д.
 using namespace BNM::Structures::Mono; // monoString, monoArray и т. д.
 
@@ -12,21 +22,21 @@ using namespace BNM::Structures::Mono; // monoString, monoArray и т. д.
 void set_fov(float value) {
     int (*Screen$$get_height)();
     int (*Screen$$get_width)();
-    InitResolveFunc(Screen$$get_height, OBFUSCATE_BNM("UnityEngine.Screen::get_height")); // #define InitResolveFunc(x, y)
-    InitResolveFunc(Screen$$get_width, OBFUSCATE_BNM("UnityEngine.Screen::get_width"));
+    Screen$$get_height = (decltype(Screen$$get_height)) BNM::GetExternMethod(OBFUSCATE_BNM("UnityEngine.Screen::get_height"));
+    Screen$$get_width = (decltype(Screen$$get_height)) BNM::GetExternMethod(OBFUSCATE_BNM("UnityEngine.Screen::get_width"));
     if (Screen$$get_height && Screen$$get_width) BNM_LOG_INFO(OBFUSCATE_BNM("[set_fov] %dx%d"), Screen$$get_height(), Screen$$get_width());
 
     uintptr_t (*Camera$$get_main)(); // Можно использовать void *
     float (*Camera$$get_fieldofview)(uintptr_t);
     void (*Camera$$set_fieldofview)(uintptr_t, float);
 
-    InitResolveFunc(Camera$$get_main, OBFUSCATE_BNM("UnityEngine.Camera::get_main"));
-    InitResolveFunc(Camera$$set_fieldofview, OBFUSCATE_BNM("UnityEngine.Camera::set_fieldOfView"));
-    InitResolveFunc(Camera$$get_fieldofview, OBFUSCATE_BNM("UnityEngine.Camera::get_fieldOfView"));
+    Camera$$get_main = (decltype(Camera$$get_main)) BNM::GetExternMethod(OBFUSCATE_BNM("UnityEngine.Camera::get_main"));
+    Camera$$set_fieldofview = (decltype(Camera$$set_fieldofview)) BNM::GetExternMethod(OBFUSCATE_BNM("UnityEngine.Camera::set_fieldOfView"));
+    Camera$$get_fieldofview = (decltype(Camera$$get_fieldofview)) BNM::GetExternMethod(OBFUSCATE_BNM("UnityEngine.Camera::get_fieldOfView"));
 
     if (Camera$$get_main && Camera$$get_fieldofview && Camera$$set_fieldofview) {
         uintptr_t mainCamera = Camera$$get_main();
-        if (BNM::IsUnityObjectAlive(mainCamera)) {
+        if (BNM::UnityEngine::IsUnityObjectAlive(mainCamera)) {
             float oldFOV = Camera$$get_fieldofview(mainCamera);
             Camera$$set_fieldofview(mainCamera, value);
             float newFOV = Camera$$get_fieldofview(mainCamera);
@@ -37,7 +47,7 @@ void set_fov(float value) {
 
 bool setName;
 bool parseDict = true;
-BNM::LoadClass FPSController;
+BNM::Class FPSController;
 //! Пример поиска методов и остального
 BNM::Method<void *> get_Transform;
 BNM::Property<Vector3> transformPosition;
@@ -53,7 +63,7 @@ void Update(void *instance) {
     // Можно написать LocalPlayer() для получения объекта
     myPlayer = LocalPlayer;
 
-    if (BNM::IsSameUnityObject(myPlayer, instance)) { // Проверить, одинаковы ли два Unity-объекта (UnityEngine.Object)
+    if (BNM::UnityEngine::IsSameUnityObject(myPlayer, instance)) { // Проверить, одинаковы ли два Unity-объекта (UnityEngine.Object)
         // Делать что-либо
     }
 
@@ -61,7 +71,7 @@ void Update(void *instance) {
         // Делать что-либо
     }
 
-    if (BNM::IsUnityObjectAlive(myPlayer)) { // Проверить, жив ли Unity-объект (UnityEngine.Object)
+    if (BNM::UnityEngine::IsUnityObjectAlive(myPlayer)) { // Проверить, жив ли Unity-объект (UnityEngine.Object)
         //! Установить поле зрения главной камеры на 180°
         set_fov(180.f);
 
@@ -96,14 +106,15 @@ void Update(void *instance) {
         }
     }
 }
-#if !BNM_DISABLE_NEW_CLASSES
+#ifdef BNM_CLASSES_MANAGEMENT
 namespace BNM {
-    class BNM_ExampleClass : public BNM::UnityEngine::Object {  // Behaviour и MonoBehaviour не содержат полей, поэтому пишем UnityEngine.Object
-    // BNM_NewClassInit(имя пространства имен, класс, код получения родителя);
-    BNM_NewClassInit("BNM", BNM_ExampleClass, {
-        // Код для получения родителя
-        return BNM::LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("MonoBehaviour"));
-    });
+    class BNM_ExampleClass : public BNM::UnityEngine::MonoBehaviour {
+        BNM_CustomClass(BNM_ExampleClass,
+                BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("BNM_ExampleObject"), OBFUSCATE_BNM("BNM")).Build(),
+                BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("MonoBehaviour"), OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("UnityEngine.CoreModule")).Build(),
+                {}
+        );
+
         void FixedUpdate();
         void Update();
         void Awake();
@@ -115,24 +126,27 @@ namespace BNM {
         int FixedFrames = 0;
         int LateFrames = 0;
         int Frames = 0;
-    BNM_NewMethodInit(BNM::GetType<void>(), FixedUpdate, 0); // 0 - кол-во параметров
-    BNM_NewMethodInit(BNM::GetType<void>(), LateUpdate, 0);
-    BNM_NewMethodInit(BNM::GetType<void>(), Update, 0);
-    BNM_NewMethodInit(BNM::GetType<void>(), Awake, 0);
-    BNM_NewMethodInit(BNM::GetType<void>(), Start, 0);
-    BNM_NewStaticMethodInit(BNM::GetType<void>(), MethodWithGameArgs, 1, BNM::GetType(OBFUSCATE_BNM(""), OBFUSCATE_BNM("PhotonPlayer")));
+
+        BNM_CustomMethod(FixedUpdate, false, BNM::GetType<void>(), "FixedUpdate");
+        BNM_CustomMethod(LateUpdate, false, BNM::GetType<void>(), "LateUpdate");
+        BNM_CustomMethod(Update, false, BNM::GetType<void>(), "Update");
+        BNM_CustomMethod(Awake, false, BNM::GetType<void>(), "Awake");
+        BNM_CustomMethod(Start, false, BNM::GetType<void>(), "Start");
+        BNM_CustomMethod(MethodWithGameArgs, true, BNM::GetType<void>(), "MethodWithGameArgs", BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("PhotonPlayer")).Build());
     };
     class BNM_DllExampleClass : public BNM::IL2CPP::Il2CppObject { // Il2CppObject, потому что System.Object, при пустых данных о родителе автоматически выбирается System.Object
-    // BNM_NewClassWithDllInit(имя dll БЕЗ `.dll`, имя пространства имен, класс, код получения родителя);
-    BNM_NewClassWithDllInit("mscorlib", "BNM", BNM_DllExampleClass, { 
-        // Код для получения родителя
-        // Можно вернуть "скобки", и тогда родителем автоматически будет установлен System.Object
-        return {}; 
-    });
+
+        BNM_CustomClass(BNM_DllExampleClass,
+                        BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("BNM_DllExampleClass"), OBFUSCATE_BNM("BNM"), OBFUSCATE_BNM("mscorlib" /*".dll"*/)).Build(),
+                        {},
+                        {}
+        );
+
         void Start() {
             BNM_LOG_INFO(OBFUSCATE_BNM("BNM::BNM_DllExampleClass::Start вызван!"));
         }
-    BNM_NewMethodInit(BNM::GetType<void>(), Start, 0);
+
+        BNM_CustomMethod(Start, false, BNM::GetType<void>(), "Start");
     };
 }
 void BNM::BNM_ExampleClass::Awake() {
@@ -171,10 +185,12 @@ namespace ClassModify {
     */
     // Получить из него данные не выходит, но можно его изменить
     class SeceretDataClass {
-    BNM_ModClassInit(SeceretDataClass, {
-        // Код для получения класса
-        return BNM::LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("SeceretDataClass"));
-    });
+        BNM_CustomClass(SeceretDataClass,
+                        BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("SeceretDataClass")).Build(),
+                        // Заменит родителя `SecretMonoBehaviour` на `UnityEngine.MonoBehaviour`
+                        BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("MonoBehaviour"), OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("UnityEngine.CoreModule")).Build(),
+                        {}
+        );
 
         static void* StaticDataField;
         void* DataField;
@@ -182,47 +198,41 @@ namespace ClassModify {
         void Start() {
             // Получить строку из поля myBankPassword
             BNM_LOG_INFO("SeceretDataClass myBankPassword: %s",
-            BNM::LoadClass((BNM::IL2CPP::Il2CppObject *)this)
-                .GetFieldByName("myBankPassword")
+            BNM::Class((BNM::IL2CPP::Il2CppObject *)this)
+                .GetField("myBankPassword")
                     .cast<monoString *>()[(void *)this]()
                             ->str().c_str()
             );
         }
         void Update();
 
-    // Добавить метод Start
-    BNM_ModAddMethod(BNM::GetType<void>(), Start, 0);
+        // Добавить метод Start
+        BNM_CustomMethod(Start, false, BNM::GetType<void>(), "Start");
 
-    // Добавить метод Update
-    BNM_ModAddMethod(BNM::GetType<void>(), Update, 0);
+        // Добавить метод Update
+        BNM_CustomMethod(Update, false, BNM::GetType<void>(), "Update");
 
-    // Добавить метод StaticMethod
-    BNM_ModAddStaticMethod(BNM::GetType<void>(), StaticMethod, 1, BNM::GetType<void*>());
+        // Добавить метод StaticMethod
+        BNM_CustomMethod(StaticMethod, true, BNM::GetType<void>(), "StaticMethod", BNM::GetType<void*>());
 
-    // Добавить поле DataField
-    BNM_ModAddField(DataField, BNM::GetType<void*>());
-
-    // Заменить родителя
-    BNM_ModNewParent({
-        // Код для получения нового родителя
-        return BNM::LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("MonoBehaviour"));
-    });
+        // Добавить поле DataField
+        BNM_CustomField(DataField, BNM::GetType<void*>(), "DataField");
     };
 
     void SeceretDataClass::Update() {
-        BNM_LOG_INFO("[SeceretDataClass, 0x%lX] Адрес DataField: 0x%lX", (BNM::BNM_PTR)this, BNMModField_DataField.offset);
+        BNM_LOG_INFO("[SeceretDataClass, 0x%lX] Адрес DataField: 0x%lX", (BNM::BNM_PTR)this, BNMCustomField_DataField.offset);
     }
 }
 #endif
 [[maybe_unused]] void *MyGameObject = nullptr;
 //! Создать новый объект
-BNM::LoadClass GameObject;
+BNM::Class GameObject;
 BNM::Method<void> AddComponent;
 BNM::Method<void> DontDestroyOnLoad;
 void *Example_NewGameObject() {
-    void *new_GameObject = GameObject.CreateNewObject();
-#if !BNM_DISABLE_NEW_CLASSES
-    AddComponent[new_GameObject](BNM::BNM_ExampleClass::BNMClass.type);
+    void *new_GameObject = GameObject.CreateNewInstance();
+#ifdef BNM_CLASSES_MANAGEMENT
+    AddComponent[new_GameObject](BNM::BNM_ExampleClass::BNMCustomClass.type);
 #endif
     DontDestroyOnLoad(new_GameObject);
     return new_GameObject;
@@ -248,34 +258,34 @@ void hack_thread() {
 
     //! Создать GameObject и добавить новый класс к нему, и тем самым получить личный Update и остальные методы.
     //! Новые классы работают с AssetBundles!
-    GameObject = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("GameObject"));
-    AddComponent = GameObject.GetMethodByName(OBFUSCATE_BNM("AddComponent"), 1);
-    DontDestroyOnLoad = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object")).GetMethodByName(OBFUSCATE_BNM("DontDestroyOnLoad"));
+    GameObject = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("GameObject"));
+    AddComponent = GameObject.GetMethod(OBFUSCATE_BNM("AddComponent"), 1);
+    DontDestroyOnLoad = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object")).GetMethod(OBFUSCATE_BNM("DontDestroyOnLoad"));
 
     //! Пример поиска всякой всячины.
-    auto Transform = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Transform"));
-    auto Component = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Component"));
-    FPSController = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("FPSController"));
+    auto Transform = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Transform"));
+    auto Component = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Component"));
+    FPSController = Class(OBFUSCATE_BNM(""), OBFUSCATE_BNM("FPSController"));
 
     //! Позволяет подменять методы, которые при использовании базового HOOK вылетают, НО если они вызываются через il2cpp_invoke
     //! Методы, которые вызываются через invoke: .ctor(без аргументов!), ..ctor(), события от Unity (Update и т.п.) и другие методы, созданные компилятором.
     //! Если вызвать этот метод на Update и он перезаписан в дочернем классе, он не будет вызван
-    InvokeHook(FPSController.GetMethodByName(OBFUSCATE_BNM(".ctor")), FPS$$ctor, old_FPS$$ctor);
+    InvokeHook(FPSController.GetMethod(OBFUSCATE_BNM(".ctor")), FPS$$ctor, old_FPS$$ctor);
 
     //! Позволяет подменять виртуальные методы в определённом классе
-    VirtualHook(FPSController, FPSController.GetMethodByName(OBFUSCATE_BNM("ToString")), FPS$$ToString, old_FPS$$ToString);
+    VirtualHook(FPSController, FPSController.GetMethod(OBFUSCATE_BNM("ToString")), FPS$$ToString, old_FPS$$ToString);
 
-    PlayerName = FPSController.GetFieldByName(OBFUSCATE_BNM("PlayerName")); // Поля, методы, свойства могут автоматически менять свой тип
-    LocalPlayer = FPSController.GetFieldByName(OBFUSCATE_BNM("LocalPlayer"));
-    Players = FPSController.GetFieldByName(OBFUSCATE_BNM("Players"));
+    PlayerName = FPSController.GetField(OBFUSCATE_BNM("PlayerName")); // Поля, методы, свойства могут автоматически менять свой тип
+    LocalPlayer = FPSController.GetField(OBFUSCATE_BNM("LocalPlayer"));
+    Players = FPSController.GetField(OBFUSCATE_BNM("Players"));
 
-    get_Transform = Component.GetMethodByName(OBFUSCATE_BNM("get_transform"), 0); // 0 - кол-во аргументов в C#-методе
-    transformPosition = Transform.GetPropertyByName(OBFUSCATE_BNM("position"));
-    set_position_Injected = Transform.GetMethodByName(OBFUSCATE_BNM("set_position_Injected"), 1);
+    get_Transform = Component.GetMethod(OBFUSCATE_BNM("get_transform"), 0); // 0 - кол-во аргументов в C#-методе
+    transformPosition = Transform.GetProperty(OBFUSCATE_BNM("position"));
+    set_position_Injected = Transform.GetMethod(OBFUSCATE_BNM("set_position_Injected"), 1);
 
-    BNM::HOOK(FPSController.GetMethodByName(OBFUSCATE_BNM("Update"), 0), Update, old_Update);
+    BNM::HOOK(FPSController.GetMethod(OBFUSCATE_BNM("Update"), 0), Update, old_Update);
 
-    LoadClass Physics = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Physics"));
+    Class Physics = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Physics"));
     
     //! Поиск метода по имени и именам аргументов
     /** 
@@ -287,32 +297,34 @@ void hack_thread() {
     НО LoadClass найдёт по кол-ву аргументов это:
     Raycast(Vector3 origin, Vector3 direction)
     **/
-    auto RayCastOffset1 = Physics.GetMethodByName(OBFUSCATE_BNM("Raycast"), {OBFUSCATES_BNM("ray"), OBFUSCATES_BNM("hitInfo")});
+    auto RayCastOffset1 = Physics.GetMethod(OBFUSCATE_BNM("Raycast"), {OBFUSCATE_BNM("ray"), OBFUSCATE_BNM("hitInfo")});
     BNM_LOG_INFO("RayCastOffset1 указатель: %p", BNM::Utils::OffsetInLib((void *)RayCastOffset1.GetOffset()));
 
     /**
     Также можно искать по типам аргументов
     **/
-    auto RayCastOffset2 = Physics.GetMethodByName(OBFUSCATE_BNM("Raycast"), {GetType<Ray>(), GetType<RaycastHit>()});
+    auto RayCastOffset2 = Physics.GetMethod(OBFUSCATE_BNM("Raycast"), {GetType<Ray>(), GetType<RaycastHit>()});
     BNM_LOG_INFO("RayCastOffset2 указатель: %p", BNM::Utils::OffsetInLib((void *)RayCastOffset2.GetOffset()));
 
     //! Пример поиска вложенного класса
-    auto HatManager = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("HatManager"));
+    auto HatManager = Class(OBFUSCATE_BNM(""), OBFUSCATE_BNM("HatManager"));
 
     // Нельзя создать пространство имён в классе, поэтому в методе можно написать только имя вложенного класса
     auto HatManager_c = HatManager.GetInnerClass(OBFUSCATE_BNM("<>c"));
-    BNM_LOG_INFO("HatManager_c указатель: %p", HatManager_c.GetIl2CppClass());
+    BNM_LOG_INFO("HatManager_c указатель: %p", HatManager_c.GetClass());
 }
 
+#include <jni.h>
+#include <BNM/Loading.hpp>
 // Пример использования BNM::HardBypass
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, [[maybe_unused]] void *reserved) {
     JNIEnv *env;
     vm->GetEnv((void **) &env, JNI_VERSION_1_6);
 
     // BNM может работать без HardBypass, но нужно загрузить ваш код до загрузки игры, для обхода защит
-    BNM::TryForceLoadIl2CppByPath(env);
+    BNM::Loading::TryLoadByJNI(env);
 
     // Запуск сразу после того как il2cpp загрузится из его потока
-    BNM::AddOnLoadedEvent(hack_thread);
+    BNM::Loading::AddOnLoadedEvent(hack_thread);
     return JNI_VERSION_1_6;
 }

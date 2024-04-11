@@ -1,4 +1,11 @@
-#include "../ByNameModding/BNM.hpp"
+#include <BNM/UserSettings/GlobalSettings.hpp>
+
+#include <BNM/Class.hpp>
+#include <BNM/Field.hpp>
+#include <BNM/Method.hpp>
+#include <BNM/Property.hpp>
+#include <BNM/Operators.hpp>
+#include <BNM/BasicMonoStructures.hpp>
 
 // Нужно, чтобы не писать
 // BNM::Structures:: для каждого типа
@@ -6,7 +13,7 @@ using namespace BNM::Structures::Mono; // monoString, monoArray и т. д.
 using namespace BNM::Operators; // Операторы для методов, полей и свойств
 
 // Переменная для хранения класса
-BNM::LoadClass ObjectClass{};
+BNM::Class ObjectClass{};
 // Переменная для хранения свойства
 BNM::Property<monoString *> ObjectName{};
 // Переменная для хранения метода
@@ -22,10 +29,19 @@ BNM::Field<int> ConfigCoins{};
 
 // Переменная для хранения ссылки на поле
 void **PlayerConfigPtr = nullptr;
+BNM::UnityEngine::Object *Player = nullptr;
 
 void (*old_PlayerStart)(BNM::UnityEngine::Object *);
 void PlayerStart(BNM::UnityEngine::Object *instance) {
     old_PlayerStart(instance); // Вызвать оригинальный код
+
+    // Проверка на то, жив ли Unity объект (UnityEngine.Object и его дочерние классы)
+    //! ВСЕГДА используйте такую проверку вместо простой проверки на nullptr!
+    if (Player->Alive() /*BNM::UnityEngine::IsUnityObjectAlive(Player)*/) {
+        BNM_LOG_WARN("Start игрока вызван дважды?");
+    }
+
+    Player = instance;
 
     //! monoString - C# строка (string или System.String) в BNM
 
@@ -49,7 +65,7 @@ void PlayerStart(BNM::UnityEngine::Object *instance) {
     // Вывести в лог имя объекта игрока
     BNM_LOG_INFO("Имя объекта игрока: \"%s\"; Имя игрока: \"%s\"",
                  // str() - конвертировать строку в std::string
-                 playerObjectName->str().c_str(), 
+                 playerObjectName->str().c_str(),
                  // -> - оператор итератора для проверки данных и предупреждения, если они не верны (в режиме отладке)
                  playerName->str().c_str());
 
@@ -94,13 +110,13 @@ void OnLoaded_Example_01() {
     using namespace BNM; // Чтобы не писать BNM:: в этом методе
 
     // Получить класс UnityEngine.Object
-    ObjectClass = LoadClass(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object"));
+    ObjectClass = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object"));
 
     // Получить метод UnityEngine.Object::ToString с 0 параметров
-    ObjectToString = ObjectClass.GetMethodByName(OBFUSCATE_BNM("ToString"), 0);
+    ObjectToString = ObjectClass.GetMethod(OBFUSCATE_BNM("ToString"), 0);
 
     // Получить свойство UnityEngine.Object::name
-    ObjectName = ObjectClass.GetPropertyByName(OBFUSCATE_BNM("name"));
+    ObjectName = ObjectClass.GetProperty(OBFUSCATE_BNM("name"));
 
 
     /* Представим себе, что в игре есть класс:
@@ -117,22 +133,22 @@ void OnLoaded_Example_01() {
         }
     */
     // Получить класс Player
-    auto PlayerClass = LoadClass(OBFUSCATE_BNM(""), OBFUSCATE_BNM("Player"));
+    auto PlayerClass = Class(OBFUSCATE_BNM(""), OBFUSCATE_BNM("Player"));
 
     // Получить класс Player::Config
     auto PlayerConfigClass = PlayerClass.GetInnerClass(OBFUSCATE_BNM("Config"));
 
     // Получить методы Update и Start класса Player
-    auto Update = PlayerClass.GetMethodByName(OBFUSCATE_BNM("Update"));
-    auto Start = PlayerClass.GetMethodByName(OBFUSCATE_BNM("Start"));
+    auto Update = PlayerClass.GetMethod(OBFUSCATE_BNM("Update"));
+    auto Start = PlayerClass.GetMethod(OBFUSCATE_BNM("Start"));
 
     // Получить поле Player.m_Config
-    PlayerConfig = PlayerClass.GetFieldByName(OBFUSCATE_BNM("m_Config"));
+    PlayerConfig = PlayerClass.GetField(OBFUSCATE_BNM("m_Config"));
 
     // Получить поля Player::Config
-    ConfigName = PlayerConfigClass.GetFieldByName(OBFUSCATE_BNM("Name"));
-    ConfigHealth = PlayerConfigClass.GetFieldByName(OBFUSCATE_BNM("Health"));
-    ConfigCoins = PlayerConfigClass.GetFieldByName(OBFUSCATE_BNM("Coins"));
+    ConfigName = PlayerConfigClass.GetField(OBFUSCATE_BNM("Name"));
+    ConfigHealth = PlayerConfigClass.GetField(OBFUSCATE_BNM("Health"));
+    ConfigCoins = PlayerConfigClass.GetField(OBFUSCATE_BNM("Coins"));
 
     // Подменить методы Update и Start
 

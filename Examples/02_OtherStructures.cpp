@@ -1,4 +1,12 @@
-#include "../ByNameModding/BNM.hpp"
+#include <BNM/UserSettings/GlobalSettings.hpp>
+
+#include <BNM/Class.hpp>
+#include <BNM/Field.hpp>
+#include <BNM/Method.hpp>
+#include <BNM/Property.hpp>
+#include <BNM/Operators.hpp>
+#include <BNM/BasicMonoStructures.hpp>
+#include <BNM/ComplexMonoStructures.hpp>
 
 // Нужно, чтобы не писать
 // BNM::Structures:: для каждого типа
@@ -37,7 +45,7 @@ void MonoList() {
     //! Чтобы не искать класс System.Int32 (класс int значений в C#)
     //! Можно использовать BNM::GetType<Тип>()
     //! BNM::GetType поддерживает только основные типы
-    auto intClass = BNM::GetType<int>().ToLC();
+    auto intClass = BNM::GetType<int>().ToClass();
 
     list = intClass.NewList<int>();
 
