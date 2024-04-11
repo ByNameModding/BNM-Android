@@ -1,78 +1,86 @@
-#include "../ByNameModding/BNM.hpp"
+#include <BNM/UserSettings/GlobalSettings.hpp>
 
-// Needed so we don't have to write
-// BNM::Structures:: for every type
-using namespace BNM::Structures::Unity; // Vector3, Vector2 etc
-using namespace BNM::Structures::Mono; // monoString, monoArray etc
+#include <BNM/Class.hpp>
+#include <BNM/Field.hpp>
+#include <BNM/Method.hpp>
+#include <BNM/Property.hpp>
+#include <BNM/Operators.hpp>
+#include <BNM/BasicMonoStructures.hpp>
+#include <BNM/ComplexMonoStructures.hpp>
+
+// Нужно, чтобы не писать
+// BNM::Structures:: для каждого типа
+using namespace BNM::Structures::Unity; // Vector3, Vector2 и т. д.
+using namespace BNM::Structures::Mono; // monoString, monoArray и т. д.
 
 void MonoArray() {
-    // Type[] - array of any objects
+    // Тип[] - массив из каких-либо объектов
     monoArray<int> *array = nullptr;
 
-    //! It can be created in two ways
-    // * monoArray<Type>::Create(size or std::vector<Type>) - doesn't get garbage collected
-    // * LoadClass().NewArray<Type>(size) - gets garbage collected
-    // Let's create it the 1st way
+    //! Его можно создать двумя путями
+    // * monoArray<Тип>::Create(размер или std::vector<Тип>) - не попадает в сборщик мусора
+    // * LoadClass().NewArray<Тип>(размер) - попадает в сборщик мусора
+    // Создадим 1 способом
     array = monoArray<int>::Create(10);
 
-    //! Data can be accessed using
-    auto dataPtr = array->GetData(); // Pointer to C array
-    // or
+    //! Получить данные можно используя
+    auto dataPtr = array->GetData(); // Ссылка на С массив
+    // или
     auto dataVec = array->ToVector(); // std::vector<int>
-    // or
-    auto firstData = array->At(0); // First array element
+    // или
+    auto firstData = array->At(0); // Первый элемент массива
 
-    //! Delete the array to free memory
-    //! ONLY needed when created via monoArray<Type>::Create!
+    //! Удалить массив для освобождения памяти
+    //! Нужно ТОЛЬКО при создании через monoArray<Тип>::Create!
     array->Destroy();
 }
 
 void MonoList() {
-    // System.Collections.Generic.List<Type> - a list of any objects
+    // System.Collections.Generic.List<Тип> - список каких-либо объектов
     monoList<int> *list = nullptr;
 
-    //! It can only be created via a class i.e.
-    // LoadClass().NewList<Type>(size) - gets garbage collected
+    //! Его можно создать только через класс т.е.
+    // LoadClass().NewList<Тип>(размер) - попадает в сборщик мусора
 
-    //! To avoid finding the System.Int32 class (int value class in C#)
-    //! You can use BNM::GetType<Type>()
-    //! BNM::GetType only supports basic types
-    auto intClass = BNM::GetType<int>().ToLC();
+    //! Чтобы не искать класс System.Int32 (класс int значений в C#)
+    //! Можно использовать BNM::GetType<Тип>()
+    //! BNM::GetType поддерживает только основные типы
+    auto intClass = BNM::GetType<int>().ToClass();
 
     list = intClass.NewList<int>();
 
-    //! Data can be accessed using
-    auto dataPtr = list->GetData(); // Pointer to C array
-    // or
+    //! Получить данные можно используя
+    auto dataPtr = list->GetData(); // Ссылка на С массив
+    // или
     auto dataVec = list->ToVector(); // std::vector<int>
-    // or
-    auto firstData = list->At(0); // First array element
+    // или
+    auto firstData = list->At(0); // Первый элемент массива
 }
 
 void MonoDictionary() {
-    // System.Collections.Generic.Dictionary<KeyType, ValueType> - dictionary
+    // System.Collections.Generic.Dictionary<Тпи-ключ, Тип-значение> - словарь
     monoDictionary<int, int> *dictionary = nullptr;
-    //! Cannot be created via BNM
+    //! Нельзя создать через BNM
 
-    //! Data can be accessed using
-    auto keys = dictionary->GetKeys(); // std::vector<KeyType>
-    // or
-    auto values = dictionary->GetValues(); // std::vector<ValueType>
-    // or
-    auto map = dictionary->ToMap(); // std::map<KeyType, ValueType>
-    // or
+    //! Получить данные можно используя
+    auto keys = dictionary->GetKeys(); // std::vector<Тпи-ключ>
+    // или
+    auto values = dictionary->GetValues(); // std::vector<Тип-значение>
+    // или
+    auto map = dictionary->ToMap(); // std::map<Тпи-ключ, Тип-значение>
+    // или
     int value = 0;
     if (dictionary->TryGet(1, &value))
-        ; // Value found
+        ; // Значение найдено
 }
 
 void OnLoaded_Example_02() {
     using namespace BNM;
 
-    //! Unity structures
+    //! Unity структуры
 
-    // Mathematical structures
-    // You can perform mathematical operations on these structures similar to those in Unity
+    // Математические структуры
+    // Над этими структурами можно проводить математические операции аналогичные оным в Unity
     Vector2 vector2;
     Vector3 vector3;
     Vector4 vector4;
@@ -80,21 +88,21 @@ void OnLoaded_Example_02() {
     Matrix4x4 matrix4x4;
     Quaternion quaternion;
 
-    // Structures for Raycast
+    // Структуры для Raycast
     Ray ray;
     RaycastHit raycastHit;
 
-    //! Mono structures
+    //! Mono структуры
 
-    //! System.String, described in more detail in example 01
+    //! System.String, подробнее описано в примере 01
     monoString *string;
 
-    //! monoArray is described in the method
+    //! В методе описан monoArray
     MonoArray();
 
-    //! monoList is described in the method
+    //! В методе описан monoList
     MonoList();
 
-    //! monoDictionary is described in the method
+    //! В методе описан monoDictionary
     // MonoDictionary();
 }
