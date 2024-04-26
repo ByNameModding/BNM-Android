@@ -18,6 +18,7 @@ namespace BNM {
         template<typename OtherType>
         Method(const Method<OtherType> &other) : MethodBase(other) {}
         Method(const IL2CPP::MethodInfo *info) : MethodBase(info) {}
+        Method(const IL2CPP::Il2CppReflectionMethod *reflectionMethod) : MethodBase(reflectionMethod) {}
         Method(const MethodBase &other) : MethodBase(other) {}
 
         // Быстрая установка объекта
@@ -70,7 +71,7 @@ namespace BNM {
 #pragma pack(pop)
 
     template<typename ...Parameters>
-    void *Class::CreateNewObjectParameters(Parameters ...parameters) const {
+    BNM::IL2CPP::Il2CppObject *Class::CreateNewObjectParameters(Parameters ...parameters) const {
         if (!_data) return nullptr;
         TryInit();
         auto name = OBFUSCATE_BNM(".ctor");
@@ -81,7 +82,7 @@ namespace BNM {
     }
 
     template<typename ...Parameters>
-    void *Class::CreateNewObjectTypes(const std::initializer_list<std::string_view> &parameterNames, Parameters ...parameters) const {
+    BNM::IL2CPP::Il2CppObject *Class::CreateNewObjectTypes(const std::initializer_list<std::string_view> &parameterNames, Parameters ...parameters) const {
         if (!_data) return nullptr;
         TryInit();
         auto name = OBFUSCATE_BNM(".ctor");

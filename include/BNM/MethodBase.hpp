@@ -19,6 +19,7 @@ namespace BNM {
         inline constexpr MethodBase() = default;
         inline MethodBase(const MethodBase &other) = default;
         MethodBase(const IL2CPP::MethodInfo *info);
+        MethodBase(const IL2CPP::Il2CppReflectionMethod *reflectionMethod);
 
         // Установить объект
         MethodBase &SetInstance(IL2CPP::Il2CppObject *val);

@@ -1,11 +1,14 @@
 #pragma once
+
 namespace BNM::Structures::Unity {
+    struct Matrix4x4;
+
     inline static bool CompareApproximately(float f0, float f1, float epsilon = 0.000001f) {
         float dist = (f0 - f1);
         dist = abs(dist);
         return dist <= epsilon;
-    };
-    struct Matrix4x4;
+    }
+
     struct Matrix3x3 {
         float m_Data[9]{};
         inline Matrix3x3() = default;
@@ -69,10 +72,7 @@ namespace BNM::Structures::Unity {
             }
             return *this;
         }
-        inline Matrix3x3& operator*=(float f) {
-            for (float & i : m_Data) i *= f;
-            return *this;
-        }
+        inline Matrix3x3& operator*=(float f) { for (float & i : m_Data) i *= f; return *this; }
         inline Matrix3x3& operator/=(float f) { return *this *= (1.0F / f); }
         bool Invert();
         [[nodiscard]] inline float GetDeterminant() const {
@@ -198,8 +198,6 @@ namespace BNM::Structures::Unity {
                 return true;
             return false;
         }
-        static const Matrix3x3 zero;
-        static const Matrix3x3 identity;
         inline static bool LookRotationToMatrix(const Vector3& viewVec, const Vector3& upVec, Matrix3x3* m) {
             Vector3 z = viewVec;
             float mag = Vector3::Magnitude(z);
@@ -216,8 +214,6 @@ namespace BNM::Structures::Unity {
                 return false;
             }
             x /= mag;
-            
-            
             
             Vector3 y(Vector3::Cross(z, x));
             if (!CompareApproximately(Vector3::SqrMagnitude(y), 1.0F)) return false;
@@ -287,5 +283,8 @@ namespace BNM::Structures::Unity {
             Vector3* c2 = (Vector3*)matrix.GetPtr() + 6;
             Vector3::OrthoNormalize(*c0, *c1, *c2);
         }
+
+        static const Matrix3x3 zero;
+        static const Matrix3x3 identity;
     };
 }

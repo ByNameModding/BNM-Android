@@ -1,21 +1,17 @@
 #pragma once
+
 #include "Vector2.h"
 #include "Vector3.h"
 #include "Vector4.h"
 #include "Matrix3x3.h"
-#define UNITY_USE_COPYMATRIX_4X4 (0)
 
 #define MAT(m, r, c) (m)[(c)*4+(r)]
-#define PP_WRAP_CODE(code) do { code; } while(0)
-#define RETURN_ZERO PP_WRAP_CODE(\
-    for (int i=0;i<16;i++) \
-        out[i] = 0.0F; \
-    return false;\
-)
+#define RETURN_ZERO do { for (int i=0;i<16;i++) out[i] = 0.0F; return false; } while(0)
+
 namespace BNM::Structures::Unity {
+
     inline void QuaternionToMatrix(const Quaternion& q, struct Matrix4x4& m);
-    template<class T>
-    inline T* Stride(T* p, size_t offset) { return reinterpret_cast<T*>((char*)p + offset); }
+
     struct FrustumPlanes {
         float left;
         float right;
@@ -24,10 +20,12 @@ namespace BNM::Structures::Unity {
         float zNear;
         float zFar;
     };
-    bool InvertMatrix4x4_Full(const float* m, float* out);
+
+    inline bool InvertMatrix4x4_Full(const float* m, float* out);
+
     struct Matrix4x4 {
         float m_Data[16]{};
-        enum InitIdentity { kIdentity };
+        enum class InitIdentity { kIdentity };
 
         Matrix4x4() = default;
         inline Matrix4x4(InitIdentity) { SetIdentity(); }
@@ -336,8 +334,10 @@ namespace BNM::Structures::Unity {
             return *this;
         }
         inline Matrix4x4& SetPerspective(float fovy, float aspect, float zNear, float zFar) {
+            constexpr float deg2Rad = M_PI / 180.f;
+
             float cotangent, deltaZ;
-            float radians = Deg2Rad * (fovy / 2.0f);
+            float radians = deg2Rad * (fovy / 2.0f);
             cotangent = cos(radians) / sin(radians);
             deltaZ = zNear - zFar;
 
@@ -677,7 +677,7 @@ namespace BNM::Structures::Unity {
 
    inline float ComputeUniformScale(const Matrix4x4& matrix) { return Vector3::Magnitude(matrix.GetAxisX()); }
 
-#define SWAP_ROWS(a, b) PP_WRAP_CODE(float *_tmp = a; (a)=(b); (b)=_tmp;)
+#define SWAP_ROWS(a, b) do { float *_tmp = a; (a)=(b); (b)=_tmp; } while(false)
    inline bool InvertMatrix4x4_Full(const float* m, float* out) {
         float wtmp[4][8];
         float m0, m1, m2, m3, s;
@@ -759,6 +759,9 @@ namespace BNM::Structures::Unity {
 #undef SWAP_ROWS
 #undef MAT
 #undef RETURN_ZERO
+
+    template<class T>
+    inline T* Stride(T* p, size_t offset) { return reinterpret_cast<T*>((char*)p + offset); }
 
     inline bool CompareApproximately(const Matrix4x4& lhs, const Matrix4x4& rhs, float dist) {
         for (int i = 0; i < 16; i++) if (!CompareApproximately(lhs[i], rhs[i], dist)) return false;

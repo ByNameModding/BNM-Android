@@ -2,7 +2,6 @@
 #include "Internals.hpp"
 
 namespace BNM::Internal {
-
     bool state = false;
     bool lateInitAllowed = false;
     void *il2cppLibraryHandle{};

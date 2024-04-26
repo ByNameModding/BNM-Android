@@ -24,13 +24,14 @@ namespace BNM::Internal {
 #pragma pack(push, 1)
     // Список с переменными из виртуальной машины il2cpp
     struct _VMData {
-        BNM::Class Object{};
+        BNM::Class Object{}, UnityEngine$$Object{};
+        BNM::Method<IL2CPP::Il2CppReflectionType *> Type$$GetType{};
         BNM::Method<void *> Interlocked$$CompareExchange{};
         BNM::Method<BNM::MonoType *> RuntimeType$$MakeGenericType{};
         BNM::Method<BNM::MonoType *> RuntimeType$$MakePointerType{};
         BNM::Method<BNM::MonoType *> RuntimeType$$make_byref_type{};
         BNM::Method<BNM::IL2CPP::Il2CppReflectionMethod *> RuntimeMethodInfo$$MakeGenericMethod_impl{};
-        BNM::Structures::Mono::monoString **String$$Empty{};
+        BNM::Structures::Mono::String **String$$Empty{};
     } extern vmData;
 
     // il2cpp методы, чтобы не искать их каждый запрос BNM
@@ -48,9 +49,8 @@ namespace BNM::Internal {
         BNM::IL2CPP::Il2CppArray *(*il2cpp_array_new)(const BNM::IL2CPP::Il2CppClass *, BNM::IL2CPP::il2cpp_array_size_t){};
         void (*il2cpp_field_static_get_value)(const BNM::IL2CPP::FieldInfo *, void *){};
         void (*il2cpp_field_static_set_value)(const BNM::IL2CPP::FieldInfo *, void *){};
-        BNM::Structures::Mono::monoString *(*il2cpp_string_new)(const char *){};
+        BNM::Structures::Mono::String *(*il2cpp_string_new)(const char *){};
         void *(*il2cpp_resolve_icall)(const char *){};
-
     } extern il2cppMethods;
 
 #pragma pack(pop)
@@ -82,6 +82,11 @@ namespace BNM::Internal {
     IL2CPP::Il2CppClass *BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppReflectionType *type);
 
     void SetupBNM();
+
+#ifdef BNM_COROUTINE
+    void SetupCoroutine();
+    void LoadCoroutine();
+#endif
 
     IL2CPP::Il2CppClass *TryGetClassInImage(const IL2CPP::Il2CppImage *image, const std::string_view &_namespace, const std::string_view &_name);
 
@@ -174,7 +179,7 @@ namespace BNM::Internal {
             }
         private:
             std::map<BNM_PTR, std::vector<IL2CPP::Il2CppClass *>> map;
-        } extern BNMClassesMap;
+        } BNMClassesMap;
     }
 
 #pragma pack(pop)

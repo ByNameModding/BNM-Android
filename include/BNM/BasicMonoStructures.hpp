@@ -1,6 +1,7 @@
 #pragma once
 
 #include <new>
+#include <array>
 
 #include "UserSettings/GlobalSettings.hpp"
 #include "Il2CppHeaders.hpp"
@@ -51,27 +52,28 @@ namespace BNM::Utils {
 // Обычные классы C# (строка, массив, список) (string, [], List)
 namespace BNM::Structures::Mono {
 
-    template<typename T> struct monoList;
+    template<typename T> struct List;
     namespace PRIVATE_MonoListData {
         void *CompareExchange4List(void *syncRoot);
         template<typename T>
-        void InitMonoListVTable(monoList<T> *list);
+        void InitMonoListVTable(List<T> *list);
     }
-    struct monoString : BNM::IL2CPP::Il2CppObject {
+    struct String : BNM::IL2CPP::Il2CppObject {
         int length{};
         IL2CPP::Il2CppChar chars[0];
         std::string str();
         unsigned int GetHash() const;
-        static monoString *Create(const char *str);
-        static monoString *Create(const std::string &str);
-        static monoString *Empty();
+        static String *Create(const char *str);
+        static String *Create(const std::string &str);
+        static String *Empty();
 #ifdef BNM_ALLOW_SELF_CHECKS
         bool SelfCheck() const;
 #endif
         void Destroy();
+        inline bool IsNullOrEmpty() { return !std::launder(this) || !length; }
     };
     template<typename T>
-    struct monoArray : BNM::IL2CPP::Il2CppObject  {
+    struct Array : BNM::IL2CPP::Il2CppObject  {
         IL2CPP::Il2CppArrayBounds *bounds{};
         IL2CPP::il2cpp_array_size_t capacity{};
         T m_Items[0];
@@ -94,16 +96,16 @@ namespace BNM::Structures::Mono {
         inline Utils::DataIterator<T> operator[] (IL2CPP::il2cpp_array_size_t index) const { BNM_CHECK_SELF({}); if (GetCapacity() < index) return {}; return &m_Items[index]; }
         inline Utils::DataIterator<T> At(IL2CPP::il2cpp_array_size_t index) const { BNM_CHECK_SELF({}); if (GetCapacity() < index) return {}; return &m_Items[index]; }
         [[nodiscard]] inline bool Empty() const { BNM_CHECK_SELF(false); return GetCapacity() <= 0;}
-        static monoArray<T> *Create(size_t capacity) {
-            auto monoArr = (monoArray<T> *)malloc(sizeof(monoArray) + sizeof(T) * capacity);
-            memset(monoArr, 0, sizeof(monoArray) + sizeof(T) * capacity);
+        static Array<T> *Create(size_t capacity) {
+            auto monoArr = (Array<T> *)malloc(sizeof(Array) + sizeof(T) * capacity);
+            memset(monoArr, 0, sizeof(Array) + sizeof(T) * capacity);
             monoArr->klass = nullptr;
             monoArr->capacity = capacity;
             return monoArr;
         }
-        static monoArray<T> *Create(const std::vector<T> &vec) { return Create((T *)vec.data(), vec.size()); }
-        static monoArray<T> *Create(T *arr, size_t size) {
-            monoArray<T> *monoArr = Create(size);
+        static Array<T> *Create(const std::vector<T> &vec) { return Create((T *)vec.data(), vec.size()); }
+        static Array<T> *Create(T *arr, size_t size) {
+            Array<T> *monoArr = Create(size);
             monoArr->klass = nullptr;
             monoArr->CopyFrom(arr, size);
             return monoArr;
@@ -113,20 +115,20 @@ namespace BNM::Structures::Mono {
 #ifdef BNM_ALLOW_SELF_CHECKS
         [[nodiscard]] bool SelfCheck() const {
             if (std::launder(this)) return true;
-            BNM_LOG_ERR(DBG_BNM_MSG_monoArray_SelfCheck_Error);
+            BNM_LOG_ERR(DBG_BNM_MSG_Array_SelfCheck_Error);
             return false;
         }
 #endif
     };
     template<typename T>
-    struct monoList : BNM::IL2CPP::Il2CppObject {
+    struct List : BNM::IL2CPP::Il2CppObject {
         struct Enumerator {
-            monoList<T> *list{};
+            List<T> *list{};
             int index{};
             int version{};
             T current{};
             constexpr Enumerator() = default;
-            Enumerator(monoList<T> *list) : Enumerator() { this->list = list; }
+            Enumerator(List<T> *list) : Enumerator() { this->list = list; }
 
             // Оригинальный C# код не нужен: он бесполезен в C++
             // Поэтому тут просто код для поддержки C++ foreach
@@ -135,7 +137,7 @@ namespace BNM::Structures::Mono {
             inline T* begin() const { return &list->items[0]; }
             inline T* end() const { return &list->items->m_Items[list->size]; }
         };
-        monoArray<T> *items{};
+        Array<T> *items{};
         int size{};
         int version{};
         void *syncRoot{};
@@ -173,7 +175,7 @@ namespace BNM::Structures::Mono {
         bool Resize(int newCapacity) {
             BNM_CHECK_SELF(false);
             if (newCapacity <= items->capacity) return false;
-            auto nItems = monoArray<T>::Create(newCapacity);
+            auto nItems = Array<T>::Create(newCapacity);
             nItems->klass = items->klass;
             nItems->monitor = items->monitor;
             nItems->bounds = items->bounds;
@@ -223,7 +225,7 @@ namespace BNM::Structures::Mono {
             return syncRoot;
         }
         bool get_false() { return false; }
-        void CopyTo(monoArray<T>* arr, int arrIndex) {
+        void CopyTo(Array<T>* arr, int arrIndex) {
             memcpy(items->m_Items, arr->m_Items + arrIndex, size * sizeof(T));
         }
         void GrowIfNeeded(int n) {
@@ -239,7 +241,7 @@ namespace BNM::Structures::Mono {
 #ifdef BNM_ALLOW_SELF_CHECKS
         [[nodiscard]] bool SelfCheck() const {
             if (std::launder(this)) return true;
-            BNM_LOG_ERR(DBG_BNM_MSG_monoList_SelfCheck_Error);
+            BNM_LOG_ERR(DBG_BNM_MSG_List_SelfCheck_Error);
             return false;
         }
 #endif
@@ -266,18 +268,18 @@ namespace BNM::Structures::Mono {
         IL2CPP::Il2CppClass *TryGetMonoListClass(uint32_t typeHash, std::array<MethodData, 16> &data);
 
         template<typename T>
-        void InitMonoListVTable(monoList<T> *list) {
+        void InitMonoListVTable(List<T> *list) {
             using namespace PRIVATE_MonoListData;
             /*
              *  Заменить таблицу виртуальных методов т. к. оригинальная - пустая.
              *  Так же это нужно для типов, которых нет в игре (не факт, что игра и без смогла бы их использовать, но код есть)
              */
             using Type = std::conditional_t<std::is_pointer_v<T>, void*, T>;
-            constexpr auto RemoveAt = &monoList<Type>::RemoveAt; constexpr auto GetSize = &monoList<Type>::GetSize; constexpr auto Clear = &monoList<Type>::Clear;
-            constexpr auto get_Item = &monoList<Type>::get_Item; constexpr auto set_Item = &monoList<Type>::set_Item; constexpr auto IndexOf = &monoList<Type>::IndexOf;
-            constexpr auto Insert = &monoList<Type>::Insert; constexpr auto get_false = &monoList<Type>::get_false; constexpr auto Add = &monoList<Type>::Add;
-            constexpr auto Contains = &monoList<Type>::Contains; constexpr auto CopyTo = &monoList<Type>::CopyTo; constexpr auto Remove = &monoList<Type>::Remove;
-            constexpr auto GetEnumerator = &monoList<Type>::GetEnumerator; constexpr auto get_SyncRoot = &monoList<Type>::get_SyncRoot;
+            constexpr auto RemoveAt = &List<Type>::RemoveAt; constexpr auto GetSize = &List<Type>::GetSize; constexpr auto Clear = &List<Type>::Clear;
+            constexpr auto get_Item = &List<Type>::get_Item; constexpr auto set_Item = &List<Type>::set_Item; constexpr auto IndexOf = &List<Type>::IndexOf;
+            constexpr auto Insert = &List<Type>::Insert; constexpr auto get_false = &List<Type>::get_false; constexpr auto Add = &List<Type>::Add;
+            constexpr auto Contains = &List<Type>::Contains; constexpr auto CopyTo = &List<Type>::CopyTo; constexpr auto Remove = &List<Type>::Remove;
+            constexpr auto GetEnumerator = &List<Type>::GetEnumerator; constexpr auto get_SyncRoot = &List<Type>::get_SyncRoot;
             static std::array<MethodData, 16> namesMap = {
                     MethodData{OBFUSCATE_BNM("RemoveAt"), *(void **)&RemoveAt}, MethodData{OBFUSCATE_BNM("get_Count"), *(void **)&GetSize},
                     MethodData{OBFUSCATE_BNM("Clear"), *(void **)&Clear}, MethodData{OBFUSCATE_BNM("get_Item"), *(void **)&get_Item},

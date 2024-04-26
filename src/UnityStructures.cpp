@@ -1,5 +1,8 @@
 #include <BNM/UserSettings/GlobalSettings.hpp>
 #include <BNM/UnityStructures.hpp>
+#include "BNM/UnityStructures/Color.h"
+#include "BNM/UnityStructures/Vector4.h"
+#include "Internals.hpp"
 
 
 namespace BNM::Structures::Unity {
@@ -13,23 +16,53 @@ namespace BNM::Structures::Unity {
         return m_Collider;
 #endif
     }
-    const float Vector4::infinity = std::numeric_limits<float>::infinity();
-    const Vector4 Vector4::infinityVec = {std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()};
-    const Vector4 Vector4::zero = {0, 0, 0, 0};
-    const Vector4 Vector4::one = {1, 1, 1, 1};
+
+    const Color Color::black = {0.f, 0.f, 0.f};
+    const Color Color::red = {1.f, 0.f, 0.f};
+    const Color Color::green = {0.f, 1.f, 0.f};
+    const Color Color::blue = {0.f, 0.f, 1.f};
+    const Color Color::white = {1.f, 1.f, 1.f};
+    const Color Color::orange = {1.f, 0.55f, 0.f};
+    const Color Color::yellow = {1.f, 0.92156863f, 0.015686275f};
+    const Color Color::cyan = {0.f, 1.f, 1.f};
+    const Color Color::magenta = {1.f, 0.f, 1.f};
+
+    Color::Color(Vector4 v) : r(v.x), g(v.y), b(v.z), a(v.w) {}
+
+    constexpr float floatInf = std::numeric_limits<float>::infinity();
+
+    const Vector2 Vector2::positiveInfinity = {floatInf, floatInf};
+    const Vector2 Vector2::negativeInfinity = {-floatInf, -floatInf};
+    const Vector2 Vector2::down = {0.f, -1.f};
+    const Vector2 Vector2::left = {-1.f, 0.f};
+    const Vector2 Vector2::one = {1.f, 1.f};
+    const Vector2 Vector2::right = {1.f, 0.f};
+    const Vector2 Vector2::up = {0.f, 1.f};
+    const Vector2 Vector2::zero = {0.f, 0.f};
+
+    Vector2::operator Vector3() const { return {x, y, 0}; }
+
+    const Vector3 Vector3::positiveInfinity = {floatInf, floatInf, floatInf};
+    const Vector3 Vector3::negativeInfinity = {-floatInf, -floatInf, -floatInf};
     const Vector3 Vector3::back = {0.f, 0.f, -1.f};
     const Vector3 Vector3::down = {0.f, -1.f, 0.f};
     const Vector3 Vector3::forward = {0.f, 0.f, 1.f};
-    const float Vector3::kEpsilon = 1E-05f;
-    const float Vector3::kEpsilonNormalSqrt = 1E-15f;
     const Vector3 Vector3::left = {-1.f, 0.f, 0.f};
-    const Vector3 Vector3::negativeInfinity = {-INFINITY, -INFINITY, -INFINITY};
     const Vector3 Vector3::one = {1.f, 1.f, 1.f};
-    const Vector3 Vector3::positiveInfinity = {INFINITY, INFINITY, INFINITY};
     const Vector3 Vector3::right = {1.f, 0.f, 0.f};
     const Vector3 Vector3::up = {0.f, 1.f, 0.f};
     const Vector3 Vector3::zero = {0.f, 0.f, 0.f};
-    const Matrix4x4 Matrix4x4::identity(kIdentity);
+
+    const Vector4 Vector4::positiveinfinity = {floatInf, floatInf, floatInf, floatInf};
+    const Vector4 Vector4::negativeInfinity = {-floatInf, -floatInf, -floatInf, -floatInf};
+    const Vector4 Vector4::zero = {0.f, 0.f, 0.f, 0.f};
+    const Vector4 Vector4::one = {1.f, 1.f, 1.f, 1.f};
+
+    Vector4::Vector4(Color c) : x(c.r), y(c.g), z(c.b), w(c.a) {}
+
+    const Quaternion Quaternion::identity = {0.f, 0.f, 0.f, 1.f};
+
+    const Matrix4x4 Matrix4x4::identity(InitIdentity::kIdentity);
 
     Matrix3x3& Matrix3x3::operator=(const Matrix4x4& other) {
         m_Data[0] = other.m_Data[0];
@@ -69,7 +102,23 @@ namespace BNM::Structures::Unity {
         *this = m;
         return success;
     }
-    Vector2::operator Vector3() const {
-        return {x, y, 0};
+}
+
+
+
+namespace BNM::UnityEngine {
+    BNM::Class UnityEventBase::GetArgumentType(PersistentCall *call) {
+        auto type = Internal::vmData.UnityEngine$$Object;
+        auto typeName = call->m_Arguments->m_ObjectArgumentAssemblyTypeName;
+        if (!typeName->IsNullOrEmpty()) if (auto t = Internal::vmData.Type$$GetType(typeName); t != nullptr) type = t;
+
+        return type;
+    }
+    BNM::Class UnityEventBase::GetTargetType(PersistentCall *call) {
+        BNM::Class targetType;
+        if (call->m_Target != nullptr) targetType = call->m_Target;
+        else targetType = Internal::vmData.Type$$GetType(call->m_TargetAssemblyTypeName);
+
+        return targetType;
     }
 }

@@ -5,11 +5,11 @@
 
 using namespace BNM;
 
-Structures::Mono::monoString *BNM::CreateMonoString(const char *str) {
+Structures::Mono::String *BNM::CreateMonoString(const char *str) {
     return Internal::il2cppMethods.il2cpp_string_new(str);
 }
 
-Structures::Mono::monoString *BNM::CreateMonoString(const std::string_view &str) {
+Structures::Mono::String *BNM::CreateMonoString(const std::string_view &str) {
     return CreateMonoString(str.data());
 }
 
@@ -115,15 +115,11 @@ IL2CPP::Il2CppClass *Internal::TryGetClassInImage(const IL2CPP::Il2CppImage *ima
 Class Internal::TryMakeGenericClass(Class genericType, const std::vector<CompileTimeClass> &templateTypes) {
     if (!vmData.RuntimeType$$MakeGenericType) return {};
     auto monoType = genericType.GetMonoType();
-    auto monoGenericsList = Structures::Mono::monoArray<MonoType *>::Create(templateTypes.size());
-
+    auto monoGenericsList = Structures::Mono::Array<MonoType *>::Create(templateTypes.size());
     for (IL2CPP::il2cpp_array_size_t i = 0; i < (IL2CPP::il2cpp_array_size_t) templateTypes.size(); ++i)
         (*monoGenericsList)[i] = templateTypes[i].ToClass().GetMonoType();
-
     Class typedGenericType = vmData.RuntimeType$$MakeGenericType(monoType, monoGenericsList);
-
     monoGenericsList->Destroy();
-
     return typedGenericType;
 }
 
@@ -131,7 +127,7 @@ MethodBase Internal::TryMakeGenericMethod(const MethodBase &genericMethod, const
     if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl || !genericMethod.GetInfo()->is_generic) return {};
     IL2CPP::Il2CppReflectionMethod reflectionMethod;
     reflectionMethod.method = genericMethod.GetInfo();
-    auto monoGenericsList = Structures::Mono::monoArray<MonoType *>::Create(templateTypes.size());
+    auto monoGenericsList = Structures::Mono::Array<MonoType *>::Create(templateTypes.size());
     for (IL2CPP::il2cpp_array_size_t i = 0; i < (IL2CPP::il2cpp_array_size_t) templateTypes.size(); ++i) (*monoGenericsList)[i] = templateTypes[i].ToClass().GetMonoType();
 
     MethodBase typedGenericMethod = vmData.RuntimeMethodInfo$$MakeGenericMethod_impl[(void *)&reflectionMethod](monoGenericsList)->method;
@@ -150,3 +146,60 @@ Class Internal::GetReference(Class target) {
     if (!vmData.RuntimeType$$make_byref_type) return {};
     return vmData.RuntimeType$$make_byref_type[(void *)target.GetMonoType()]();
 }
+
+#ifdef BNM_DEBUG
+
+const char *CompileTimeClassModifiers[] = {
+        "None",
+        "Array",
+        "Pointer",
+        "Reference"
+};
+
+void LogCompileTimeClassInfo(BNM::CompileTimeClass::_BaseInfo *info, const BNM::CompileTimeClass &tmp) {
+    switch (info->_baseType) {
+        case BNM::CompileTimeClass::_BaseType::None:
+            BNM_LOG_ERR("\tNone");
+            break;
+        case BNM::CompileTimeClass::_BaseType::Class: {
+            auto classInfo = (CompileTimeClass::_ClassInfo *) info;
+            BNM_LOG_ERR("\tClass( imageName: \"%s\", namespace: \"%s\", name: \"%s\") - %s", classInfo->_imageName, classInfo->_namespace, classInfo->_name, tmp._loadedClass.str().data());
+        } break;
+        case BNM::CompileTimeClass::_BaseType::Modifier: {
+            BNM_LOG_ERR("\tModifier(\"%s\") - %s", CompileTimeClassModifiers[(uint8_t) ((CompileTimeClass::_ModifierInfo *) info)->_modifierType], tmp._loadedClass.str().data());
+        } break;
+        case BNM::CompileTimeClass::_BaseType::Generic: {
+            auto genericInfo = (CompileTimeClass::_GenericInfo *) info;
+            BNM_LOG_ERR("\tGeneric: ");
+            for (auto type : genericInfo->_types) BNM_LOG_ERR("\t\t%s", type.ToClass().str().data());
+            BNM_LOG_ERR("\t%s", tmp._loadedClass.str().data());
+        } break;
+        case CompileTimeClass::_BaseType::MaxCount: break;
+    }
+}
+
+namespace CompileTimeClassProcessors {
+    typedef void (*ProcessorType)(CompileTimeClass &target, CompileTimeClass::_BaseInfo *info);
+    extern ProcessorType processors[(uint8_t) CompileTimeClass::_BaseType::MaxCount];
+}
+
+void BNM::Utils::LogCompileTimeClass(const BNM::CompileTimeClass &compileTimeClass) {
+    if (compileTimeClass._stack.empty()) return BNM_LOG_ERR("\t" DBG_BNM_MSG_ClassesManagement_LogCompileTimeClass_None);
+
+    CompileTimeClass tmp{};
+
+    auto &stack = compileTimeClass._stack;
+    for (auto info : stack) {
+
+        auto index = (uint8_t) info->_baseType;
+        if (index >= (uint8_t) CompileTimeClass::_BaseType::MaxCount) {
+            BNM_LOG_ERR("\t" DBG_BNM_MSG_CompileTimeClass_ToClass_OoB_Warn, (size_t)index);
+            continue;
+        }
+        CompileTimeClassProcessors::processors[index](tmp, (BNM::CompileTimeClass::_BaseInfo *) info);
+
+        LogCompileTimeClassInfo(info, tmp);
+    }
+
+}
+#endif

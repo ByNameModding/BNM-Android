@@ -8,7 +8,7 @@ ByNameModding - это библиотека для моддинга Unity-игр
 2. Искать [Generic](examples/03_Generic.cpp) классы и методы.
 3. Добавлять в игру [ваши собственные классы](examples/05_ClassesManagement.cpp), которые работают даже с AssetBundles!
 4. [Изменять классы игры](examples/05_ClassesManagement.cpp), добавляя в них поля и методы.
-5. Использовать [обычные структуры С#](examples/02_OtherStructures.cpp), например, строки (monoString) или словари (monoDictionary), которые полностью работают.
+5. Использовать [обычные структуры С#](examples/02_OtherStructures.cpp), например, строки (String) или словари (Dictionary), которые полностью работают.
 
 ### Новые классы
 BNM может добавить ваши собственные классы в игру.<br>

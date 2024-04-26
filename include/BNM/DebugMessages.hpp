@@ -17,19 +17,20 @@
 #define DBG_BNM_MSG_Class_GetProperty_NotFound "Свойство: %s.(%s) - не найдено."
 #define DBG_BNM_MSG_Class_GetInnerClass_NotFound "Вложенный класс: [%s]::[%s]::[%s] - не найден."
 #define DBG_BNM_MSG_Class_GetField_NotFound "Поле: [%s]::[%s].(%s) - не найдено."
+#define DBG_BNM_MSG_Class_GetEvent_NotFound "Событие: [%s]::[%s].(%s) - не найдено."
 #define DBG_BNM_MSG_Class_CreateNewInstance_Abstract_Warn "Вы пытаетесь создать объект абстрактного класса или интерфейса %s?\nВ C# это невозможно."
 
 
 #define DBG_BNM_MSG_CompileTimeClass_ToClass_default_Warn "[CompileTimeClassProcessors::Warn] Нет типа информации или неизвестный тип!"
 #define DBG_BNM_MSG_CompileTimeClass_ToClass_Modifier_Warn "[CompileTimeClassProcessors::ProcessModifierInfo] Получения типа класса до получения самого класса невозможно!"
 #define DBG_BNM_MSG_CompileTimeClass_ToClass_Generic_Warn "[CompileTimeClassProcessors::ProcessGenericInfo] Получения generic класса до получения самого класса невозможно!"
-#define DBG_BNM_MSG_CompileTimeClass_ToClass_OoB_Warn "[CompileTimeClass::ToClass] Тип %u, больше или равен количеству возможных обработчиков!"
+#define DBG_BNM_MSG_CompileTimeClass_ToClass_OoB_Warn "[CompileTimeClass::ToClass] Тип %lu, больше или равен количеству возможных обработчиков!"
 
 
 
-#define DBG_BNM_MSG_monoString_SelfCheck_Error "ОШИБКА: monoString мёртв"
-#define DBG_BNM_MSG_monoArray_SelfCheck_Error "[monoArray<>::SelfCheck] Попытка использовать мёртвый массив!"
-#define DBG_BNM_MSG_monoList_SelfCheck_Error "[monoList<>::SelfCheck] Попытка использовать мёртвый список!"
+#define DBG_BNM_MSG_String_SelfCheck_Error "ОШИБКА: String мёртв"
+#define DBG_BNM_MSG_Array_SelfCheck_Error "[Array<>::SelfCheck] Попытка использовать мёртвый массив!"
+#define DBG_BNM_MSG_List_SelfCheck_Error "[List<>::SelfCheck] Попытка использовать мёртвый список!"
 
 
 #define DBG_BNM_MSG_FieldBase_str_nullptr "Мёртвое поле"
@@ -64,10 +65,23 @@
 #define DBG_BNM_MSG_Property_Set_Error "Попытка вызвать свойство %s в котором отсутствует метод установки"
 
 
+#define DBG_BNM_MSG_EventBase_str_nullptr "Мёртвое событие"
+#define DBG_BNM_MSG_EventBase_str_add "метод добавления"
+#define DBG_BNM_MSG_EventBase_str_remove "метод удаления"
+#define DBG_BNM_MSG_EventBase_str_raise "метод вызова"
+#define DBG_BNM_MSG_EventBase_str_exists "есть"
+#define DBG_BNM_MSG_EventBase_str_not_exists "нет"
+#define DBG_BNM_MSG_EventBase_str_static "статическое"
+
+#define DBG_BNM_MSG_Event_Add_Error "Попытка вызвать событие %s в котором отсутствует метод добавления"
+#define DBG_BNM_MSG_Event_Remove_Error "Попытка вызвать событие %s в котором отсутствует метод удаления"
+#define DBG_BNM_MSG_Event_Raise_Error "Попытка вызвать событие %s в котором отсутствует метод вызова"
+
+
 #define DBG_BNM_MSG_ClassesManagement_MakeImage_Added_Image "Добавлен новый образ: [%s]."
 #define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Target "[ModifyClasses] Цель: %s"
-#define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Added_Method "\tДобавлен %sметод %s %d."
-#define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Hooked_Method "\tПодменён %sметод %s %d."
+#define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Added_Method "\tДобавлен %sметод %s %lu."
+#define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Hooked_Method "\tПодменён %sметод %s %lu."
 #define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Method_Static "статический "
 #define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Added_Field "\tДобавлено поле %s."
 #define DBG_BNM_MSG_ClassesManagement_CreateClass_Added "[CreateClass] Добавлен новый класс (%p) [%s]::[%s], родитель которого - [%s]::[%s], в [%s]."

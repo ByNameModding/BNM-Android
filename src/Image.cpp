@@ -50,12 +50,13 @@ std::vector<BNM::Class> BNM::Image::GetClasses(bool includeInner) const {
         }
 
         SKIP_INNER_REMOVING:
+        [[maybe_unused]] uint8_t thisGotoRequiresCpp23Min;
     }
 
 
     NEW_CLASSES:
 
-#ifdef BNM_NEW_CLASSES
+#ifdef BNM_CLASSES_MANAGEMENT
     Internal::ClassesManagement::BNMClassesMap.forEachByImage(_data, [&classes, includeInner](IL2CPP::Il2CppClass *BNMClass) -> bool {
         if (!includeInner && BNMClass->declaringType) return false;
 

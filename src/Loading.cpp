@@ -12,7 +12,17 @@ void Internal::Load() {
     // Загрузить BNM
     SetupBNM();
 #ifdef BNM_CLASSES_MANAGEMENT
+
+#ifdef BNM_COROUTINE
+    BNM::Internal::SetupCoroutine();
+#endif
+
     BNM::Internal::ClassesManagement::ProcessCustomClasses();
+
+#ifdef BNM_COROUTINE
+    BNM::Internal::LoadCoroutine();
+#endif
+
 #endif
     state = true;
 
@@ -92,8 +102,9 @@ bool Loading::TryLoadByJNI(JNIEnv *env, jobject context) {
 
     // Попробовать загрузить il2cpp по этому пути
     auto handle = BNM_dlopen(file.c_str(), RTLD_LAZY);
-    if (!(result = CheckHandle(handle))) BNM_LOG_ERR_IF(isLibrariesExtracted, "Не удалось загрузить libil2cpp.so по пути!");
-    else goto FINISH;
+    if (!(result = CheckHandle(handle))) {
+        BNM_LOG_ERR_IF(isLibrariesExtracted, "Не удалось загрузить libil2cpp.so по пути!");
+    } else goto FINISH;
     if (isLibrariesExtracted) goto FINISH;
     file.clear();
 
@@ -306,7 +317,7 @@ void Internal::SetupBNM() {
     INIT_IL2CPP_API(il2cpp_field_static_set_value);
     INIT_IL2CPP_API(il2cpp_string_new);
     INIT_IL2CPP_API(il2cpp_resolve_icall);
-    
+
 #undef INIT_IL2CPP_API
     
     //! il2cpp::vm::Image::GetTypes
@@ -434,12 +445,17 @@ void Internal::SetupBNM() {
         finalizerSlot = slot;
         break;
     }
+
+    auto UnityEngineCoreModule = Image(OBFUSCATE_BNM("UnityEngine.CoreModule.dll"));
+
     vmData.Object = objectClass;
+    vmData.UnityEngine$$Object = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object"), UnityEngineCoreModule);
+    vmData.Type$$GetType = Class(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("Type"), mscorlib).GetMethod(OBFUSCATE_BNM("GetType"), 1);
     vmData.Interlocked$$CompareExchange = interlockedClass.GetMethod(OBFUSCATE_BNM("CompareExchange"), {objectClass, objectClass, objectClass});
     vmData.RuntimeType$$MakeGenericType = runtimeTypeClass.GetMethod(OBFUSCATE_BNM("MakeGenericType"), 2);
     vmData.RuntimeType$$MakePointerType = runtimeTypeClass.GetMethod(OBFUSCATE_BNM("MakePointerType"), 1);
     vmData.RuntimeType$$make_byref_type = runtimeTypeClass.GetMethod(OBFUSCATE_BNM("make_byref_type"), 0);
-    vmData.String$$Empty = stringClass.GetField(OBFUSCATE_BNM("Empty")).cast<Structures::Mono::monoString *>().GetPointer();
+    vmData.String$$Empty = stringClass.GetField(OBFUSCATE_BNM("Empty")).cast<Structures::Mono::String *>().GetPointer();
 
     auto listClass = Class(OBFUSCATE_BNM("System.Collections.Generic"), OBFUSCATE_BNM("List`1"));
     auto cls = listClass._data;
@@ -447,7 +463,7 @@ void Internal::SetupBNM() {
     listClass._data = (IL2CPP::Il2CppClass *) malloc(size);
     memcpy(listClass._data, cls, size);
     listClass._data->has_finalize = 0;
-    listClass._data->instance_size = sizeof(Structures::Mono::monoList<void*>);
+    listClass._data->instance_size = sizeof(Structures::Mono::List<void*>);
 
     // Обход создания статического поля _emptyArray, потому что его не может существовать
     listClass._data->has_cctor = 0;

@@ -7,18 +7,18 @@
 #include "BasicMonoStructures.hpp"
 #include "Class.hpp"
 #include "Method.hpp"
-
+#include "Delegates.hpp"
 
 // Обычный C#-словарь (Dictionary)
 namespace BNM::Structures::Mono {
     template<typename TKey, typename TValue>
-    struct monoDictionary : BNM::IL2CPP::Il2CppObject {
+    struct Dictionary : BNM::IL2CPP::Il2CppObject {
 #ifdef BNM_DOTNET35
         struct Link { int HashCode{}, Next{}; };
-            monoArray<int> *table{};
-            monoArray<Link> *linkSlots{};
-            monoArray<TKey> *keys{};
-            monoArray<TValue> *values{};
+            Array<int> *table{};
+            Array<Link> *linkSlots{};
+            Array<TKey> *keys{};
+            Array<TValue> *values{};
             int touchedSlots{};
             int emptySlot{};
             int count{};
@@ -53,15 +53,15 @@ namespace BNM::Structures::Mono {
             TKey key{};
             TValue value{};
         };
-        monoArray<int> *buckets{};
-        monoArray<Entry> *entries{};
+        Array<int> *buckets{};
+        Array<Entry> *entries{};
         int count{};
         int version{};
         int freeList{};
         int freeCount{};
         void *comparer{};
-        monoArray<TKey> *keys{};
-        monoArray<TValue> *values{};
+        Array<TKey> *keys{};
+        Array<TValue> *values{};
         void *syncRoot{};
         std::map<TKey, TValue> ToMap() const {
             std::map<TKey, TValue> ret{};
@@ -93,5 +93,9 @@ namespace BNM::Structures::Mono {
             return {};
         }
         TValue operator[](TKey key) const { return Get(key); }
+    };
+    template <typename ...Params>
+    struct Action : MulticastDelegate<void> {
+        inline void Invoke(Params ...params) { (MulticastDelegate<void>(*this)).Invoke(params...); }
     };
 }

@@ -35,10 +35,10 @@ static_assert(false, "ByNameModding требуется C++20 и выше!");
 //! It is recommended to disable it during internal use
 // #define BNM_ALLOW_MULTI_THREADING_SYNC
 
-//! Для System.Collections.Generic.Dictionary (monoDictionary)
+//! Для System.Collections.Generic.Dictionary (Dictionary)
 //! Если игра использует .NET 3.5 раскомментируйте этот define
 //! .NET 3.5 устарел, но часть старых игр используют его
-//! For the System.Collections.Generic.Dictionary (monoDictionary)
+//! For the System.Collections.Generic.Dictionary (Dictionary)
 //! If game uses .NET 3.5 uncomment this define
 //! .NET 3.5 is outdated, but some older games use it
 // #define BNM_DOTNET35
@@ -46,6 +46,10 @@ static_assert(false, "ByNameModding требуется C++20 и выше!");
 //! Включить код создания новых классов и модификации существующих
 //! Allow code for creating new classes and modifying existing ones
 #define BNM_CLASSES_MANAGEMENT
+
+//! Включить код создания coroutine. ТРЕБУЕТСЯ ClassesManagement!
+//! Enable coroutine creation code. REQUIRED ClassesManagement!
+#define BNM_COROUTINE
 
 //! Отключить авто подмену через таблицу виртуальных методов в ClassesManagement
 //! Disable auto hook via virtual method table in ClassesManagement
@@ -81,7 +85,6 @@ static_assert(false, "ByNameModding требуется C++20 и выше!");
 
 #endif
 
-#include "../../../Core/include/Protection/obfuscate.h"
 //! Добавьте ваш шифровщик строк
 //! Add your string encryptor
 #define OBFUSCATE_BNM(str) str // const char *
@@ -91,7 +94,7 @@ static_assert(false, "ByNameModding требуется C++20 и выше!");
 template<typename PTR_T, typename NEW_T, typename T_OLD>
 inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
     if ((void *) ptr != nullptr) return shadowhook_hook_func_addr((void *)ptr, (void *) newMethod, (void **) &oldBytes);
-    return (void *) ptr;
+    return nullptr;
 }
 
 template<typename PTR_T, typename NEW_T, typename T_OLD>
@@ -132,18 +135,21 @@ inline void UNHOOK(PTR_T ptr) {
 // Dummy
 template<typename PTR_T, typename NEW_T, typename T_OLD>
 inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
+    static_assert("Нет ПО для подмены! (No hooking software!)");
     if ((void *) ptr != nullptr) ((void)0);
     return nullptr;
 }
 
 template<typename PTR_T, typename NEW_T, typename T_OLD>
 inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
+    static_assert("Нет ПО для подмены! (No hooking software!)");
     if ((void *) ptr != nullptr) ((void)0);
     return nullptr;
 }
 
 template<typename PTR_T>
 inline void UNHOOK(PTR_T ptr) {
+    static_assert("Нет ПО для подмены! (No hooking software!)");
     if ((void *) ptr != nullptr) ((void)0);
 }
 
@@ -168,30 +174,30 @@ inline void UNHOOK(PTR_T ptr) {
 #endif
 
 #ifdef BNM_INFO
-#define BNM_LOG_INFO(...) ((void)__android_log_print(4,  BNM_TAG, __VA_ARGS__))
+#define BNM_LOG_INFO(...) ((void)__android_log_print(4, BNM_TAG, __VA_ARGS__))
 #else
 #define BNM_LOG_INFO(...) ((void)0)
 #endif
 
 #ifdef BNM_DEBUG
-#define BNM_LOG_DEBUG(...) ((void)__android_log_print(3,  BNM_TAG, __VA_ARGS__))
-#define BNM_LOG_DEBUG_IF(condition, ...) if (condition) ((void)__android_log_print(3,  BNM_TAG, __VA_ARGS__))
+#define BNM_LOG_DEBUG(...) ((void)__android_log_print(3, BNM_TAG, __VA_ARGS__))
+#define BNM_LOG_DEBUG_IF(condition, ...) if (condition) ((void)__android_log_print(3, BNM_TAG, __VA_ARGS__))
 #else
 #define BNM_LOG_DEBUG(...) ((void)0)
 #define BNM_LOG_DEBUG_IF(...) ((void)0)
 #endif
 
 #ifdef BNM_ERROR
-#define BNM_LOG_ERR(...) ((void)__android_log_print(6,  BNM_TAG, __VA_ARGS__))
-#define BNM_LOG_ERR_IF(condition, ...) if (condition) ((void)__android_log_print(6,  BNM_TAG, __VA_ARGS__))
+#define BNM_LOG_ERR(...) ((void)__android_log_print(6, BNM_TAG, __VA_ARGS__))
+#define BNM_LOG_ERR_IF(condition, ...) if (condition) ((void)__android_log_print(6, BNM_TAG, __VA_ARGS__))
 #else
 #define BNM_LOG_ERR(...) ((void)0)
 #define BNM_LOG_ERR_IF(condition, ...) ((void)0)
 #endif
 
 #ifdef BNM_WARNING
-#define BNM_LOG_WARN(...) ((void)__android_log_print(5,  BNM_TAG, __VA_ARGS__))
-#define BNM_LOG_WARN_IF(condition, ...) if (condition) ((void)__android_log_print(5,  BNM_TAG, __VA_ARGS__))
+#define BNM_LOG_WARN(...) ((void)__android_log_print(5, BNM_TAG, __VA_ARGS__))
+#define BNM_LOG_WARN_IF(condition, ...) if (condition) ((void)__android_log_print(5, BNM_TAG, __VA_ARGS__))
 #else
 #define BNM_LOG_WARN(...) ((void)0)
 #define BNM_LOG_WARN_IF(condition, ...) ((void)0)
@@ -207,4 +213,4 @@ namespace BNM {
 #endif
 }
 
-#define BNM_VER "2.0_alpha"
+#define BNM_VER "2.0_beta"

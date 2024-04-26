@@ -2,6 +2,7 @@
 #include <BNM/FieldBase.hpp>
 #include <BNM/MethodBase.hpp>
 #include <BNM/PropertyBase.hpp>
+#include <BNM/EventBase.hpp>
 #include <BNM/DebugMessages.hpp>
 #include "Internals.hpp"
 
@@ -119,6 +120,21 @@ std::vector<PropertyBase> Class::GetProperties(bool includeParent) const {
 
     return std::move(ret);
 }
+std::vector<EventBase> Class::GetEvents(bool includeParent) const {
+    if (!_data) return {};
+    TryInit();
+    std::vector<EventBase> ret{};
+    auto curClass = _data;
+
+    do {
+        auto end = curClass->events + curClass->event_count;
+        for (auto currentEvent = curClass->events; currentEvent != end; ++currentEvent) ret.emplace_back(currentEvent);
+        if (includeParent) curClass = curClass->parent;
+        else break;
+    } while (curClass);
+
+    return std::move(ret);
+}
 
 MethodBase Class::GetMethod(const std::string_view &name, int parameters) const {
     if (!_data) return {};
@@ -128,7 +144,7 @@ MethodBase Class::GetMethod(const std::string_view &name, int parameters) const 
         return name == method->name && (method->parameters_count == parameters || parameters == -1);
     });
 
-    if (method) return method;
+    if (method != nullptr) return method;
 
     BNM_LOG_WARN(DBG_BNM_MSG_Class_GetMethod_Count_NotFound, _data->namespaze, _data->name, name.data(), parameters);
     return {};
@@ -146,7 +162,7 @@ MethodBase Class::GetMethod(const std::string_view &name, const std::initializer
         return true;
     });
 
-    if (method) return method;
+    if (method != nullptr) return method;
 
     BNM_LOG_WARN(DBG_BNM_MSG_Class_GetMethod_Names_NotFound, _data->namespaze, _data->name, name.data(), parameters);
     return {};
@@ -171,7 +187,7 @@ MethodBase Class::GetMethod(const std::string_view &name, const std::initializer
         return true;
     });
 
-    if (method) return method;
+    if (method != nullptr) return method;
 
     BNM_LOG_WARN(DBG_BNM_MSG_Class_GetMethod_Types_NotFound, _data->namespaze, _data->name, name.data(), parameters);
     return {};
@@ -216,7 +232,7 @@ FieldBase Class::GetField(const std::string_view &name) const {
 
     do {
         auto end = curClass->fields + curClass->field_count;
-        for (IL2CPP::FieldInfo *currentField = curClass->fields; currentField != end; ++currentField) {
+        for (auto currentField = curClass->fields; currentField != end; ++currentField) {
             if (name != currentField->name) continue;
             return currentField;
         }
@@ -224,6 +240,24 @@ FieldBase Class::GetField(const std::string_view &name) const {
     } while (curClass);
 
     BNM_LOG_WARN(DBG_BNM_MSG_Class_GetField_NotFound, _data->namespaze, _data->name, name.data());
+    return {};
+}
+
+BNM::EventBase Class::GetEvent(const std::string_view &name) const {
+    if (!_data) return {};
+    TryInit();
+    auto curClass = _data;
+
+    do {
+        auto end = curClass->events + curClass->event_count;
+        for (auto currentEvent = curClass->events; currentEvent != end; ++currentEvent) {
+            if (name != currentEvent->name) continue;
+            return currentEvent;
+        }
+        curClass = curClass->parent;
+    } while (curClass);
+
+    BNM_LOG_WARN(DBG_BNM_MSG_Class_GetEvent_NotFound, _data->namespaze, _data->name, name.data());
     return {};
 }
 
@@ -276,12 +310,12 @@ MonoType *Class::GetMonoType() const {
 
 BNM::CompileTimeClass Class::GetCompileTimeClass() const {
     TryInit();
-    return {._loadedClass = *this, ._autoFree = false};
+    return {._autoFree = false, ._loadedClass = *this};
 }
 
 Class::operator BNM::CompileTimeClass() const { return GetCompileTimeClass(); }
 
-void *Class::CreateNewInstance() const {
+BNM::IL2CPP::Il2CppObject *Class::CreateNewInstance() const {
     if (!_data) return nullptr;
     TryInit();
 
@@ -290,7 +324,7 @@ void *Class::CreateNewInstance() const {
 
     auto obj = Internal::il2cppMethods.il2cpp_object_new(_data);
     if (obj) memset((char*)obj + sizeof(IL2CPP::Il2CppObject), 0, _data->instance_size - sizeof(IL2CPP::Il2CppObject));
-    return (void *) obj;
+    return (BNM::IL2CPP::Il2CppObject *) obj;
 }
 
 // Попробовать инициализировать класс, если он жив
@@ -346,6 +380,7 @@ namespace CompileTimeClassProcessors {
             case CompileTimeClass::ModifierType::Array: {
                 target._loadedClass = target._loadedClass.GetArray();
             } break;
+            case CompileTimeClass::ModifierType::None: break;
         }
     }
 
@@ -359,9 +394,10 @@ namespace CompileTimeClassProcessors {
         auto genericInfo = (CompileTimeClass::_GenericInfo *) info;
 
         // Экономия памяти, даже если пользователь не хочет
-        for (auto type : genericInfo->_types) type._autoFree = true;
-
-        target._loadedClass = target._loadedClass.GetGeneric(genericInfo->_types);
+        for (auto &type : genericInfo->_types) ((BNM::CompileTimeClass &)type)._autoFree = true;
+        target._loadedClass = Internal::TryMakeGenericClass(target._loadedClass, genericInfo->_types);
+        genericInfo->_types.clear();
+        genericInfo->_types.shrink_to_fit();
     }
 
     ProcessorType processors[(uint8_t) CompileTimeClass::_BaseType::MaxCount] = {
@@ -375,6 +411,7 @@ namespace CompileTimeClassProcessors {
 
 Class CompileTimeClass::ToClass() {
     if (_loadedClass) return _loadedClass;
+    if (_stack.empty()) return {(IL2CPP::Il2CppClass *) nullptr};
 
     for (auto info : _stack) {
         auto index = (uint8_t) info->_baseType;
