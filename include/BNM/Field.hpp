@@ -56,12 +56,13 @@ namespace BNM {
         inline Field<T> &operator[](UnityEngine::Object *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
 
         // Скопировать другое поле, только для автоматического приведения типов
-        Field<T> &operator =(const FieldBase &other) {
+        Field<T> &operator =(const FieldBase &other)  {
             _data = other._data;
             _instance = other._instance;
             _init = other._init;
             _isStatic = other._isStatic;
             _isThreadStatic = other._isThreadStatic;
+            _isInStruct = other._isInStruct;
             return *this;
         }
     };

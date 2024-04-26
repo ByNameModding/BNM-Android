@@ -23,13 +23,13 @@ string16 Utf8ToUtf16(const char *utf8String, size_t length) {
 
 using namespace BNM::Structures::Mono;
 
-std::string monoString::str() {
-    BNM_CHECK_SELF(DBG_BNM_MSG_monoString_SelfCheck_Error);
+std::string String::str() {
+    BNM_CHECK_SELF(DBG_BNM_MSG_String_SelfCheck_Error);
     if (!length) return {};
     return Utf16ToUtf8(chars, length);
 }
 
-unsigned int monoString::GetHash() const {
+unsigned int String::GetHash() const {
     BNM_CHECK_SELF(0);
     const IL2CPP::Il2CppChar *p = chars;
     unsigned int h = 0;
@@ -38,38 +38,38 @@ unsigned int monoString::GetHash() const {
 }
 
 // Создать обычную C#-строку, как это делает il2cpp
-monoString *monoString::Create(const char *str) {
+String *String::Create(const char *str) {
     const size_t length = strlen(str);
     const size_t utf16Size = sizeof(IL2CPP::Il2CppChar) * length;
-    auto ret = (monoString *) malloc(sizeof(monoString) + utf16Size);
-    memset(ret, 0, sizeof(monoString) + utf16Size);
+    auto ret = (String *) malloc(sizeof(String) + utf16Size);
+    memset(ret, 0, sizeof(String) + utf16Size);
     ret->length = (int)length;
     auto u16 = Utf8ToUtf16(str, ret->length);
     memcpy(ret->chars, u16.data(), utf16Size);
     auto empty = Empty();
     if (empty) ret->klass = empty->klass;
-    return (monoString *)ret;
+    return (String *)ret;
 }
-monoString *monoString::Create(const std::string &str) { return Create(str.c_str()); }
+String *String::Create(const std::string &str) { return Create(str.c_str()); }
 
-monoString *monoString::Empty() {
+String *String::Empty() {
     return Internal::vmData.String$$Empty ? *Internal::vmData.String$$Empty : nullptr;
 }
 
 #ifdef BNM_ALLOW_SELF_CHECKS
-bool monoString::SelfCheck() const {
+bool String::SelfCheck() const {
     if (std::launder(this)) return true;
-    BNM_LOG_ERR("[monoString::SelfCheck] Попытка использовать мёртвую строку!");
+    BNM_LOG_ERR("[String::SelfCheck] Попытка использовать мёртвую строку!");
     return false;
 }
 #endif
 
-void monoString::Destroy() {
+void String::Destroy() {
     length = 0;
     free(this);
 }
 
-void *PRIVATE_MonoListData::CompareExchange4List(void *syncRoot) { // Единственный нормальный способ вызвать CompareExchange для syncRoot для monoList
+void *PRIVATE_MonoListData::CompareExchange4List(void *syncRoot) { // Единственный нормальный способ вызвать CompareExchange для syncRoot для List
     if (Internal::vmData.Interlocked$$CompareExchange) Internal::vmData.Interlocked$$CompareExchange((void **)&syncRoot, (void *)Internal::vmData.Object.CreateNewInstance(), (void *)nullptr);
     return syncRoot;
 }

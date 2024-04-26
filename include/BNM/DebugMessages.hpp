@@ -17,6 +17,7 @@
 #define DBG_BNM_MSG_Class_GetProperty_NotFound "Property: %s.(%s) - not found."
 #define DBG_BNM_MSG_Class_GetInnerClass_NotFound "Inner class: [%s]::[%s]::[%s] - not found."
 #define DBG_BNM_MSG_Class_GetField_NotFound "Field: [%s]::[%s].(%s) - not found."
+#define DBG_BNM_MSG_Class_GetEvent_NotFound "Event: [%s]::[%s].(%s) - not found."
 #define DBG_BNM_MSG_Class_CreateNewInstance_Abstract_Warn "You trying to create an object of an abstract class or interface %s?\nThis is not possible in C#."
 
 
@@ -27,9 +28,9 @@
 
 
 
-#define DBG_BNM_MSG_monoString_SelfCheck_Error "ERROR: monoString dead"
-#define DBG_BNM_MSG_monoArray_SelfCheck_Error "[monoArray<>::SelfCheck] Trying to use a dead array!"
-#define DBG_BNM_MSG_monoList_SelfCheck_Error "[monoList<>::SelfCheck] Trying to use a dead list!"
+#define DBG_BNM_MSG_String_SelfCheck_Error "ERROR: monoString dead"
+#define DBG_BNM_MSG_Array_SelfCheck_Error "[monoArray<>::SelfCheck] Trying to use a dead array!"
+#define DBG_BNM_MSG_List_SelfCheck_Error "[monoList<>::SelfCheck] Trying to use a dead list!"
 
 
 #define DBG_BNM_MSG_FieldBase_str_nullptr "Dead field"
@@ -62,6 +63,19 @@
 
 #define DBG_BNM_MSG_Property_Get_Error "An attempt to call property %s that does not have a getter method"
 #define DBG_BNM_MSG_Property_Set_Error "An attempt to call property %s that does not have a setter method"
+
+
+#define DBG_BNM_MSG_EventBase_str_nullptr "Dead event"
+#define DBG_BNM_MSG_EventBase_str_add "add method"
+#define DBG_BNM_MSG_EventBase_str_remove "remove method"
+#define DBG_BNM_MSG_EventBase_str_raise "raise method"
+#define DBG_BNM_MSG_EventBase_str_exists "exists"
+#define DBG_BNM_MSG_EventBase_str_not_exists "not exists"
+#define DBG_BNM_MSG_EventBase_str_static "static"
+
+#define DBG_BNM_MSG_Event_Add_Error "An attempt to call event %s that does not have add method"
+#define DBG_BNM_MSG_Event_Remove_Error "An attempt to call event %s that does not have remove method"
+#define DBG_BNM_MSG_Event_Raise_Error "An attempt to call event %s that does not have raise method"
 
 
 #define DBG_BNM_MSG_ClassesManagement_MakeImage_Added_Image "Added new image: [%s]."

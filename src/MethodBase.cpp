@@ -14,6 +14,16 @@ MethodBase::MethodBase(const IL2CPP::MethodInfo *info)  {
     }
 }
 
+MethodBase::MethodBase(const IL2CPP::Il2CppReflectionMethod *reflectionMethod) {
+    _init = (BNM::CheckObj(reflectionMethod) != nullptr) && (BNM::CheckObj(reflectionMethod->method) != nullptr);
+    auto info = reflectionMethod->method;
+    if (_init) {
+        _isStatic = (info->flags & 0x0010) == 0x0010;
+        _isVirtual = info->slot != 65535;
+        _data = (decltype(_data)) info;
+    }
+}
+
 MethodBase &MethodBase::SetInstance(IL2CPP::Il2CppObject *val)  {
     if (!_init) return *this;
     if (_isStatic) {
@@ -57,7 +67,7 @@ MethodBase MethodBase::Virtualize() const {
 
             if (Class(type).GetClass() != Class(type2).GetClass()) goto NEXT;
         }
-        return vTable.method;
+        return MethodBase(vTable.method)[_instance];
     }
     return {};
 }

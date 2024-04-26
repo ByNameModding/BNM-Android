@@ -22,6 +22,7 @@ FieldBase::FieldBase(IL2CPP::FieldInfo *info) {
         _isStatic = CheckIsFieldStatic(info);
         _data = info;
         _isThreadStatic = _data->offset == -1;
+        _isInStruct = Class(info->parent).GetIl2CppType()->type == IL2CPP::IL2CPP_TYPE_VALUETYPE;
     }
 }
 
@@ -48,5 +49,5 @@ void *FieldBase::GetFieldPointer() const {
         return nullptr;
     }
     if (_isStatic) return (void *) ((BNM_PTR) _data->parent->static_fields + _data->offset);
-    return (void *) ((BNM_PTR) _instance + _data->offset);
+    return (void *) ((BNM_PTR) _instance + _data->offset - (_isInStruct ? sizeof(IL2CPP::Il2CppObject) : 0x0));
 }

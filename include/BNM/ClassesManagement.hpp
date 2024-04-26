@@ -38,7 +38,7 @@ namespace BNM::MANAGEMENT_STRUCTURES {
         struct OriginInvokeGetter<RetT(T:: *)(ArgsT...)> {
             void *_originalAddress{};
             explicit OriginInvokeGetter(void *_originalAddress) : _originalAddress(_originalAddress) {}
-            RetT invoke(T *instance, ArgsT ...args) {
+            RetT Invoke(T *instance, ArgsT ...args) {
                 if constexpr (std::is_same_v<RetT, void>) ((RetT (*)(T *, ArgsT...))_originalAddress)(instance, args...);
                 else return ((RetT (*)(T *, ArgsT...))_originalAddress)(instance, args...);
             }
@@ -47,7 +47,7 @@ namespace BNM::MANAGEMENT_STRUCTURES {
         struct OriginInvokeGetter<RetT(*)(ArgsT...)> {
             void *_originalAddress{};
             explicit OriginInvokeGetter(void *_originalAddress) : _originalAddress(_originalAddress) {}
-            RetT invoke(ArgsT ...args) {
+            RetT Invoke(ArgsT ...args) {
 #if UNITY_VER > 174
                 if constexpr (std::is_same_v<RetT, void>) ((RetT (*)(ArgsT...))_originalAddress)(args...);
                 else return ((RetT (*)(ArgsT...))_originalAddress)(args...);
@@ -76,19 +76,31 @@ namespace BNM::MANAGEMENT_STRUCTURES {
     // Добавить новый класс в список
     void AddClass(CustomClass *klass);
 
-    // Распаковать аргумент
-    template<typename T>
-    inline constexpr T UnpackArg(void *arg) {
-        if constexpr (std::is_pointer<T>::value) return (T) arg;
-        else return *(T *)arg;
-    }
+    namespace _InvokerHelper {
+        // Распаковать аргумент
+        template<typename T>
+        inline constexpr T UnpackArg(void *arg) {
+            if constexpr (std::is_pointer<T>::value) return (T) arg;
+            else return *(T *)arg;
+        }
 
-    // Распаковать аргумент
-    template<typename T>
-    inline void *PackArg(T arg) {
-        if constexpr (std::is_pointer<T>::value) return arg;
-        static auto cls = BNM::GetType<T>().ToCompileTimeClass();
-        return cls.ToClass().BoxObject(&arg);
+#if UNITY_VER >= 221
+#define ARG_4_PACK data
+#define ARG_4_INVOKE returnValue
+        template<typename T>
+        inline void *PackReturnArg(T arg, void *returnValue) {
+            *(T *)returnValue = arg;
+            return nullptr;
+        }
+#else
+#define ARG_4_PACK (const IL2CPP::Il2CppType *) data
+#define ARG_4_INVOKE (void *) method
+        template<typename T>
+        inline void *PackReturnArg(T arg, const IL2CPP::Il2CppType *type) {
+            if constexpr (std::is_pointer<T>::value) return arg;
+            return BNM::Class(type).BoxObject(&arg);
+        }
+#endif
     }
 
     template<bool, typename> struct GetMethodInvoker {};
@@ -97,17 +109,22 @@ namespace BNM::MANAGEMENT_STRUCTURES {
     template<typename RetT, typename T, typename ...ArgsT>
     struct GetMethodInvoker<false, RetT(T:: *)(ArgsT...)> {
         template<std::size_t ...As>
-        static void *InvokeMethod(RetT(*func)(T*, ArgsT...), T *instance, void **args, std::index_sequence<As...>) {
-            if constexpr (std::is_same<RetT, void>::value) {
-                func(instance, UnpackArg<ArgsT>(args[As])...);
+        inline static void *InvokeMethod(RetT(*func)(T*, ArgsT...), T *instance, void **args, void *data, std::index_sequence<As...>) {
+            if constexpr (std::is_same_v<RetT, void>) {
+                func(instance, _InvokerHelper::UnpackArg<ArgsT>(args[As])...);
                 return nullptr;
-            } else return PackArg(func(instance, UnpackArg<ArgsT>(args[As])...));
+            } else return _InvokerHelper::PackReturnArg(func(instance, _InvokerHelper::UnpackArg<ArgsT>(args[As])...), ARG_4_PACK);
         }
-        static void *invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *, void *obj, void **args) {
+#if UNITY_VER < 171
+        static void *invoke(IL2CPP::MethodInfo *method, void *obj, void **args) {
+            IL2CPP::Il2CppMethodPointer ptr = method->methodPointer;
+#else
+        static void *Invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *method, void *obj, void **args, void *returnValue) {
+#endif
             auto func = (RetT(*)(T*, ArgsT...))(ptr);
             auto instance = (T *)(obj);
             auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
-            return InvokeMethod(func, instance, args, seq);
+            return InvokeMethod(func, instance, args, ARG_4_INVOKE, seq);
         }
     };
 
@@ -115,25 +132,33 @@ namespace BNM::MANAGEMENT_STRUCTURES {
     struct GetMethodInvoker<true, RetT(*)(ArgsT...)> {
 #if UNITY_VER > 174
         using FuncType = RetT(*)(ArgsT...);
-#define Args UnpackArg<ArgsT>(args[As])...
+#define Args _InvokerHelper::UnpackArg<ArgsT>(args[As])...
 #else
         using FuncType = RetT(*)(void *, ArgsT...);
-#define Args nullptr, UnpackArg<ArgsT>(args[As])...
+#define Args nullptr, _InvokerHelper::UnpackArg<ArgsT>(args[As])...
 #endif
         template<std::size_t ...As>
-        static void *InvokeMethod(FuncType func, void **args, std::index_sequence<As...>) {
+        inline static void *InvokeMethod(FuncType func, void **args, void *data, std::index_sequence<As...>) {
             if constexpr (std::is_same_v<RetT, void>) {
                 func(Args);
                 return nullptr;
-            } else return PackArg(func(Args));
+            } else return _InvokerHelper::PackReturnArg(func(Args), ARG_4_PACK);
         }
 #undef Args
-        static void *invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *, void *, void **args) {
-            auto func = (FuncType)ptr;
+#if UNITY_VER < 171
+        static void *invoke(IL2CPP::MethodInfo *method, void *, void **args) {
+            IL2CPP::Il2CppMethodPointer ptr = method->methodPointer;
+#else
+        static void *Invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *method, void *, void **args, void *returnValue) {
+#endif
+            auto func = (FuncType) ptr;
             auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
-            return InvokeMethod(func, args, seq);
+            return InvokeMethod(func, args, ARG_4_INVOKE, seq);
         }
     };
+
+#undef ARG_4_PACK
+#undef ARG_4_INVOKE
 
 #pragma pack(pop)
 
@@ -141,7 +166,7 @@ namespace BNM::MANAGEMENT_STRUCTURES {
 
 #define BNM_CustomClass(_class_, _targetType_, _baseType_, _owner_, ...) \
 private: \
-    struct _BNMCustomClass : BNM::MANAGEMENT_STRUCTURES::CustomClass {   \
+    struct _BNMCustomClass : BNM::MANAGEMENT_STRUCTURES::CustomClass { \
         inline _BNMCustomClass() : BNM::MANAGEMENT_STRUCTURES::CustomClass() { \
             _size = sizeof(_class_); \
             _targetType = _targetType_; \
@@ -174,8 +199,8 @@ public: \
 private: \
 	struct _BNMCustomMethod_##_method_ : BNM::MANAGEMENT_STRUCTURES::CustomMethod { \
         inline _BNMCustomMethod_##_method_() : BNM::MANAGEMENT_STRUCTURES::CustomMethod() { \
-            auto p = &_BNMCustomClassType::_method_; _address = *(void **)&p; \
-            _invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<_isStatic_, decltype(&_BNMCustomClassType::_method_)>::invoke; \
+            constexpr auto p = &_BNMCustomClassType::_method_; _address = *(void **)&p; \
+            _invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<_isStatic_, decltype(&_BNMCustomClassType::_method_)>::Invoke; \
             _name = OBFUSCATE_BNM(_name_); \
             _returnType = _type_; \
             _isStatic = _isStatic_; \
@@ -186,6 +211,6 @@ private: \
 public: \
     inline static _BNMCustomMethod_##_method_ BNMCustomMethod_##_method_ __attribute__((init_priority (102))) {}
 
-#define BNM_CallOriginalCustomMethod(_method_, ...) BNM::MANAGEMENT_STRUCTURES::CustomMethod::OriginInvokeGetter<decltype(&_BNMCustomClassType::_method_)>(BNMCustomMethod_##_method_._originalAddress).invoke(__VA_ARGS__)
+#define BNM_CallOriginalCustomMethod(_method_, ...) BNM::MANAGEMENT_STRUCTURES::CustomMethod::OriginInvokeGetter<decltype(&_BNMCustomClassType::_method_)>(BNMCustomMethod_##_method_._originalAddress).Invoke(__VA_ARGS__)
 
 #endif

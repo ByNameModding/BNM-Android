@@ -1,29 +1,29 @@
 #pragma once
-#define SMALL_FLOAT 0.0000000001
-#define Deg2Rad (M_PI / 180.0)
-#define Rad2Deg (1.0 / Deg2Rad)
-#include <string>
+
 #include "Vector3.h"
+
 namespace BNM::Structures::Unity {
     struct Quaternion {
         union {
             struct { float x, y, z, w; };
             float data[4]{0.f, 0.f, 0.f, 0.f};
         };
-        inline Quaternion()  : x(0), y(0), z(0), w(1) {};
+
+        inline Quaternion() : x(0), y(0), z(0), w(1) {};
         inline Quaternion(float data[]) noexcept : x(data[0]), y(data[1]), z(data[2]), w(data[3]) {}
         inline Quaternion(Vector3 vector, float scalar) noexcept : x(vector.x), y(vector.y), z(vector.z), w(scalar) {};
         inline Quaternion(float x, float y, float z, float w) noexcept : x(x), y(y), z(z), w(w) {};
         inline Quaternion(float Pitch, float Yaw, float Roll) {
             *this = Quaternion::FromEuler(Yaw, Pitch, Roll);
         };
-        inline static Quaternion Identity() { return {0, 0, 0, 1}; };
+
         inline static Vector3 Up(Quaternion q);
         inline static Vector3 Down(Quaternion q);
         inline static Vector3 Left(Quaternion q);
         inline static Vector3 Right(Quaternion q);
         inline static Vector3 Forward(Quaternion q);
         inline static Vector3 Back(Quaternion q);
+
         inline static float Angle(Quaternion a, Quaternion b);
         inline static Quaternion Conjugate(Quaternion rotation);
         inline static float Dot(Quaternion lhs, Quaternion rhs);
@@ -43,91 +43,43 @@ namespace BNM::Structures::Unity {
         inline static Quaternion SlerpUnclamped(Quaternion a, Quaternion b, float t);
         inline static void ToAngleAxis(Quaternion rotation, float &angle, Vector3 &axis);
         inline static Vector3 ToEuler(Quaternion q, bool toDeg = true);
+
         inline Vector3 euler() { return ToEuler(*this); }
         inline Quaternion normalized() { return Normalize(*this); }
+
         inline std::string str() const {return std::to_string(x) + OBFUSCATE_BNM(", ") + std::to_string(y) + OBFUSCATE_BNM(", ") + std::to_string(z) + OBFUSCATE_BNM(", ") + std::to_string(w); }
-        Quaternion& operator+=(const Quaternion& aQuat);
-        Quaternion& operator-=(const Quaternion& aQuat);
-        Quaternion& operator*=(float aScalar);
-        Quaternion& operator*=(const Quaternion& rhs);
-        Quaternion& operator/=(const Quaternion& rhs);
-        Quaternion& operator/=(float aScalar);
-        friend Quaternion operator+(const Quaternion& lhs, const Quaternion& rhs) {
-            Quaternion q(lhs);
-            return q += rhs;
-        }
 
-        friend Quaternion  operator-(const Quaternion& lhs, const Quaternion& rhs) {
-            Quaternion t(lhs);
-            return t -= rhs;
-        }
+        inline Quaternion& operator+=(Quaternion q) { x += q.x; y += q.y; z += q.z; w += q.w; return *this; }
+        inline Quaternion& operator-=(Quaternion q) { x -= q.x; y -= q.y; z -= q.z; w -= q.w; return *this; }
+        inline Quaternion& operator*=(Quaternion rhs);
+        inline Quaternion& operator*=(float s) { x *= s; y *= s; z *= s; w *= s; return *this; }
+        inline Quaternion& operator/=(Quaternion rhs);
+        inline Quaternion& operator/=(float s) { x /= s; y /= s; z /= s; w /= s; return *this; }
+        inline friend Quaternion operator+(const Quaternion& lhs, const Quaternion& rhs) { Quaternion q(lhs); return q += rhs; }
+        inline friend Quaternion operator-(const Quaternion& lhs, const Quaternion& rhs) { Quaternion t(lhs); return t -= rhs; }
+        inline friend Quaternion operator*(const float s, const Quaternion& q) { Quaternion t(q); return t *= s; }
+        inline friend Quaternion operator/(const Quaternion& q, const float s) { Quaternion t(q); return t /= s; }
+        inline Quaternion operator-() const { return {-x, -y, -z, -w}; }
+        inline Quaternion operator*(float s) const { return {x * s, y * s, z * s, w * s}; }
 
-        Quaternion operator-() const {
-            return {-x, -y, -z, -w};
-        }
-
-        Quaternion operator*(const float s) const {
-            return {x * s, y * s, z * s, w * s};
-        }
-
-        friend Quaternion  operator*(const float s, const Quaternion& q) {
-            Quaternion t(q);
-            return t *= s;
-        }
-
-        friend Quaternion  operator/(const Quaternion& q, const float s) {
-            Quaternion t(q);
-            return t /= s;
-        }
-
-        inline friend Quaternion operator*(const Quaternion& lhs, const Quaternion& rhs) {
+        inline friend Quaternion operator*(Quaternion lhs, Quaternion rhs) {
             return {lhs.w * rhs.x + lhs.x * rhs.w + lhs.y * rhs.z - lhs.z * rhs.y,
                     lhs.w * rhs.y + lhs.y * rhs.w + lhs.z * rhs.x - lhs.x * rhs.z,
                     lhs.w * rhs.z + lhs.z * rhs.w + lhs.x * rhs.y - lhs.y * rhs.x,
                     lhs.w * rhs.w - lhs.x * rhs.x - lhs.y * rhs.y - lhs.z * rhs.z};
         }
-        inline friend Quaternion operator/(const Quaternion& lhs, const Quaternion& rhs) {
+        inline friend Quaternion operator/(Quaternion lhs, Quaternion rhs) {
             return {lhs.w / rhs.x + lhs.x / rhs.w + lhs.y / rhs.z - lhs.z / rhs.y,
                     lhs.w / rhs.y + lhs.y / rhs.w + lhs.z / rhs.x - lhs.x / rhs.z,
                     lhs.w / rhs.z + lhs.z / rhs.w + lhs.x / rhs.y - lhs.y / rhs.x,
                     lhs.w / rhs.w - lhs.x / rhs.x - lhs.y / rhs.y - lhs.z / rhs.z};
         }
-        inline static Vector3 RotateVectorByQuat(const Quaternion& lhs, const Vector3& rhs);
+        inline static Vector3 RotateVectorByQuaternion(Quaternion lhs, Vector3 rhs);
+
+        static const Quaternion identity;
     };
 
-    inline Quaternion& Quaternion::operator+=(const Quaternion& aQuat) {
-        x += aQuat.x;
-        y += aQuat.y;
-        z += aQuat.z;
-        w += aQuat.w;
-        return *this;
-    }
-
-    inline Quaternion& Quaternion::operator-=(const Quaternion& aQuat) {
-        x -= aQuat.x;
-        y -= aQuat.y;
-        z -= aQuat.z;
-        w -= aQuat.w;
-        return *this;
-    }
-
-    inline Quaternion& Quaternion::operator*=(float aScalar) {
-        x *= aScalar;
-        y *= aScalar;
-        z *= aScalar;
-        w *= aScalar;
-        return *this;
-    }
-
-    inline Quaternion& Quaternion::operator/=(const float aScalar) {
-        x /= aScalar;
-        y /= aScalar;
-        z /= aScalar;
-        w /= aScalar;
-        return *this;
-    }
-
-    inline Quaternion& Quaternion::operator*=(const Quaternion& rhs) {
+    inline Quaternion& Quaternion::operator*=(Quaternion rhs) {
         float tempX = w * rhs.x + x * rhs.w + y * rhs.z - z * rhs.y;
         float tempY = w * rhs.y + y * rhs.w + z * rhs.x - x * rhs.z;
         float tempZ = w * rhs.z + z * rhs.w + x * rhs.y - y * rhs.x;
@@ -135,7 +87,8 @@ namespace BNM::Structures::Unity {
         x = tempX; y = tempY; z = tempZ; w = tempW;
         return *this;
     }
-    inline Quaternion& Quaternion::operator/=(const Quaternion& rhs) {
+
+    inline Quaternion& Quaternion::operator/=(Quaternion rhs) {
         float tempX = w / rhs.x + x / rhs.w + y / rhs.z - z / rhs.y;
         float tempY = w / rhs.y + y / rhs.w + z / rhs.x - x / rhs.z;
         float tempZ = w / rhs.z + z / rhs.w + x / rhs.y - y / rhs.x;
@@ -143,11 +96,12 @@ namespace BNM::Structures::Unity {
         x = tempX; y = tempY; z = tempZ; w = tempW;
         return *this;
     }
+
     inline Vector3 operator*(Quaternion lhs, const Vector3 rhs) {
         Vector3 u = Vector3(lhs.x, lhs.y, lhs.z);
-        float s = lhs.w;
-        return u * (Vector3::Dot(u, rhs) * 2.0f) + rhs * (s * s - Vector3::Dot(u, u)) + Vector3::Cross(u, rhs) * (2.0f * s);
+        return u * (Vector3::Dot(u, rhs) * 2.0f) + rhs * (lhs.w * lhs.w - Vector3::Dot(u, u)) + Vector3::Cross(u, rhs) * (2.0f * lhs.w);
     }
+
     Vector3 Quaternion::Up(Quaternion q) { return q * Vector3::up; }
     Vector3 Quaternion::Down(Quaternion q) { return q * Vector3::down; }
     Vector3 Quaternion::Left(Quaternion q) { return q * Vector3::left; }
@@ -170,7 +124,7 @@ namespace BNM::Structures::Unity {
 
     Quaternion Quaternion::FromAngleAxis(float angle, Vector3 axis) {
         Quaternion q;
-        float m = sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
+        float m = sqrtf(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
         float s = sinf(angle / 2) / m;
         q.x = axis.x * s;
         q.y = axis.y * s;
@@ -184,26 +138,29 @@ namespace BNM::Structures::Unity {
     }
 
     Quaternion Quaternion::FromEuler(float yaw, float pitch, float roll, bool fromDeg) {
+        constexpr float deg2Rad = M_PI / 180.f;
+
         if (fromDeg) {
-            roll *= (float) Deg2Rad;
-            pitch *= (float) Deg2Rad;
-            yaw *= (float) Deg2Rad;
+            roll *= (float) deg2Rad;
+            pitch *= (float) deg2Rad;
+            yaw *= (float) deg2Rad;
         }
-        float cY(cos(yaw / 2.0f));
-        float sY(sin(yaw / 2.0f));
+        float cY(cosf(yaw / 2.0f));
+        float sY(sinf(yaw / 2.0f));
 
-        float cP(cos(pitch / 2.0f));
-        float sP(sin(pitch / 2.0f));
+        float cP(cosf(pitch / 2.0f));
+        float sP(sinf(pitch / 2.0f));
 
-        float cR(cos(roll / 2.0f));
-        float sR(sin(roll / 2.0f));
+        float cR(cosf(roll / 2.0f));
+        float sR(sinf(roll / 2.0f));
 
         /*
         Упрощённое перемножение этих данных:
-          Quaternion qX(sY, 0.0F, 0.0F, cY);
-          Quaternion qY(0.0F, sP, 0.0F, cP);
-          Quaternion qZ(0.0F, 0.0F, sR, cR);
-          (qY * qX) * qZ;
+        Simplified multiplication of this data:
+          Quaternion qX(sY, 0.f, 0.f, cY);
+          Quaternion qY(0.f, sP, 0.f, cP);
+          Quaternion qZ(0.f, 0.f, sR, cR);
+          return (qY * qX) * qZ;
         */
         return {cP * sY * cR + sP * cY * sR,
                 sP * cY * cR - cP * sY * sR,
@@ -212,7 +169,7 @@ namespace BNM::Structures::Unity {
     }
 
     Vector3 Quaternion::ToEuler(Quaternion q, bool toDeg) {
-        Vector3 rot;
+        Vector3 rot{};
 
         float xy = q.x * q.y, xw = q.x * q.w;
         float yz = q.y * q.z;
@@ -220,31 +177,32 @@ namespace BNM::Structures::Unity {
 
         float singularity_test = yz - xw;
 
-        rot.x = -1.f * asin(clamp(2.0f * singularity_test, -1.0f, 1.0f));
+        rot.x = -1.f * asinf(std::clamp(2.0f * singularity_test, -1.0f, 1.0f));
 
         if (abs(singularity_test) < 0.499999f) {
             float xx = q.x * q.x, yy = q.y * q.y, yw = q.y * q.w, zz = q.z * q.z, ww = q.w * q.w;
-            rot.y = atan2(2.0f * (q.x * q.z + yw), zz - xx - yy + ww);
-            rot.z = atan2(2.0f * (xy + zw), yy - zz - xx + ww);
+            rot.y = atan2f(2.0f * (q.x * q.z + yw), zz - xx - yy + ww);
+            rot.z = atan2f(2.0f * (xy + zw), yy - zz - xx + ww);
         } else {
             float a = xy + zw;
             float b = -yz + xw;
             float c = xy - zw;
             float e = yz + xw;
-            rot.y = atan2(a * e + b * c, b * e - a * c);
+            rot.y = atan2f(a * e + b * c, b * e - a * c);
             rot.z = 0;
         }
 
-        if (toDeg) rot *= (float) Rad2Deg;
+        constexpr float rad2deg = 180.f / M_PI;
+        if (toDeg) rot *= (float) rad2deg;
 
         return rot;
     }
     Quaternion Quaternion::FromToRotation(Vector3 fromVector, Vector3 toVector) {
         float dot = Vector3::Dot(fromVector, toVector);
-        float k = sqrt(fromVector.sqrMagnitude * toVector.sqrMagnitude);
-        if (fabs(dot / k + 1) < 0.00001) {
-            Vector3 ortho = fromVector.orthogonal;
-            return {ortho.normalized, 0};
+        float k = sqrtf(Vector3::SqrMagnitude(fromVector) * Vector3::SqrMagnitude(toVector));
+        if (fabsf(dot / k + 1) < 0.00001) {
+            Vector3 ortho = Vector3::Orthogonal(fromVector);
+            return {Vector3::Normalize(ortho), 0};
         }
         Vector3 cross = Vector3::Cross(fromVector, toVector);
         return Normalize(Quaternion(cross, dot + k));
@@ -256,16 +214,16 @@ namespace BNM::Structures::Unity {
     }
 
     Quaternion Quaternion::Lerp(Quaternion a, Quaternion b, float t) {
-        if (t < 0) return a.normalized();
-        else if (t > 1) return b.normalized();
+        if (t < 0) return Normalize(a);
+        else if (t > 1) return Normalize(b);
         return LerpUnclamped(a, b, t);
     }
 
     Quaternion Quaternion::LerpUnclamped(Quaternion a, Quaternion b, float t) {
-        Quaternion quaternion;
+        Quaternion quaternion{};
         if (Dot(a, b) >= 0) quaternion = a * (1 - t) + b * t;
         else quaternion = a * (1 - t) - b * t;
-        return quaternion.normalized();
+        return Normalize(quaternion);
     }
 
     Quaternion Quaternion::LookRotation(Vector3 forward) {
@@ -273,39 +231,38 @@ namespace BNM::Structures::Unity {
     }
 
     Quaternion Quaternion::LookRotation(Vector3 forward, Vector3 upwards) {
-        forward = forward.normalized;
-        upwards = upwards.normalized;
-        if (forward.sqrMagnitude < SMALL_FLOAT || upwards.sqrMagnitude < SMALL_FLOAT)
-            return Quaternion::Identity();
-        if (1 - fabs(Vector3::Dot(forward, upwards)) < SMALL_FLOAT)
-            return FromToRotation(Vector3::forward, forward);
-        Vector3 right = Vector3::Cross(upwards, forward).normalized;
+        forward = Vector3::Normalize(forward);
+        upwards = Vector3::Normalize(upwards);
+        constexpr float smallFloat = 0.0000000001f;
+        if (Vector3::SqrMagnitude(forward) < smallFloat || Vector3::SqrMagnitude(upwards) < smallFloat) return Quaternion::identity;
+        if (1 - fabs(Vector3::Dot(forward, upwards)) < smallFloat) return FromToRotation(Vector3::forward, forward);
+        Vector3 right = Vector3::Normalize(Vector3::Cross(upwards, forward));
         upwards = Vector3::Cross(forward, right);
-        Quaternion quaternion;
+        Quaternion quaternion{};
         float radicand = right.x + upwards.y + forward.z;
         if (radicand > 0) {
-            quaternion.w = sqrt(1.0f + radicand) * 0.5f;
+            quaternion.w = sqrtf(1.0f + radicand) * 0.5f;
             float recip = 1.0f / (4.0f * quaternion.w);
             quaternion.x = (upwards.z - forward.y) * recip;
             quaternion.y = (forward.x - right.z) * recip;
             quaternion.z = (right.y - upwards.x) * recip;
         }
         else if (right.x >= upwards.y && right.x >= forward.z) {
-            quaternion.x = sqrt(1.0f + right.x - upwards.y - forward.z) * 0.5f;
+            quaternion.x = sqrtf(1.0f + right.x - upwards.y - forward.z) * 0.5f;
             float recip = 1.0f / (4.0f * quaternion.x);
             quaternion.w = (upwards.z - forward.y) * recip;
             quaternion.z = (forward.x + right.z) * recip;
             quaternion.y = (right.y + upwards.x) * recip;
         }
         else if (upwards.y > forward.z) {
-            quaternion.y = sqrt(1.0f - right.x + upwards.y - forward.z) * 0.5f;
+            quaternion.y = sqrtf(1.0f - right.x + upwards.y - forward.z) * 0.5f;
             float recip = 1.0f / (4.0f * quaternion.y);
             quaternion.z = (upwards.z + forward.y) * recip;
             quaternion.w = (forward.x - right.z) * recip;
             quaternion.x = (right.y + upwards.x) * recip;
         }
         else {
-            quaternion.z = sqrt(1.0f - right.x - upwards.y + forward.z) * 0.5f;
+            quaternion.z = sqrtf(1.0f - right.x - upwards.y + forward.z) * 0.5f;
             float recip = 1.0f / (4.0f * quaternion.z);
             quaternion.y = (upwards.z + forward.y) * recip;
             quaternion.x = (forward.x + right.z) * recip;
@@ -315,10 +272,7 @@ namespace BNM::Structures::Unity {
     }
 
     float Quaternion::Norm(Quaternion rotation) {
-        return sqrt(rotation.x * rotation.x +
-                    rotation.y * rotation.y +
-                    rotation.z * rotation.z +
-                    rotation.w * rotation.w);
+        return sqrtf(rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z + rotation.w * rotation.w);
     }
 
     Quaternion Quaternion::Normalize(Quaternion rotation) {
@@ -326,48 +280,35 @@ namespace BNM::Structures::Unity {
     }
 
     Quaternion Quaternion::RotateTowards(Quaternion from, Quaternion to, float maxRadiansDelta) {
-        float angle = Quaternion::Angle(from, to);
+        float angle = Angle(from, to);
         if (angle == 0) return to;
-        maxRadiansDelta = fmaxf(maxRadiansDelta, angle - (float)M_PI);
+        maxRadiansDelta = fmaxf(maxRadiansDelta, angle - (float) M_PI);
         float t = fminf(1, maxRadiansDelta / angle);
-        return Quaternion::SlerpUnclamped(from, to, t);
+        return SlerpUnclamped(from, to, t);
     }
 
     Quaternion Quaternion::Slerp(Quaternion a, Quaternion b, float t) {
-        if (t < 0) return a.normalized();
-        else if (t > 1) return b.normalized();
+        if (t < 0) return Normalize(a);
+        else if (t > 1) return Normalize(b);
         return SlerpUnclamped(a, b, t);
     }
 
     Quaternion Quaternion::SlerpUnclamped(Quaternion a, Quaternion b, float t) {
-        float n1;
-        float n2;
-        float n3 = Dot(a, b);
-        bool flag = false;
-        if (n3 < 0) {
-            flag = true;
-            n3 = -n3;
+        float dot = Dot(a, b);
+        if (dot < 0.f) {
+            b = -b;
+            dot = -dot;
         }
-        if (n3 > 0.999999) {
-            n2 = 1 - t;
-            n1 = flag ? -t : t;
+
+        if (dot < 0.95f) {
+            float angle = acosf(dot);
+            return (a * sinf(angle * (1.0f - t)) + b * sinf(angle * t)) * (1.0f / sinf(angle));
         }
-        else {
-            float n4 = acosf(n3);
-            float n5 = 1 / sinf(n4);
-            n2 = sinf((1 - t) * n4) * n5;
-            n1 = flag ? -sinf(t * n4) * n5 : sinf(t * n4) * n5;
-        }
-        Quaternion quaternion;
-        quaternion.x = (n2 * a.x) + (n1 * b.x);
-        quaternion.y = (n2 * a.y) + (n1 * b.y);
-        quaternion.z = (n2 * a.z) + (n1 * b.z);
-        quaternion.w = (n2 * a.w) + (n1 * b.w);
-        return quaternion.normalized();
+        return LerpUnclamped(a, b, t);
     }
 
     void Quaternion::ToAngleAxis(Quaternion rotation, float &angle, Vector3 &axis) {
-        if (rotation.w > 1) rotation = rotation.normalized();
+        if (rotation.w > 1) rotation = Normalize(rotation);
         angle = 2 * acosf(rotation.w);
         float s = sqrt(1 - rotation.w * rotation.w);
         if (s < 0.00001) {
@@ -380,7 +321,7 @@ namespace BNM::Structures::Unity {
             axis.z = rotation.z / s;
         }
     }
-    inline Vector3 Quaternion::RotateVectorByQuat(const Quaternion& lhs, const Vector3& rhs) {
+    inline Vector3 Quaternion::RotateVectorByQuaternion(Quaternion lhs, Vector3 rhs) {
         float x = lhs.x * 2.f;
         float y = lhs.y * 2.f;
         float z = lhs.z * 2.f;

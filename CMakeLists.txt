@@ -33,18 +33,21 @@ set(INCLUDE_DIRS
 add_library(
         BNM
         STATIC
+        src/Class.cpp
+        src/ClassesManagement.cpp
+        src/Coroutine.cpp
+        src/Delegates.cpp
+        src/EventBase.cpp
+        src/FieldBase.cpp
         src/Hooks.cpp
         src/Image.cpp
         src/Internals.cpp
-        src/Class.cpp
-        src/FieldBase.cpp
+        src/Loading.cpp
         src/MethodBase.cpp
+        src/MonoStructures.cpp
         src/PropertyBase.cpp
         src/UnityStructures.cpp
-        src/MonoStructures.cpp
-        src/Loading.cpp
         src/Utils.cpp
-        src/ClassesManagement.cpp
 )
 
 target_include_directories(

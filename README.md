@@ -1,6 +1,6 @@
 ## ByNameModding
 #### English | [Русский](https://github.com/ByNameModding/BNM-Android/tree/RU-master)
-ByNameModding is a library for modding il2cpp games by classes, methods, field names on Android. This edition is focused on working on Android with il2cpp. It includes everything you need for modding unity games.<br>
+ByNameModding is a library for modding il2cpp games by classes, methods, field names on Android. This edition is focused on working on Android with il2cpp. It includes everything you need for modding Unity games.<br>
 Requires C++20 minimum.
 
 ### What you can do with BNM?
@@ -8,7 +8,7 @@ Requires C++20 minimum.
 + Finding [Generic](examples/03_Generic.cpp) classes and methods.
 + Adding [your own classes](examples/05_ClassesManagement.cpp) to game that work even with AssetBundles!
 + [Change game classes](examples/05_ClassesManagement.cpp) by addeding fields and methods.
-+ Use [basic C# structs](examples/02_OtherStructures.cpp) like string (monoString), array (monoArray), dictionary (monoDictionary) that fully work.
++ Use [basic C# structs](examples/02_OtherStructures.cpp) like string (String), array, dictionary (Dictionary) that fully work.
 
 ### New classes
 BNM can add your own class to game, it requires C++20 and above.<br>

@@ -1,80 +1,55 @@
 #pragma once
-#include "Vector3.h"
-namespace BNM::Structures::Unity {
-    template<typename A, typename B>
-    union UnionTuple {
-        A first;
-        B second;
-    };
-    template<typename B, typename A>
-    inline UnionTuple<A, B>& AliasAs(A& a) { return reinterpret_cast<UnionTuple<A, B>&>(a); }
 
-    template<typename B, typename A>
-    inline UnionTuple<A, B> const& AliasAs(A const& a) { return reinterpret_cast<UnionTuple<A, B> const&>(a); }
-    inline bool IsFinite(const float& value) {
-        uint32_t intval = AliasAs<uint32_t>(value).second;
-        return (intval & 0x7f800000) != 0x7f800000;
-    }
+#include "Vector3.h"
+
+namespace BNM::Structures::Unity {
+    struct Vector4;
+
+    inline bool IsFinite(float value) { return (*(uint32_t *) &value & 0x7f800000) != 0x7f800000; }
+
     struct Vector4 {
         union {
             struct { float x, y, z, w; };
             float data[4]{0.f, 0.f, 0.f, 0.f};
         };
-        inline Vector4() = default;
-        inline Vector4(const Vector4& v) : x(v.x), y(v.y), z(v.z), w(v.w) {}
-        inline Vector4(float inX, float inY, float inZ, float inW) : x(inX), y(inY), z(inZ), w(inW) {}
-        inline Vector4(const Vector3& v, float inW) : x(v.x), y(v.y), z(v.z), w(inW) {}
-        inline Vector4(const float* v) : x(v[0]), y(v[1]), z(v[2]), w(v[3]) {}
+        inline constexpr Vector4() = default;
+        inline constexpr Vector4(float inX, float inY, float inZ, float inW) : x(inX), y(inY), z(inZ), w(inW) {}
+        inline constexpr Vector4(Vector3 v, float inW) : x(v.x), y(v.y), z(v.z), w(inW) {}
+        inline Vector4(Color c);
 
-        void Set(float inX, float inY, float inZ, float inW) { x = inX; y = inY; z = inZ; w = inW; }
-        void Set(const float* array) { x = array[0]; y = array[1]; z = array[2]; w = array[3]; }
-        void SetZero() { x = 0.0f; y = 0.0f; z = 0.0f; w = 0.0f; }
+        inline float* GetPtr() { return data; }
+        [[nodiscard]] inline const float* GetPtr() const { return data; }
 
+        inline float& operator[](int i) { return data[i]; }
+        inline const float& operator[](int i) const { return data[i]; }
 
-        bool operator==(const Vector4& v) const { return x == v.x && y == v.y && z == v.z && w == v.w; }
-        bool operator!=(const Vector4& v) const { return x != v.x || y != v.y || z != v.z || w != v.w; }
-        bool operator==(const float v[4]) const { return x == v[0] && y == v[1] && z == v[2] && w == v[3]; }
-        bool operator!=(const float v[4]) const { return x != v[0] || y != v[1] || z != v[2] || w != v[3]; }
+        inline static float Component(Vector4 a, Vector4 b) { return Dot(a, b) / Magnitude(b); }
+        inline static float Distance(Vector4 a, Vector4 b) { return Magnitude(a - b); }
+        inline static float Dot(Vector4 lhs, Vector4 rhs) { return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z + lhs.w * rhs.w; }
+        inline static bool IsFinite(Vector4 f) { return Unity::IsFinite(f.x) & Unity::IsFinite(f.y) & Unity::IsFinite(f.z) && Unity::IsFinite(f.w); }
+        inline static Vector4 Lerp(Vector4 from, Vector4 to, float t) { return to * t + from * (1.0f - t); }
+        inline static Vector4 LerpUnclamped(Vector4 from, Vector4 to, float t) { return (to - from) * t + from; }
+        inline static float Magnitude(Vector4 inV) { return sqrt(Dot(inV, inV)); }
+        inline void Normalize() { *this = Normalize(*this); }
+        inline static Vector4 Normalize(Vector4 v) { float n = Magnitude(v); if (n > 1E-05f) return v / n; return zero; }
+        inline static Vector4 Project(Vector4 a, Vector4 b) { return b * (Dot(a, b) / Dot(b, b)); }
+        inline static bool CompareApproximately(Vector4 a, Vector4 b, float inMaxDist = Vector3::kEpsilon) { return SqrMagnitude(b - a) <= inMaxDist * inMaxDist; }
+        inline static float SqrMagnitude(Vector4 inV) { return Dot(inV, inV); }
 
+        bool operator==(Vector4 v) const { return x == v.x && y == v.y && z == v.z && w == v.w; }
+        bool operator!=(Vector4 v) const { return x != v.x || y != v.y || z != v.z || w != v.w; }
+        inline friend Vector4 operator*(Vector4 lhs, Vector4 rhs) { return {lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z, lhs.w * rhs.w}; }
+        inline friend Vector4 operator*(Vector4 v, float s) { return {v.x * s, v.y * s, v.z * s, v.w * s}; }
+        inline friend Vector4 operator+(Vector4 lhs, Vector4 rhs) { return {lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z, lhs.w + rhs.w}; }
+        inline friend Vector4 operator-(Vector4 lhs, Vector4 rhs) { return {lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z, lhs.w - rhs.w}; }
+        inline friend Vector4 operator/(Vector4 v, float s) { return {v.x / s, v.y / s, v.z / s, v.w / s}; }
+        inline friend Vector4 operator/(Vector4 lhs, Vector4 rhs) { return {lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z, lhs.w / rhs.w}; }
         Vector4 operator-() const { return {-x, -y, -z, -w}; }
+        inline operator Vector3() const { return {x, y, z}; }
 
-
-        static const float infinity;
-        static const Vector4 infinityVec;
+        static const Vector4 positiveinfinity;
+        static const Vector4 negativeInfinity;
         static const Vector4 zero;
         static const Vector4 one;
-
-        inline static Vector4 Project(const Vector4& a, const Vector4& b);
-        inline static Vector4 Lerp(const Vector4& from, const Vector4& to, float t);
-        inline static bool CompareApproximately(const Vector4& inV0, const Vector4& inV1, float inMaxDist = Vector3::kEpsilon);
-        inline static bool IsFinite(const Vector4& f);
-        inline static float Magnitude(const Vector4& inV);
-        inline static float SqrMagnitude(const Vector4& inV);
-        inline static float Dot(const Vector4& lhs, const Vector4& rhs);
-        inline static Vector4 Normalize(const Vector4& a);
-        inline operator Vector3() const;
     };
-    inline Vector4::operator Vector3() const { return {x, y, z}; }
-    inline Vector4 operator*(const Vector4& lhs, const Vector4& rhs) { return {lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z, lhs.w * rhs.w}; }
-    inline Vector4 operator*(const Vector4& inV, const float s) { return {inV.x * s, inV.y * s, inV.z * s, inV.w * s}; }
-    inline Vector4 operator+(const Vector4& lhs, const Vector4& rhs) { return {lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z, lhs.w + rhs.w}; }
-    inline Vector4 operator-(const Vector4& lhs, const Vector4& rhs) { return {lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z, lhs.w - rhs.w}; }
-    inline Vector4 operator/(const Vector4& inV, const float s) { return {inV.x / s, inV.y / s, inV.z / s, inV.w / s}; }
-    inline Vector4 operator/(const Vector4& lhs, const Vector4& rhs) { return {lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z, lhs.w / rhs.w}; }
-    inline float Vector4::Dot(const Vector4& lhs, const Vector4& rhs) { return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z + lhs.w * rhs.w; }
-
-    inline float Vector4::SqrMagnitude(const Vector4& inV) { return Dot(inV, inV); }
-    inline float Vector4::Magnitude(const Vector4& inV) { return sqrt(Dot(inV, inV)); }
-
-    inline bool Vector4::IsFinite(const Vector4& f) { return Structures::Unity::IsFinite(f.x) & Structures::Unity::IsFinite(f.y) & Structures::Unity::IsFinite(f.z) && Structures::Unity::IsFinite(f.w); }
-
-    inline bool Vector4::CompareApproximately(const Vector4& inV0, const Vector4& inV1, const float inMaxDist) { return SqrMagnitude(inV1 - inV0) <= inMaxDist * inMaxDist; }
-
-    inline Vector4 Vector4::Lerp(const Vector4& from, const Vector4& to, float t) { return to * t + from * (1.0f - t); }
-    inline Vector4 Vector4::Project(const Vector4& a, const Vector4& b) { return b * (Dot(a, b) / Dot(b, b)); }
-    inline Vector4 Vector4::Normalize(const Vector4& a) {
-        float num = Magnitude(a);
-        if (num > 1E-05f) return a / num;
-        return zero;
-    }
 }

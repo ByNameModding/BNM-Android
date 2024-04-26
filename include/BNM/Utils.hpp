@@ -2,6 +2,8 @@
 
 #include <csetjmp>
 
+#include <string_view>
+
 #include "UserSettings/GlobalSettings.hpp"
 #include "Il2CppHeaders.hpp"
 
@@ -28,11 +30,11 @@ namespace BNM {
         return nullptr;
     }
 
-    namespace Structures::Mono { struct monoString; }
+    namespace Structures::Mono { struct String; }
 
     // Метод создания C#-строк собираемых сборщиком мусора, если он включён в игре
-    Structures::Mono::monoString *CreateMonoString(const char *str);
-    Structures::Mono::monoString *CreateMonoString(const std::string_view &str);
+    Structures::Mono::String *CreateMonoString(const char *str);
+    Structures::Mono::String *CreateMonoString(const std::string_view &str);
 
     // Получить внешние методы (icall)
     void *GetExternMethod(const std::string_view &str);
@@ -58,9 +60,11 @@ namespace BNM {
         void SetStaticValue(IL2CPP::FieldInfo *info, void *value);
     }
 
+    struct CompileTimeClass;
 #ifdef BNM_DEBUG
     namespace Utils {
         void *OffsetInLib(void *);
+        void LogCompileTimeClass(const BNM::CompileTimeClass &compileTimeClass);
     }
 #endif
 }

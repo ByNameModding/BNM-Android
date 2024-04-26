@@ -27,7 +27,7 @@ namespace BNM {
             auto isStatic = _hasGetter ? _getter._isStatic : _setter._isStatic;
             return Class(_data->parent).str() + OBFUSCATE_BNM(" ") +
                 Class(_data->parent).str() + OBFUSCATE_BNM(".(") +
-                ((Structures::Mono::monoString *)_data->name)->str() + OBFUSCATE_BNM("){" DBG_BNM_MSG_PropertyBase_str_getter ": ") + (_hasGetter ? OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_exists) : OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_not_exists)) + OBFUSCATE_BNM(", " DBG_BNM_MSG_PropertyBase_str_setter ": ") + (_hasSetter ? OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_exists) : OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_not_exists)) + OBFUSCATE_BNM("}") +
+                ((Structures::Mono::String *)_data->name)->str() + OBFUSCATE_BNM("){" DBG_BNM_MSG_PropertyBase_str_getter ": ") + (_hasGetter ? OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_exists) : OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_not_exists)) + OBFUSCATE_BNM(", " DBG_BNM_MSG_PropertyBase_str_setter ": ") + (_hasSetter ? OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_exists) : OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_not_exists)) + OBFUSCATE_BNM("}") +
                 (isStatic ? OBFUSCATE_BNM("(" DBG_BNM_MSG_PropertyBase_str_static ")") : OBFUSCATE_BNM(""));
         }
 #endif

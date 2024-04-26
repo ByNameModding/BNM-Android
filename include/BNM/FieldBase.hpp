@@ -19,7 +19,7 @@ namespace BNM {
         FieldBase &SetInstance(IL2CPP::Il2CppObject *val);
 
         inline IL2CPP::FieldInfo *GetInfo() const { return _data; }
-        inline BNM_PTR GetOffset() const { return _data ? (BNM_PTR) _data->offset : 0; }
+        inline BNM_PTR GetOffset() const { return _data ? (BNM_PTR) _data->offset - (_isInStruct && !_isStatic && !_isThreadStatic ? sizeof(IL2CPP::Il2CppObject) : 0x0) : 0; }
 
         // Получить указатель на поле
         void *GetFieldPointer() const;
@@ -45,7 +45,7 @@ namespace BNM {
 
         BNM::IL2CPP::FieldInfo *_data{};
         BNM::IL2CPP::Il2CppObject *_instance{};
-        uint8_t _init : 1 = false, _isStatic : 1 = false, _isThreadStatic : 1 = false;
+        uint8_t _init : 1 = false, _isStatic : 1 = false, _isThreadStatic : 1 = false, _isInStruct : 1 = false;
     };
 }
 
