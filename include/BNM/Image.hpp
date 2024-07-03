@@ -8,9 +8,6 @@
 #include "DebugMessages.hpp"
 
 namespace BNM {
-
-#pragma pack(push, 1)
-
     struct Class;
 
     struct Image {
@@ -33,14 +30,11 @@ namespace BNM {
 #ifdef BNM_ALLOW_STR_METHODS
         inline std::string_view str() const {
             return _data ? _data->name : OBFUSCATE_BNM(DBG_BNM_MSG_Image_str_nullptr);
-        } // Получить информацию о классе
+        }
 #endif
 
         static std::vector<BNM::Image> GetImages();
 
         BNM::IL2CPP::Il2CppImage *_data{};
     };
-
-#pragma pack(pop)
-
 }

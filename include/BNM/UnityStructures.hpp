@@ -2,16 +2,16 @@
 
 #include <new>
 
-#include "UnityStructures/Color.h"
-#include "UnityStructures/Quaternion.h"
-#include "UnityStructures/Ray.h"
-#include "UnityStructures/RaycastHit.h"
-#include "UnityStructures/Rect.h"
-#include "UnityStructures/Vector2.h"
-#include "UnityStructures/Vector3.h"
-#include "UnityStructures/Vector4.h"
-#include "UnityStructures/Matrix3x3.h"
-#include "UnityStructures/Matrix4x4.h"
+#include "UnityStructures/Color.hpp"
+#include "UnityStructures/Quaternion.hpp"
+#include "UnityStructures/Ray.hpp"
+#include "UnityStructures/RaycastHit.hpp"
+#include "UnityStructures/Rect.hpp"
+#include "UnityStructures/Vector2.hpp"
+#include "UnityStructures/Vector3.hpp"
+#include "UnityStructures/Vector4.hpp"
+#include "UnityStructures/Matrix3x3.hpp"
+#include "UnityStructures/Matrix4x4.hpp"
 
 #include "UserSettings/GlobalSettings.hpp"
 #include "Il2CppHeaders.hpp"
@@ -19,41 +19,44 @@
 #include "Delegates.hpp"
 
 namespace BNM::UnityEngine {
-    // Должен быть использован для новых классов, если родитель: UnityEngine.Object, ScriptableObject
-    // Для System.Object нужно использовать BNM::IL2CPP::Il2CppObject
+    // Should be used for new classes if the parent is UnityEngine.Object, ScriptableObject
+    // For System.Object, use BNM::IL2CPP::Il2CppObject
     struct Object : public BNM::IL2CPP::Il2CppObject {
+        constexpr Object() : BNM::IL2CPP::Il2CppObject({}) {}
         BNM_INT_PTR m_CachedPtr = 0;
         inline bool Alive() { return std::launder(this) && (BNM_PTR)m_CachedPtr; }
         inline bool Same(void *object) { return Same((Object *)object); }
         inline bool Same(Object *object) { return (!Alive() && !object->Alive()) || (Alive() && object->Alive() && m_CachedPtr == object->m_CachedPtr); }
     };
 
-    // Должен быть использован для новых классов, если родитель: MonoBehaviour
+    // Should be used for new classes if the parent is MonoBehaviour
     struct MonoBehaviour : public Object {
 #if UNITY_VER >= 222
         void *m_CancellationTokenSource{};
 #endif
     };
 
-    // Только если объект - дочерний элемент класса UnityEngine.Object или объект - это UnityEngine.Object
+    // Only if the object is a child of the UnityEngine.Object class or object is a UnityEngine.Object
     template <typename T>
     inline bool IsUnityObjectAlive(T o) {
         return ((UnityEngine::Object *)o)->Alive();
-    };
-    // Только если объект - дочерний элемент класса UnityEngine.Object или объект - это UnityEngine.Object
+    }
+
+    // Only if the object is a child of the UnityEngine.Object class or object is a UnityEngine.Object
     template <typename T1, typename T2>
     inline bool IsSameUnityObject(T1 o1, T2 o2) {
         auto obj1 = (UnityEngine::Object *)o1;
         auto obj2 = (UnityEngine::Object *)o2;
         return obj1->Same(obj2);
-    };
+    }
 
     template <typename ...Params>
-    struct UnityAction : MulticastDelegate<void> {
+    struct UnityAction : public MulticastDelegate<void> {
         inline void Invoke(Params ...params) { (MulticastDelegate<void>(*this)).Invoke(params...); }
     };
 
-    struct ArgumentCache : BNM::IL2CPP::Il2CppObject {
+    struct ArgumentCache : public BNM::IL2CPP::Il2CppObject {
+        constexpr ArgumentCache() : BNM::IL2CPP::Il2CppObject({}) {}
         UnityEngine::Object *m_ObjectArgument{};
         Structures::Mono::String *m_ObjectArgumentAssemblyTypeName{};
         int m_IntArgument{};
@@ -62,30 +65,35 @@ namespace BNM::UnityEngine {
         bool m_BoolArgument{};
     };
 
-    struct PersistentCall : BNM::IL2CPP::Il2CppObject {
+    struct PersistentCall : public BNM::IL2CPP::Il2CppObject {
+        constexpr PersistentCall() : BNM::IL2CPP::Il2CppObject({}) {}
         UnityEngine::Object *m_Target{};
         Structures::Mono::String *m_TargetAssemblyTypeName{};
         Structures::Mono::String *m_MethodName{};
         int m_Mode{};
         ArgumentCache *m_Arguments{};
         int m_CallState{};
-        inline bool IsValid() { return m_TargetAssemblyTypeName && m_TargetAssemblyTypeName->length && m_MethodName && m_MethodName->length; }
+        [[nodiscard]] inline bool IsValid() const { return m_TargetAssemblyTypeName && m_TargetAssemblyTypeName->length && m_MethodName && m_MethodName->length; }
     };
 
-    struct PersistentCallGroup : BNM::IL2CPP::Il2CppObject {
+    struct PersistentCallGroup : public BNM::IL2CPP::Il2CppObject {
+        constexpr PersistentCallGroup() : BNM::IL2CPP::Il2CppObject({}) {}
         Structures::Mono::List<PersistentCall *> *m_Calls{};
     };
 
-    struct InvokableCallBase : BNM::IL2CPP::Il2CppObject {
+    struct InvokableCallBase : public BNM::IL2CPP::Il2CppObject {
+        constexpr InvokableCallBase() : BNM::IL2CPP::Il2CppObject({}) {}
         UnityAction<> *action{};
     };
 
     template <typename ...Params>
-    struct InvokableCall : BNM::IL2CPP::Il2CppObject {
+    struct InvokableCall : public BNM::IL2CPP::Il2CppObject {
+        constexpr InvokableCall() : BNM::IL2CPP::Il2CppObject({}) {}
         UnityAction<Params...> *action{};
     };
 
-    struct InvokableCallList : BNM::IL2CPP::Il2CppObject {
+    struct InvokableCallList : public BNM::IL2CPP::Il2CppObject {
+        constexpr InvokableCallList() : BNM::IL2CPP::Il2CppObject({}) {}
         Structures::Mono::List<InvokableCallBase *> *m_PersistentCalls{};
         Structures::Mono::List<InvokableCallBase *> *m_RuntimeCalls{};
         Structures::Mono::List<InvokableCallBase *> *m_ExecutingCalls{};
@@ -93,7 +101,8 @@ namespace BNM::UnityEngine {
 
     };
 
-    struct UnityEventBase : IL2CPP::Il2CppObject {
+    struct UnityEventBase : public IL2CPP::Il2CppObject {
+        constexpr UnityEventBase() : BNM::IL2CPP::Il2CppObject({}) {}
         InvokableCallList *m_Calls{};
         PersistentCallGroup *m_PersistentCalls{};
         bool m_CallsDirty = true;
@@ -104,11 +113,11 @@ namespace BNM::UnityEngine {
         EventDefined = 0, Void = 1, Object = 2, Int = 3, Float = 4, String = 5, Bool = 6
     };
     template<typename ...Params>
-    struct UnityEvent : UnityEventBase {
+    struct UnityEvent : public UnityEventBase {
         Structures::Mono::Array<IL2CPP::Il2CppObject *> *m_InvokeArray{};
 
-        inline void AddListener(UnityAction<Params...> *action) { BNM::Class(klass).GetMethod(OBFUSCATE_BNM("AddListener")).cast<void>().Call(action); }
-        inline void RemoveListener(UnityAction<Params...> *action) { BNM::Class(klass).GetMethod(OBFUSCATE_BNM("RemoveListener")).cast<void>().Call(action); }
+        inline void AddListener(UnityAction<Params...> *action) { BNM::Class(klass).GetMethod(OBFUSCATE_BNM("AddListener")).template cast<void>().Call(action); }
+        inline void RemoveListener(UnityAction<Params...> *action) { BNM::Class(klass).GetMethod(OBFUSCATE_BNM("RemoveListener")).template cast<void>().Call(action); }
 
         inline void Invoke(Params ...params) {
             InvokePersistent(params...);
@@ -157,7 +166,7 @@ namespace BNM::UnityEngine {
                         methodBase = targetType.GetMethod(methodName, {BNM::GetType<bool>()});
                         break;
                 }
-                if (!methodBase || !methodBase._isStatic && !persistentCall->m_Target) continue;
+                if (!methodBase.Initialized() || !methodBase._isStatic && !persistentCall->m_Target) continue;
 
                 methodBase.cast<void>()(params...);
             }

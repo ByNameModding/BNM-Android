@@ -4,10 +4,10 @@
 void OnLoaded_Example_04() {
     using namespace BNM;
 
-    // CompileTimeClass используется для ClassesManagement для поиска классов
-    // Напрямую его создать нельзя, поэтому существует CompileTimeClassBuilder
+    // CompileTimeClass is used for ClassesManagement to find classes
+    // It cannot be created directly, so there is a CompileTimeClassBuilder
 
-    // Предположим, есть такая структура:
+    // Suppose there is such a structure:
     /*
      namespace ExampleNamespace {
         class ExampleClass {
@@ -19,15 +19,17 @@ void OnLoaded_Example_04() {
         }
      }
      */
-    // И вам нужен класс-массив ExampleInnerGenericClass<int, float, ExampleClass>[]
+    // And you need an array class ExampleInnerGenericClass<int, float, ExampleClass>[]
 
-    auto targetClass = CompileTimeClassBuilder().Class(OBFUSCATE_BNM("ExampleClass"), OBFUSCATE_BNM("ExampleNamespace"))
-            .Class(OBFUSCATE_BNM("ExampleInnerClass"))
-            .Class(OBFUSCATE_BNM("ExampleInnerGenericClass`3"))
+    auto targetClass = CompileTimeClassBuilder(OBFUSCATE_BNM("ExampleNamespace"), OBFUSCATE_BNM("ExampleClass")) // ExampleNamespace.ExampleClass
+            .Class(OBFUSCATE_BNM("ExampleInnerClass")) // ExampleNamespace.ExampleClass.ExampleInnerClass
+            .Class(OBFUSCATE_BNM("ExampleInnerGenericClass`3")) // ExampleNamespace.ExampleClass.ExampleInnerClass.ExampleInnerGenericClass<T1, T2, T3>
             .Generic({
                 BNM::GetType<int>(),
                 BNM::GetType<float>(),
-                CompileTimeClassBuilder().Class(OBFUSCATE_BNM("ExampleClass"), OBFUSCATE_BNM("ExampleNamespace")).Build()
-            })
-            .Modifier(CompileTimeClass::ModifierType::Array).Build();
+                CompileTimeClassBuilder(OBFUSCATE_BNM("ExampleNamespace"), OBFUSCATE_BNM("ExampleClass")).Build()
+            }) // ExampleNamespace.ExampleClass.ExampleInnerClass.ExampleInnerGenericClass<int, float, ExampleNamespace.ExampleClass>
+            .Modifier(CompileTimeClass::ModifierType::Array) // ExampleNamespace.ExampleClass.ExampleInnerClass.ExampleInnerGenericClass<int, float, ExampleNamespace.ExampleClass>[]
+            .Build();
+
 }

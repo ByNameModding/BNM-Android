@@ -19,16 +19,13 @@ IL2CPP::Il2CppClass *Internal::BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppR
 }
 
 void Internal::Image$$GetTypes(const IL2CPP::Il2CppImage *image, bool, std::vector<BNM::IL2CPP::Il2CppClass *> *target) {
-#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
-    std::shared_lock<std::shared_mutex> lock(findClassesMutex);
-#endif
-    // Получить не BNM-классы
+    // Get non-BNM classes
     if (image->nameToClassHashTable != (decltype(image->nameToClassHashTable))-0x424e4d)
         orig_Image$$GetTypes(image, false, target);
 
 #ifdef BNM_CLASSES_MANAGEMENT
-    // Получить BNM-классы
-    ClassesManagement::BNMClassesMap.forEachByImage(image, [&target](IL2CPP::Il2CppClass *BNM_class) -> bool {
+    // Get BNM classes
+    ClassesManagement::BNMClassesMap.ForEachByImage(image, [&target](IL2CPP::Il2CppClass *BNM_class) -> bool {
         target->push_back(BNM_class);
         return false;
     });
@@ -37,41 +34,41 @@ void Internal::Image$$GetTypes(const IL2CPP::Il2CppImage *image, bool, std::vect
 
 #ifdef BNM_CLASSES_MANAGEMENT
 
-// Подмена `FromIl2CppType`, чтобы предотвратить вылет il2cpp при попытке получить класс из типа, созданного BNM
+// Hook `FromIl2CppType' to prevent il2cpp from crashing when trying to get a class from a type created by BNM
 IL2CPP::Il2CppClass *Internal::ClassesManagement::Class$$FromIl2CppType(IL2CPP::Il2CppType *type) {
     if (!type) return nullptr;
 
-    // Проверить, создан ли тип BNM
+    // Check if type is BNM created
     if (type->num_mods == 31) return (IL2CPP::Il2CppClass *)type->data.dummy;
 
     return old_Class$$FromIl2CppType(type);
 }
 
-// Подмена `GetClassOrElementClass`, чтобы предотвратить вылет il2cpp при попытке unity загрузить пакет с полем класс которого, создан BNM
+// Hook `GetClassOrElementClass' to prevent il2cpp from crashing when unity tries to load a package with a field whose class was created by BNM
 IL2CPP::Il2CppClass *Internal::ClassesManagement::Type$$GetClassOrElementClass(IL2CPP::Il2CppType *type) {
     if (!type) return nullptr;
 
-    // Проверить, создан ли тип BNM
+    // Check if type is BNM created
     if (type->num_mods == 31) return (IL2CPP::Il2CppClass *)type->data.dummy;
 
     return old_Type$$GetClassOrElementClass(type);
 }
 
-// Подмена `FromName`, чтобы предотвратить вылет il2cpp при попытке найти класс, созданный BNM
+// Hook `FromName` to prevent il2cpp from crashing when trying to find a class created by BNM
 IL2CPP::Il2CppClass *Internal::ClassesManagement::Class$$FromName(IL2CPP::Il2CppImage *image, const char *namespaze, const char *name) {
     if (!image) return nullptr;
 
     IL2CPP::Il2CppClass *ret = nullptr;
 
-    // Проверить, создан ли образ BNM
+    // Check if image is BNM created
     if (image->nameToClassHashTable != (decltype(image->nameToClassHashTable)) -0x424e4d)
         ret = old_Class$$FromName(image, namespaze, name);
 
-    // Если через BNM, ищем класс
-    if (!ret) BNMClassesMap.forEachByImage(image, [namespaze, name, &ret](IL2CPP::Il2CppClass *BNM_class) -> bool {
+    // If through BNM, we are looking for a class
+    if (!ret) BNMClassesMap.ForEachByImage(image, [namespaze, name, &ret](IL2CPP::Il2CppClass *BNM_class) -> bool {
             if (!strcmp(namespaze, BNM_class->namespaze) && !strcmp(name, BNM_class->name)) {
                 ret = BNM_class;
-                // Найдено, останавливаем for
+                // Found, stop for
                 return true;
             }
             return false;
@@ -80,15 +77,15 @@ IL2CPP::Il2CppClass *Internal::ClassesManagement::Class$$FromName(IL2CPP::Il2Cpp
     return ret;
 }
 
-// Требуются, потому что в Unity 2017 и ниже в образах и сборках они хранятся по номерам
+// Required because in Unity 2017 and below, they are stored by numbers in images and assemblies
 #if UNITY_VER <= 174
 IL2CPP::Il2CppImage *Internal::ClassesManagement::new_GetImageFromIndex(IL2CPP::ImageIndex index) {
-    // Номер меньше 0, значит, это сборка BNM
+    // The number is less than 0, which means it is BNM assembly
     if (index < 0) {
         IL2CPP::Il2CppImage *ret = nullptr;
 
-        // Перебрать все образы и проверить, совпадает ли номер
-        BNMClassesMap.forEach([index, &ret](IL2CPP::Il2CppImage *img, const std::vector<IL2CPP::Il2CppClass *> &classes) -> bool {
+        // Go through all the images and check if the number matches
+        BNMClassesMap.ForEach([index, &ret](IL2CPP::Il2CppImage *img, const std::vector<IL2CPP::Il2CppClass *> &classes) -> bool {
             if (img->assemblyIndex == index) {
                 ret = img;
                 return true;
@@ -102,18 +99,18 @@ IL2CPP::Il2CppImage *Internal::ClassesManagement::new_GetImageFromIndex(IL2CPP::
     return old_GetImageFromIndex(index);
 }
 
-// Все запросы перенаправляются в BNM и обрабатываются им
-// В Unity 2017 и ниже имена хранятся, как номер в метаданных, поэтому мы не можем их использовать
-// Но мы можем проверить название по образам
+// All requests are redirected to BNM and processed by it
+// In Unity 2017 and below, the names are stored as a number in the metadata, so we can't use them
+// But we can check the name by images
 IL2CPP::Il2CppAssembly *Internal::ClassesManagement::Assembly$$Load(const char *name) {
     auto &assemblies = *Assembly$$GetAllAssemblies();
 
     for (auto assembly : assemblies) {
 
-        // Получить образ для сборки
+        // Get image for assembly
         auto image = new_GetImageFromIndex(assembly->imageIndex);
 
-        // Проверить, совпадают ли имена
+        // Check if the names match
         if (CompareImageName(image, name)) return assembly;
     }
 

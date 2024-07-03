@@ -7,18 +7,18 @@
 #include <BNM/Operators.hpp>
 #include <BNM/BasicMonoStructures.hpp>
 
-// Нужно, чтобы не писать BNM::Structures для каждого типа
-using namespace BNM::Structures; // Mono::String, Mono::Array и т. д.
-using namespace BNM::Operators; // Операторы для методов, полей и свойств
+// Used to not write BNM::Structures for each type
+using namespace BNM::Structures; // Mono::String, Mono::Array etc.
+using namespace BNM::Operators; // Operators for methods, fields, and properties
 
-// Переменная для хранения класса
+// Variable for storing class
 BNM::Class ObjectClass{};
-// Переменная для хранения свойства
+// Variable for storing property
 BNM::Property<Mono::String *> ObjectName{};
-// Переменная для хранения метода
+// Variable for storing method
 BNM::Method<Mono::String *> ObjectToString{};
 
-// Переменная для хранения поля
+// Variable for storing field
 BNM::Field<void *> PlayerConfig{};
 
 
@@ -26,99 +26,97 @@ BNM::Field<Mono::String *> ConfigName{};
 BNM::Field<int> ConfigHealth{};
 BNM::Field<int> ConfigCoins{};
 
-// Переменная для хранения ссылки на поле
+// Variable for storing pointer to field
 void **PlayerConfigPtr = nullptr;
 BNM::UnityEngine::Object *Player = nullptr;
 
 void (*old_PlayerStart)(BNM::UnityEngine::Object *);
 void PlayerStart(BNM::UnityEngine::Object *instance) {
-    old_PlayerStart(instance); // Вызвать оригинальный код
+    old_PlayerStart(instance); // Call original code
 
-    // Проверка на то, жив ли Unity объект (UnityEngine.Object и его дочерние классы)
-    //! ВСЕГДА используйте такую проверку вместо простой проверки на nullptr!
+    // Checking whether the Unity object is alive (UnityEngine.Object and its child classes)
+    //! ALWAYS use this check instead of basic nullptr check!
     if (Player->Alive() /*BNM::UnityEngine::IsUnityObjectAlive(Player)*/) {
-        BNM_LOG_WARN("Start игрока вызван дважды?");
+        BNM_LOG_WARN("Player's Start called twice?");
     }
 
     Player = instance;
 
-    //! String - C# строка (string или System.String) в BNM
+    //! Mono::String - C# string (string or System.String) in BNM
 
-    // В данном случае у поля есть тип и свойство автоматически вызовет метод Get чтобы получить имя.
-    // Если использовать auto, то поле будет копией ObjectName и придётся либо вызывать Get() либо добавлять () к ObjectName т.е.:
-    // (instance >> ObjectName)() // для >> и ->*
-    // ObjectName[instance]() // для []
+    // In this case, the field has a type and the property will automatically call the Get method to get the name.
+    // If you use auto, the field will be a copy of objectName and you will either have to call Get() or add() to objectName, i.e.:
+    // (instance >> ObjectName)() // for >> and ->*
+    // ObjectName[instance]() // for []
     Mono::String *playerObjectName =
-            // Установить instance в ObjectName через оператор ->*
-            // Алтернативы:
+            // Alternatives:
             // * instance >> ObjectName
-            // * ObjectName[instance]
-            instance->*ObjectName;
+            // * instance->*ObjectName;
+            ObjectName[instance];
 
-    // Получить ссылку на данные поля
+    // Get pointers to these fields
     PlayerConfigPtr = PlayerConfig[instance].GetPointer();
 
-    // В случае полей оператор ->* сразу возвращает ссылку на данные поля
+    // In the case of fields, the ->* operator immediately returns a reference to the field data
     auto playerName = *PlayerConfigPtr->*ConfigName;
 
-    // Вывести в лог имя объекта игрока
-    BNM_LOG_INFO("Имя объекта игрока: \"%s\"; Имя игрока: \"%s\"",
-                 // str() - конвертировать строку в std::string
+    // Log name of the player's object
+    BNM_LOG_INFO("Player's object name: \"%s\"; Player's name: \"%s\"",
+                 // str() - convert string to std::string
                  playerObjectName->str().c_str(),
-                 // -> - оператор итератора для проверки данных и предупреждения, если они не верны (в режиме отладке)
+                 // -> - iterator operator for checking data and warning if it is incorrect (in debugging mode)
                  playerName->str().c_str());
 
-    //! Вызвать ObjectToString, в () можно писать аргументы, как при вызове любых методов
-    // Альтернативный вариант вызова метода с объектом
+    //! Call ObjectToString, you can write arguments in (), as when calling any methods
+    // Alternative method call with an object
     //     auto objectToStringResult = (instance >> ObjectToString)();
 
     auto objectToStringResult = ObjectToString[instance]();
     BNM_LOG_INFO("objectToStringResult: \"%s\"", objectToStringResult->str().c_str());
 
 
-    //! Меняем имя игрока
-    
-    // Строку можно создать 2 способами:
-    // * String::Create - не попадает в сборщик мусора Unity, т.е. вам нужно будет вручную удалять её
-    // * BNM::CreateMonoString - попадает в сборщик мусора Unity, и он сам удалит её когда будет нужно
-    
-    // В данном случае лучше использовать BNM::CreateMonoString т.к. эта строка будет в игре ещё какое-то время и поэтому вручную её удалять будет неудобно
-    *playerName = BNM::CreateMonoString(OBFUSCATE_BNM("BNM_Player"));
+    //! Changing the player's name
 
+    // The string can be created in 2 ways:
+    // * String::Create - does not get into the Unity garbage collector, i.e. you will need to manually delete it
+    // * BNM::CreateMonoString - gets into the Unity garbage collector, and it will delete it itself when needed
+
+    // In this case, it is better to use BNM::CreateMonoString because this string will be in the game for some time and therefore it will be inconvenient to manually delete it
+    *playerName = BNM::CreateMonoString(OBFUSCATE_BNM("BNM_Player"));
 }
 
 void (*old_PlayerUpdate)(BNM::UnityEngine::Object *);
 void PlayerUpdate(BNM::UnityEngine::Object *instance) {
-    old_PlayerUpdate(instance); // Вызвать оригинальный код
+    old_PlayerUpdate(instance); // Call original code
 
-    // Проверка верна ли ссылка на данные поля m_Config
+    // Checking whether the pointer to the m_Config field data is correct
     if (PlayerConfigPtr == nullptr) return;
 
-    // Установить 99999 жизней используя оператор ->*
+    // Set 99999 lives using the operator ->*
     //! *((*PlayerConfigPtr)->*ConfigHealth) = 99999;
-    // Или используя []
+    // Or using []
     ConfigHealth[*PlayerConfigPtr] = 99999;
 
-    // Установить 99999 монет
+    // Set 99999 coins
     ConfigCoins[*PlayerConfigPtr] = 99999;
 }
 
 
-// Тут можно получить всю нужную информацию
+// Here you can get all the necessary information
 void OnLoaded_Example_01() {
-    using namespace BNM; // Чтобы не писать BNM:: в этом методе
+    using namespace BNM; // To avoid writing BNM:: in this method
 
-    // Получить класс UnityEngine.Object
+    // Get the UnityEngine class.Object
     ObjectClass = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object"));
 
-    // Получить метод UnityEngine.Object::ToString с 0 параметров
+    // Get UnityEngine.Object::ToString method with 0 parameters
     ObjectToString = ObjectClass.GetMethod(OBFUSCATE_BNM("ToString"), 0);
 
-    // Получить свойство UnityEngine.Object::name
+    // Get UnityEngine.Object::name property
     ObjectName = ObjectClass.GetProperty(OBFUSCATE_BNM("name"));
 
 
-    /* Представим себе, что в игре есть класс:
+    /* Let's imagine that there is a class in the game:
         public class Player : MonoBehaviour {
             private void Start();
             private void Update();
@@ -131,32 +129,32 @@ void OnLoaded_Example_01() {
             }
         }
     */
-    // Получить класс Player
+    // Get the Player class
     auto PlayerClass = Class(OBFUSCATE_BNM(""), OBFUSCATE_BNM("Player"));
 
-    // Получить класс Player::Config
+    // Get the Player::Config class
     auto PlayerConfigClass = PlayerClass.GetInnerClass(OBFUSCATE_BNM("Config"));
 
-    // Получить методы Update и Start класса Player
+    // Get the Update and Start methods of the Player class
     auto Update = PlayerClass.GetMethod(OBFUSCATE_BNM("Update"));
     auto Start = PlayerClass.GetMethod(OBFUSCATE_BNM("Start"));
 
-    // Получить поле Player.m_Config
+    // Get the Player.m_Config field
     PlayerConfig = PlayerClass.GetField(OBFUSCATE_BNM("m_Config"));
 
-    // Получить поля Player::Config
+    // Get Player::Config's fields
     ConfigName = PlayerConfigClass.GetField(OBFUSCATE_BNM("Name"));
     ConfigHealth = PlayerConfigClass.GetField(OBFUSCATE_BNM("Health"));
     ConfigCoins = PlayerConfigClass.GetField(OBFUSCATE_BNM("Coins"));
 
-    // Подменить методы Update и Start
+    // Hook Update and Start methods
 
-    // Есть 3 метода для подмены методов:
-    // * HOOK - подмена через ПО для подмены методов
-    // * InvokeHook - подмена работающая для тех методов, которые вызываются напрямую движком (конструкторы (.ctor), события (Start, Update и т.п.) )
-    // * VirtualHook - подмена для virtual методов
+    // There are 3 methods for hooking methods:
+    // * HOOK - hook via hooking software
+    // * InvokeHook - hook that works for those methods that are called directly by the engine (constructors (.ctor), events (Start, Update, etc.))
+    // * VirtualHook - hook for virtual methods
 
-    // Для подмены Start и Update для данного класса самым лучим вариантом является InvokeHook
+    // To replace Start and Update for this class, the best option is InvokeHook
     InvokeHook(Update, PlayerUpdate, old_PlayerUpdate);
     InvokeHook(Start, PlayerStart, old_PlayerStart);
 }

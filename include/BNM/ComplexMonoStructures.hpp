@@ -9,8 +9,8 @@
 #include "Method.hpp"
 #include "Delegates.hpp"
 
-// Обычный C#-словарь (Dictionary)
 namespace BNM::Structures::Mono {
+    // Basic C# Dictionary (Dictionary)
     template<typename TKey, typename TValue>
     struct Dictionary : BNM::IL2CPP::Il2CppObject {
 #ifdef BNM_DOTNET35

@@ -22,15 +22,15 @@ EventBase::EventBase(const IL2CPP::EventInfo *info) {
 
 EventBase::EventBase(const BNM::MethodBase &newAdd, const BNM::MethodBase &newRemove, const BNM::MethodBase &newRaise) {
     _hasAdd = _hasRemove = _hasRaise = false;
-    if (newAdd) {
+    if (newAdd.Initialized()) {
         _hasAdd = true;
         _add = newAdd;
     }
-    if (newRemove) {
+    if (newRemove.Initialized()) {
         _hasRemove = true;
         _remove = newRemove;
     }
-    if (newRaise) {
+    if (newRaise.Initialized()) {
         _hasRaise = true;
         _raise = newRaise;
     }

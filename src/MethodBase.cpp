@@ -41,7 +41,7 @@ MethodBase MethodBase::GetGeneric(const std::initializer_list<CompileTimeClass> 
 }
 
 MethodBase MethodBase::Virtualize() const {
-    if (!_init || _isStatic) return {};
+    if (!_init || _isStatic || (_data->flags & 0x0040) == 0) return {};
     if (!BNM::CheckObj(_instance)) {
         BNM_LOG_WARN(DBG_BNM_MSG_MethodBase_Virtualize_Warn, str().c_str());
         return {};
@@ -54,7 +54,7 @@ MethodBase MethodBase::Virtualize() const {
         auto &vTable = klass->vtable[i];
         auto count = vTable.method->parameters_count;
 
-        if (strcmp(vTable.method->name, _data->name) || count != _data->parameters_count) continue;
+        if (strcmp(vTable.method->name, _data->name) != 0 || count != _data->parameters_count) continue;
 
         for (uint8_t p = 0; p < count; ++p) {
 #if UNITY_VER < 212

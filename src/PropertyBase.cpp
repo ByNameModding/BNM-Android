@@ -19,11 +19,11 @@ PropertyBase::PropertyBase(const IL2CPP::PropertyInfo *info) {
 
 PropertyBase::PropertyBase(const MethodBase &newGetter, const MethodBase &newSetter)  {
     _hasGetter = _hasSetter = false;
-    if (newGetter) {
+    if (newGetter.Initialized()) {
         _hasGetter = true;
         _getter = newGetter;
     }
-    if (newSetter) {
+    if (newSetter.Initialized()) {
         _hasSetter = true;
         _setter = newSetter;
     }

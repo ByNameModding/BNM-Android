@@ -57,7 +57,7 @@ std::vector<BNM::Class> BNM::Image::GetClasses(bool includeInner) const {
     NEW_CLASSES:
 
 #ifdef BNM_CLASSES_MANAGEMENT
-    Internal::ClassesManagement::BNMClassesMap.forEachByImage(_data, [&classes, includeInner](IL2CPP::Il2CppClass *BNMClass) -> bool {
+    Internal::ClassesManagement::BNMClassesMap.ForEachByImage(_data, [&classes, includeInner](IL2CPP::Il2CppClass *BNMClass) -> bool {
         if (!includeInner && BNMClass->declaringType) return false;
 
         classes.push_back(BNMClass);
@@ -65,7 +65,7 @@ std::vector<BNM::Class> BNM::Image::GetClasses(bool includeInner) const {
     });
 #endif
 
-    // Хитрый способ сделать копию с нужным типом без for, т.к. BNM::Class - это BNM::IL2CPP::Il2CppClass *.
+    // A clever way to make a copy with the desired type without for, because BNM::Class is BNM::IL2CPP::Il2CppClass *.
     return *(std::vector<BNM::Class> *) &classes;
 }
 

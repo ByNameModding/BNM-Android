@@ -4,32 +4,28 @@
 #include "MethodBase.hpp"
 #include "Utils.hpp"
 
-
 namespace BNM {
-    namespace UnityEngine {
-        struct Object;
-    }
 
 #pragma pack(push, 1)
 
-    template<typename Ret = void>
+    template<typename Ret>
     struct Method : public MethodBase {
-        inline constexpr Method() = default;
+        constexpr Method() noexcept = default;
         template<typename OtherType>
         Method(const Method<OtherType> &other) : MethodBase(other) {}
         Method(const IL2CPP::MethodInfo *info) : MethodBase(info) {}
         Method(const IL2CPP::Il2CppReflectionMethod *reflectionMethod) : MethodBase(reflectionMethod) {}
         Method(const MethodBase &other) : MethodBase(other) {}
 
-        // Быстрая установка объекта
+        // Fast set instance
         inline Method<Ret> &operator[](void *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
         inline Method<Ret> &operator[](IL2CPP::Il2CppObject *val) { SetInstance(val); return *this;}
         inline Method<Ret> &operator[](UnityEngine::Object *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
 
-        // Вызвать метод
+        // Call method
         template<typename ...Parameters>
         Ret Call(Parameters ...parameters) const {
-            if (!_init) { if constexpr (std::is_same<Ret, void>::value) return; else return {}; }
+            if (!_init) { BNM_LOG_ERR(DBG_BNM_MSG_Method_Call_Dead); if constexpr (std::is_same<Ret, void>::value) return; else return {}; }
             bool canInfo = true;
             if (sizeof...(Parameters) != _data->parameters_count){
                 canInfo = false;
@@ -53,11 +49,11 @@ namespace BNM {
 #endif
         }
 
-        // Быстро вызвать метод
+        // Fast method call
         template<typename ...Parameters> inline Ret operator ()(Parameters ...parameters) { return Call(parameters...); }
         template<typename ...Parameters> inline Ret operator ()(Parameters ...parameters) const { return Call(parameters...); }
 
-        // Скопировать другой метод, только для автоматического приведения типов
+        // Copy other method, only for auto casts
         inline Method<Ret> &operator =(const MethodBase &other) {
             _data = other._data;
             _instance = other._instance;

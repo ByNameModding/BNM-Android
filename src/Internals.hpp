@@ -13,6 +13,10 @@
 #include <BNM/Loading.hpp>
 
 
+#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
+#include <shared_mutex>
+#endif
+
 namespace BNM::Internal {
 
     extern bool state;
@@ -22,9 +26,9 @@ namespace BNM::Internal {
     extern void *usersFinderMethodData;
 
 #pragma pack(push, 1)
-    // Список с переменными из виртуальной машины il2cpp
+    // A list with variables from the il2cpp VM
     struct _VMData {
-        BNM::Class Object{}, UnityEngine$$Object{};
+        BNM::Class Object{}, UnityEngine$$Object{}, System$$List{};
         BNM::Method<IL2CPP::Il2CppReflectionType *> Type$$GetType{};
         BNM::Method<void *> Interlocked$$CompareExchange{};
         BNM::Method<BNM::MonoType *> RuntimeType$$MakeGenericType{};
@@ -34,7 +38,7 @@ namespace BNM::Internal {
         BNM::Structures::Mono::String **String$$Empty{};
     } extern vmData;
 
-    // il2cpp методы, чтобы не искать их каждый запрос BNM
+    // il2cpp methods to avoid searching for them every BNM call
     struct _IL2CppMethods {
         BNM::IL2CPP::Il2CppImage *(*il2cpp_get_corlib)(){};
         BNM::IL2CPP::Il2CppClass *(*il2cpp_class_from_name)(const BNM::IL2CPP::Il2CppImage *, const char *, const char *){};
@@ -51,6 +55,7 @@ namespace BNM::Internal {
         void (*il2cpp_field_static_set_value)(const BNM::IL2CPP::FieldInfo *, void *){};
         BNM::Structures::Mono::String *(*il2cpp_string_new)(const char *){};
         void *(*il2cpp_resolve_icall)(const char *){};
+        void *(*il2cpp_runtime_invoke)(BNM::IL2CPP::MethodInfo *, void *, void **, BNM::IL2CPP::Il2CppException **);
     } extern il2cppMethods;
 
 #pragma pack(pop)
@@ -107,12 +112,16 @@ namespace BNM::Internal {
         return nullptr;
     }
 
+#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
+    extern std::shared_mutex loadingMutex;
+#endif
+
 #ifdef BNM_CLASSES_MANAGEMENT
     namespace ClassesManagement {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
-        extern std::shared_mutex classesFindAccessMutex, customClassesMutex;
+        extern std::shared_mutex classesFindAccessMutex;
 #endif
-        // Список со всеми классами, которые BNM должен создать/изменить
+        // A list with all the classes that BNM should create/modify
         extern std::vector<MANAGEMENT_STRUCTURES::CustomClass *> *classesManagementVector;
 
         extern IL2CPP::Il2CppClass *(*old_Class$$FromIl2CppType)(IL2CPP::Il2CppType *type);
@@ -125,7 +134,7 @@ namespace BNM::Internal {
         IL2CPP::Il2CppClass *Class$$FromName(IL2CPP::Il2CppImage *image, const char *namespaze, const char *name);
 
 #if UNITY_VER <= 174
-        // Требуются, потому что в Unity 2017 и ниже в образах (image) и сборках (assembly) они хранятся по номерам
+        // They are required because in Unity 2017 and below, in images and assemblies, they are stored by numbers
 
         extern IL2CPP::Il2CppImage *(*old_GetImageFromIndex)(IL2CPP::ImageIndex index);
         IL2CPP::Il2CppImage *new_GetImageFromIndex(IL2CPP::ImageIndex index);
@@ -135,54 +144,48 @@ namespace BNM::Internal {
 
         void ProcessCustomClasses();
 
-#pragma pack(push, 1)
-
-        extern struct _BNMClassesMap { // Структура для быстрого поиска классов по их образам
-            // Добавить класс к образу
-            inline void addClass(const IL2CPP::Il2CppImage *image, IL2CPP::Il2CppClass *cls) {
-                return addClass((BNM_PTR)image, cls);
+        // Structure for quick search classes by their images
+        extern struct _BNMClassesMap {
+            inline void AddClass(const IL2CPP::Il2CppImage *image, IL2CPP::Il2CppClass *cls) {
+                return AddClass((BNM_PTR)image, cls);
             }
 
-            inline void addClass(BNM_PTR image, IL2CPP::Il2CppClass *cls) {
+            inline void AddClass(BNM_PTR image, IL2CPP::Il2CppClass *cls) {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
                 std::shared_lock lock(classesFindAccessMutex);
 #endif
-                map[image].emplace_back(cls);
-            }
-
-            // Перебрать все классы, добавленные к образу
-            template <class IterateMethod>
-            inline void forEachByImage(const IL2CPP::Il2CppImage *image, IterateMethod func) {
-#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
-                std::shared_lock lock(classesFindAccessMutex);
-#endif
-                return forEachByImage((BNM_PTR)image, func);
+                _map[image].emplace_back(cls);
             }
 
             template <class IterateMethod>
-            inline void forEachByImage(BNM_PTR image, IterateMethod func) {
+            inline void ForEachByImage(const IL2CPP::Il2CppImage *image, IterateMethod func) {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
                 std::shared_lock lock(classesFindAccessMutex);
 #endif
-                for (auto item : map[image]) if (func(item)) break;
+                return ForEachByImage((BNM_PTR)image, func);
             }
 
-            // Перебрать все образы с их классами
             template <class IterateMethod>
-            inline void forEach(IterateMethod func) {
+            inline void ForEachByImage(BNM_PTR image, IterateMethod func) {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
                 std::shared_lock lock(classesFindAccessMutex);
 #endif
-                for (auto &[img, classes] : map)
+                for (auto item : _map[image]) if (func(item)) break;
+            }
+
+            template <class IterateMethod>
+            inline void ForEach(IterateMethod func) {
+#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
+                std::shared_lock lock(classesFindAccessMutex);
+#endif
+                for (auto &[img, classes] : _map)
                     if (func((IL2CPP::Il2CppImage *)img, classes))
                         break;
             }
         private:
-            std::map<BNM_PTR, std::vector<IL2CPP::Il2CppClass *>> map;
+            std::map<BNM_PTR, std::vector<IL2CPP::Il2CppClass *>> _map{};
         } BNMClassesMap;
     }
-
-#pragma pack(pop)
 
 #endif
 

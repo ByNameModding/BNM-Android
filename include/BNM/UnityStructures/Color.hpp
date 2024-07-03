@@ -1,5 +1,8 @@
 #pragma once
+
 #include <string>
+#include <algorithm>
+
 namespace BNM::Structures::Unity {
     struct Vector4;
 

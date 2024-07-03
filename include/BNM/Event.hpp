@@ -46,10 +46,10 @@ namespace BNM {
         inline Ret operator()(Args ...args) { return Raise(args...); }
         inline Ret operator()(Args ...args) const { return Raise(args...); }
 
-        // Проверить, живо ли свойство
+        // Check if the event is alive
         inline bool Initialized() const noexcept { return _hasAdd || _hasRemove || _hasRaise; }
 
-        // Скопировать другое свойство, только для автоматического приведения типов
+        // Copy another event, only for automatic type conversion
         Event<Ret> &operator =(const EventBase &other) {
             _data = other._data;
             _add = other._add;

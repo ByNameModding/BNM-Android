@@ -5,7 +5,6 @@
 #include "UnityStructures.hpp"
 #include "MethodBase.hpp"
 
-
 namespace BNM {
 
 #pragma pack(push, 1)
@@ -18,10 +17,10 @@ namespace BNM {
         EventBase(const IL2CPP::EventInfo *info);
         EventBase(const MethodBase &newAdd, const MethodBase &newRemove, const MethodBase &newRaise);
 
-        // Установить объект
+        // Set object
         EventBase &SetInstance(IL2CPP::Il2CppObject *val);
 #ifdef BNM_ALLOW_STR_METHODS
-        // Получить данные
+        // Get data
         [[nodiscard]] inline std::string str() const {
             if (!_hasAdd && !_hasRemove && !_hasRaise) return OBFUSCATE_BNM(DBG_BNM_MSG_EventBase_str_nullptr);
             auto isStatic = _hasAdd ? _add._isStatic : _hasRemove ? _remove._isStatic : _raise._isStatic;
@@ -35,12 +34,12 @@ namespace BNM {
         }
 #endif
 
-        // Быстрая установка объекта
+        // Fast set instance
         inline EventBase &operator[](void *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
         inline EventBase &operator[](IL2CPP::Il2CppObject *val) { SetInstance(val); return *this;}
         inline EventBase &operator[](UnityEngine::Object *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
 
-        // Изменить тип свойства
+        // Cast event
         template<typename NewRet, typename ...NewArgs> inline Event<NewRet, NewArgs...> &cast() const { return (Event<NewRet, NewArgs...> &)*this; }
 
         IL2CPP::EventInfo *_data{};

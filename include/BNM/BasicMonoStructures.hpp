@@ -49,7 +49,7 @@ namespace BNM::Utils {
         }
     };
 }
-// Обычные классы C# (строка, массив, список) (string, [], List)
+// Common C# classes (string, array, list) (string, [], List)
 namespace BNM::Structures::Mono {
 
     template<typename T> struct List;
@@ -62,12 +62,12 @@ namespace BNM::Structures::Mono {
         int length{};
         IL2CPP::Il2CppChar chars[0];
         std::string str();
-        unsigned int GetHash() const;
+        [[nodiscard]] unsigned int GetHash() const;
         static String *Create(const char *str);
         static String *Create(const std::string &str);
         static String *Empty();
 #ifdef BNM_ALLOW_SELF_CHECKS
-        bool SelfCheck() const;
+        [[nodiscard]] bool SelfCheck() const;
 #endif
         void Destroy();
         inline bool IsNullOrEmpty() { return !std::launder(this) || !length; }
@@ -97,7 +97,7 @@ namespace BNM::Structures::Mono {
         inline Utils::DataIterator<T> At(IL2CPP::il2cpp_array_size_t index) const { BNM_CHECK_SELF({}); if (GetCapacity() < index) return {}; return &m_Items[index]; }
         [[nodiscard]] inline bool Empty() const { BNM_CHECK_SELF(false); return GetCapacity() <= 0;}
         static Array<T> *Create(size_t capacity) {
-            auto monoArr = (Array<T> *)malloc(sizeof(Array) + sizeof(T) * capacity);
+            auto monoArr = (Array<T> *) BNM_malloc(sizeof(Array) + sizeof(T) * capacity);
             memset(monoArr, 0, sizeof(Array) + sizeof(T) * capacity);
             monoArr->klass = nullptr;
             monoArr->capacity = capacity;
@@ -110,7 +110,7 @@ namespace BNM::Structures::Mono {
             monoArr->CopyFrom(arr, size);
             return monoArr;
         }
-        // Только для массивов созданных через BNM!
+        // Only for arrays created via BNM!
         inline void Destroy() { if (!klass) free(this); }
 #ifdef BNM_ALLOW_SELF_CHECKS
         [[nodiscard]] bool SelfCheck() const {
@@ -130,7 +130,6 @@ namespace BNM::Structures::Mono {
             constexpr Enumerator() = default;
             Enumerator(List<T> *list) : Enumerator() { this->list = list; }
 
-            // Оригинальный C# код не нужен: он бесполезен в C++
             // Поэтому тут просто код для поддержки C++ foreach
             inline T* begin() { return &list->items[0]; }
             inline T* end() { return &list->items->m_Items[list->size]; }
@@ -180,7 +179,8 @@ namespace BNM::Structures::Mono {
             nItems->monitor = items->monitor;
             nItems->bounds = items->bounds;
             nItems->capacity = newCapacity;
-            if (items->capacity > 0) // Не копировать, если массив пустой
+            // Do not copy if the array is empty
+            if (items->capacity > 0)
                 memcpy(&nItems->m_Items[0], &items->m_Items[0], items->capacity * sizeof(T));
             items = nItems;
             return true;
@@ -198,7 +198,8 @@ namespace BNM::Structures::Mono {
             if (size > 0) memset(items->m_Items, 0, size * sizeof(T));
             ++version; size = 0;
         }
-        bool Contains(T item) const { // Не совсем как в С# из-за его особенностей
+        // Not quite like in C# because of its features
+        bool Contains(T item) const {
             for (int i = 0; i < size; i++) if (items->m_Items[i] == item) return true;
             return false;
         }
@@ -247,7 +248,7 @@ namespace BNM::Structures::Mono {
 #endif
     };
 
-    // Основано на https://github.com/royvandam/rtti/tree/cf0dee6fb3999573f45b0726a8d5739022e3dacf
+    // Based on https://github.com/royvandam/rtti/tree/cf0dee6fb3999573f45b0726a8d5739022e3dacf
     namespace PRIVATE_MonoListData {
         template <typename T> constexpr std::string_view WrappedTypeName() { return __PRETTY_FUNCTION__; }
         constexpr std::size_t WrappedTypeNamePrefixLength() { return WrappedTypeName<void>().find("void"); }
@@ -255,6 +256,7 @@ namespace BNM::Structures::Mono {
         constexpr uint32_t FNV1a(const char* str, size_t n, uint32_t hash = 2166136261U) {
             return n == 0 ? hash : FNV1a(str + 1, n - 1, (hash ^ str[0]) * 19777619U);
         }
+        constexpr uint32_t FNV1a(const std::string_view &str) { return FNV1a(str.data(), str.size()); }
         template <typename T>
         constexpr uint32_t HashedTypeName() {
             constexpr auto wrappedTypeName = WrappedTypeName<T>();
@@ -271,8 +273,8 @@ namespace BNM::Structures::Mono {
         void InitMonoListVTable(List<T> *list) {
             using namespace PRIVATE_MonoListData;
             /*
-             *  Заменить таблицу виртуальных методов т. к. оригинальная - пустая.
-             *  Так же это нужно для типов, которых нет в игре (не факт, что игра и без смогла бы их использовать, но код есть)
+             * Replace the virtual method table because the original one is empty.
+             * It is also necessary for types that are not in the game (not the fact that the game would be able to use them without, but the code is there)
              */
             using Type = std::conditional_t<std::is_pointer_v<T>, void*, T>;
             constexpr auto RemoveAt = &List<Type>::RemoveAt; constexpr auto GetSize = &List<Type>::GetSize; constexpr auto Clear = &List<Type>::Clear;

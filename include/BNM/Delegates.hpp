@@ -6,7 +6,6 @@
 
 namespace BNM {
 
-#pragma pack(push, 1)
     template<typename Ret>
     struct Delegate;
     template<typename Ret>
@@ -75,6 +74,4 @@ namespace BNM {
 
         }
     };
-
-#pragma pack(pop)
 }

@@ -4,16 +4,11 @@
 #include "Il2CppHeaders.hpp"
 #include "Class.hpp"
 
-
 namespace BNM {
-    namespace UnityEngine {
-        struct Object;
-    }
 
 #pragma pack(push, 1)
 
-    struct CompileTimeClass;
-    template <typename T> struct Method;
+    template <typename Ret> struct Method;
 
     struct MethodBase {
         inline constexpr MethodBase() = default;
@@ -21,30 +16,28 @@ namespace BNM {
         MethodBase(const IL2CPP::MethodInfo *info);
         MethodBase(const IL2CPP::Il2CppReflectionMethod *reflectionMethod);
 
-        // Установить объект
+        // Set object
         MethodBase &SetInstance(IL2CPP::Il2CppObject *val);
 
         inline IL2CPP::MethodInfo *GetInfo() const { return _data; }
         inline BNM_PTR GetOffset() const { return _data ? (BNM_PTR) _data->methodPointer : 0; }
 
-        // Если метод является `generic`, то можно попытаться получить его с определённым набором типов
+        // If the method is `generic`, then you can try to get it with a specific set of types
         MethodBase GetGeneric(const std::initializer_list<CompileTimeClass> &templateTypes) const;
 
-        // Получить virtual версию метода из установленного объекта. Только для нестатических методов.
+        // Get the virtual version of the method from the installed object. Only for non-static methods.
         MethodBase Virtualize() const;
 
-        // Быстрая установка объекта
+        // Fast set instance
         inline MethodBase &operator[](void *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
         inline MethodBase &operator[](IL2CPP::Il2CppObject *val) { SetInstance(val); return *this;}
         inline MethodBase &operator[](UnityEngine::Object *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
 
-        // Проверить, жив ли метод
+        // Check is method alive
         inline bool Initialized() const noexcept { return _init; }
-        inline operator bool() noexcept { return Initialized(); }
-        inline operator bool() const noexcept { return Initialized(); }
 
 #ifdef BNM_ALLOW_STR_METHODS
-        // Получить данные
+        // Get data
         inline std::string str() const {
 #if UNITY_VER > 174
 #define kls klass
@@ -61,7 +54,7 @@ namespace BNM {
         }
 #endif
 
-        // Получить метод с указанным типом
+        // Cast method
         template<typename NewType> inline Method<NewType> &cast() const { return (Method<NewType> &)*this; }
 
         IL2CPP::MethodInfo *_data{};
@@ -71,7 +64,7 @@ namespace BNM {
 
 #pragma pack(pop)
 
-    // Подмена метода путем изменения MethodInfo
+    // Method hook by changing MethodInfo
     bool InvokeHookImpl(IL2CPP::MethodInfo *m, void *newMet, void **oldMet);
 
     template<typename T_NEW, typename T_OLD>
@@ -89,7 +82,7 @@ namespace BNM {
     template<typename T_NEW, typename T_OLD>
     bool InvokeHook(IL2CPP::MethodInfo *m, T_NEW newMet, T_OLD &&oldMet) { return InvokeHookImpl(m, (void *)newMet, (void **)&oldMet); }
 
-    // Подмена метода путем изменения таблицы виртуальных методов класса
+    // Hook of method by changing the table of virtual methods of a class
     bool VirtualHookImpl(BNM::Class targetClass, IL2CPP::MethodInfo *m, void *newMet, void **oldMet);
 
     template<typename T_NEW, typename T_OLD>

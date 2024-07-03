@@ -2,9 +2,7 @@
 
 #include "UserSettings/GlobalSettings.hpp"
 #include "Il2CppHeaders.hpp"
-#include "UnityStructures.hpp"
 #include "MethodBase.hpp"
-
 
 namespace BNM {
 
@@ -18,10 +16,11 @@ namespace BNM {
         PropertyBase(const IL2CPP::PropertyInfo *info);
         PropertyBase(const MethodBase &newGetter, const MethodBase &newSetter);
 
-        // Установить объект
+        // Set object
         PropertyBase &SetInstance(IL2CPP::Il2CppObject *val);
+
 #ifdef BNM_ALLOW_STR_METHODS
-        // Получить данные
+        // Get data
         [[nodiscard]] inline std::string str() const {
             if (!_hasGetter && !_hasSetter) return OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_nullptr);
             auto isStatic = _hasGetter ? _getter._isStatic : _setter._isStatic;
@@ -32,12 +31,15 @@ namespace BNM {
         }
 #endif
 
-        // Быстрая установка объекта
+        // Fast set instance
         inline PropertyBase &operator[](void *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
         inline PropertyBase &operator[](IL2CPP::Il2CppObject *val) { SetInstance(val); return *this;}
         inline PropertyBase &operator[](UnityEngine::Object *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
 
-        // Изменить тип свойства
+        // Check is method alive
+        inline bool Initialized() const noexcept { return _hasGetter || _hasSetter; }
+
+        // Cast property
         template<typename NewRet> inline Property<NewRet> &cast() const { return (Property<NewRet> &)*this; }
 
         IL2CPP::PropertyInfo *_data{};

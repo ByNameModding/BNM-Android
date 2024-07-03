@@ -1,7 +1,8 @@
 #include <BNM/UserSettings/GlobalSettings.hpp>
 #include <BNM/UnityStructures.hpp>
-#include "BNM/UnityStructures/Color.h"
-#include "BNM/UnityStructures/Vector4.h"
+#include "BNM/UnityStructures/Color.hpp"
+#include "BNM/UnityStructures/Vector4.hpp"
+#include "BNM/Utils.hpp"
 #include "Internals.hpp"
 
 
@@ -9,9 +10,13 @@ namespace BNM::Structures::Unity {
     void *RaycastHit::GetCollider() const {
         if (!m_Collider || (BNM_PTR) m_Collider < 0) return {};
 #if UNITY_VER > 174
-        static void * (*FromId)(int);
+        static void *(*FromId)(int);
         if (!FromId) InitFunc(FromId, GetExternMethod(OBFUSCATE_BNM("UnityEngine.Object::FindObjectFromInstanceID")));
+#    if UNITY_VER >= 232
+        return (void *) BNM::UnmarshalUnityObject((BNM_INT_PTR) FromId(m_Collider));
+#    else
         return FromId(m_Collider);
+#    endif
 #else
         return m_Collider;
 #endif
@@ -53,7 +58,7 @@ namespace BNM::Structures::Unity {
     const Vector3 Vector3::up = {0.f, 1.f, 0.f};
     const Vector3 Vector3::zero = {0.f, 0.f, 0.f};
 
-    const Vector4 Vector4::positiveinfinity = {floatInf, floatInf, floatInf, floatInf};
+    const Vector4 Vector4::positiveInfinity = {floatInf, floatInf, floatInf, floatInf};
     const Vector4 Vector4::negativeInfinity = {-floatInf, -floatInf, -floatInf, -floatInf};
     const Vector4 Vector4::zero = {0.f, 0.f, 0.f, 0.f};
     const Vector4 Vector4::one = {1.f, 1.f, 1.f, 1.f};

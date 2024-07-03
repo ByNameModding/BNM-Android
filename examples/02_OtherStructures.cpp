@@ -8,84 +8,174 @@
 #include <BNM/BasicMonoStructures.hpp>
 #include <BNM/ComplexMonoStructures.hpp>
 
-// Нужно, чтобы не писать
-// BNM::Structures:: для каждого типа
-using namespace BNM::Structures::Unity; // Vector3, Vector2 и т. д.
-using namespace BNM::Structures; // String, Array и т. д.
+#include <BNM/ClassesManagement.hpp>
+
+using namespace BNM::Structures::Unity; // Vector3, Vector2 etc.
+using namespace BNM::Structures; // Mono::String, Mono::Array etc.
 
 void MonoArray() {
-    // Тип[] - массив из каких-либо объектов
+    // Type[] - an array of any objects
     Mono::Array<int> *array = nullptr;
 
-    //! Его можно создать двумя путями
-    // * Array<Тип>::Create(размер или std::vector<Тип>) - не попадает в сборщик мусора
-    // * LoadClass().NewArray<Тип>(размер) - попадает в сборщик мусора
-    // Создадим 1 способом
+    //! It can be created in two ways
+    // * Array<Тип>::Create(размер или std::vector<Тип>) - does not get into the garbage collector
+    // * LoadClass().NewArray<Тип>(размер) - gets into the garbage collector
+
+    // Let's create it in 1 way
     array = Mono::Array<int>::Create(10);
 
-    //! Получить данные можно используя
-    auto dataPtr = array->GetData(); // Ссылка на С массив
-    // или
+    //! You can get the data using
+    auto dataPtr = array->GetData(); // Pointer to the C array
+    // or
     auto dataVec = array->ToVector(); // std::vector<int>
-    // или
-    auto firstData = array->At(0); // Первый элемент массива
+    // or
+    auto firstData = array->At(0); // First element of the array
 
-    //! Удалить массив для освобождения памяти
-    //! Нужно ТОЛЬКО при создании через Array<Тип>::Create!
+    //! Delete an array to free up memory
+    //! It is ONLY necessary when creating using Array<Type>::Create!
     array->Destroy();
 }
 
 void MonoList() {
-    // System.Collections.Generic.List<Тип> - список каких-либо объектов
+    // System.Collections.Generic.List<Тип> - a list of any objects
     Mono::List<int> *list = nullptr;
 
-    //! Его можно создать только через класс т.е.
-    // LoadClass().NewList<Тип>(размер) - попадает в сборщик мусора
+    //! It can only be created through a class:
+    // LoadClass().NewList<Type>(size) - gets into the garbage collector
+    // LoadClass().NewListUnsafe<Type>(size) - gets into the garbage collector, but all methods are handled by BNM
 
-    //! Чтобы не искать класс System.Int32 (класс int значений в C#)
-    //! Можно использовать BNM::GetType<Тип>()
-    //! BNM::GetType поддерживает только основные типы
+    //! To avoid searching for the System.Int32 class (the int value class in C#)
+    //! You can use BNM::GetType<Type>()
+    //! BNM::GetType supports only basic types
     auto intClass = BNM::GetType<int>().ToClass();
 
     list = intClass.NewList<int>();
 
-    //! Получить данные можно используя
-    auto dataPtr = list->GetData(); // Ссылка на С массив
-    // или
+    //! You can get the data using
+    auto dataPtr = list->GetData(); // Pointer to the C array
+    // or
     auto dataVec = list->ToVector(); // std::vector<int>
-    // или
-    auto firstData = list->At(0); // Первый элемент массива
+    // or
+    auto firstData = list->At(0); // The first element of the array
 }
 
-void Dictionary() {
-    // System.Collections.Generic.Dictionary<Тпи-ключ, Тип-значение> - словарь
-    Mono::Dictionary<int, int> *dictionary = nullptr;
+void MonoDictionary() {
+    // System.Collections.Generic.Dictionary<Key type, Value type> - dictionary
+    Mono::Dictionary<int, int> *dictionary;
 
-    // Подробнее про generic описано в примере 03
+    // For more information about generic, see example 03
     auto dictionaryClass = BNM::Class(OBFUSCATE_BNM("System.Collections.Generic"), OBFUSCATE_BNM("Dictionary`2"), BNM::Image(OBFUSCATE_BNM("mscorlib.dll")));
     auto dictionary_int_int_Class = dictionaryClass.GetGeneric({BNM::GetType<int>(), BNM::GetType<int>()});
 
     dictionary = (Mono::Dictionary<int, int> *) dictionary_int_int_Class.CreateNewObjectParameters();
 
-    //! Получить данные можно используя
-    auto keys = dictionary->GetKeys(); // std::vector<Тпи-ключ>
-    // или
-    auto values = dictionary->GetValues(); // std::vector<Тип-значение>
-    // или
-    auto map = dictionary->ToMap(); // std::map<Тпи-ключ, Тип-значение>
-    // или
+    //! You can get the data using
+    auto keys = dictionary->GetKeys(); // std::vector<Key type>
+    // or
+    auto values = dictionary->GetValues(); // std::vector<Value type>
+    // or
+    auto map = dictionary->ToMap(); // std::map<Key type, Value type>
+    // or
     int value = 0;
     if (dictionary->TryGet(1, &value))
-        ; // Значение найдено
+        ; // Value found
+}
+
+// The example below can be compiled in Unity and it will work
+namespace DelegatesAndActions {
+    // C# class
+    /*
+     public class Delegates : MonoBehaviour {
+        public delegate int JustDelegate(int x, int y);
+        public JustDelegate justDelegateDef;
+        public UnityAction<int, int> JustUnityAction;
+        public Action<int, int> JustAction;
+        public UnityEvent<int, int> JustEvent;
+
+        void Start() {
+            justDelegateDef += delegate(int x, int y) {
+                Log($"justDelegateDef(1) x: {x}, y: {y}");
+                return 1;
+            };
+            justDelegateDef += delegate(int x, int y) {
+                Log($"justDelegateDef(3) x: {x}, y: {y}");
+                return 3;
+            };
+            justDelegateDef += delegate(int x, int y) {
+                Log($"justDelegateDef(500) x: {x}, y: {y}");
+                return 500;
+            };
+
+            JustAction += delegate(int x, int y) {
+                Log($"JustAction x: {x}, y: {y}");
+                return;
+            };
+            JustUnityAction += delegate(int x, int y) {
+                Log($"JustUnityAction x: {x}, y: {y}");
+                return;
+            };
+            JustEvent.AddListener(delegate(int x, int y) {
+                Log($"JustEvent x: {x}, y: {y}");
+                return;
+            });
+
+            // Just output of messages
+            logClass = new AndroidJavaClass("android.util.Log");
+        }
+        // Just output of messages
+        private AndroidJavaClass logClass;
+        void Log(string s) { logClass.CallStatic<int>("e", "BNM_TargetApp", s); }
+    }
+    */
+
+    // ClassesManagement is used here. It is described in more detail in Example 05.
+    struct Delegates : BNM::UnityEngine::MonoBehaviour {
+        BNM::MulticastDelegate<int> *justDelegateDef;
+        BNM::UnityEngine::UnityAction<int, int> *JustUnityAction;
+        BNM::Structures::Mono::Action<int, int> *JustAction;
+        BNM::UnityEngine::UnityEvent<int, int> *JustEvent;
+        void *logClass;
+
+        BNM_CustomClass(Delegates, BNM::CompileTimeClassBuilder(nullptr, OBFUSCATE_BNM("Delegates")).Build(), {}, {});
+        void Start() {
+            BNM_CallCustomMethodOrigin(Start, this);
+
+            BNM_LOG_DEBUG("justDelegateDef: %p", justDelegateDef);
+            BNM_LOG_DEBUG("JustUnityAction: %p", JustUnityAction);
+            BNM_LOG_DEBUG("JustAction: %p", JustAction);
+            BNM_LOG_DEBUG("JustEvent: %p", JustEvent);
+            if (justDelegateDef) justDelegateDef->Invoke(10, 60);
+            if (JustUnityAction) JustUnityAction->Invoke(70, 9);
+            if (JustAction) JustAction->Invoke(30, 42);
+            if (JustEvent) JustEvent->Invoke(7, 234);
+        }
+        BNM_CustomMethod(Start, false, BNM::GetType<void>(), OBFUSCATE_BNM("Start"));
+        BNM_CustomMethodSkipTypeMatch(Start);
+        BNM_CustomMethodMarkAsInvokeHook(Start);
+    };
+
+    // You will see something like this in log:
+    /*
+        ByNameModding           justDelegateDef: 0x7986ef6900
+        ByNameModding           JustUnityAction: 0x7986ef67e0
+        ByNameModding           JustAction: 0x7986ef6870
+        ByNameModding           JustEvent: 0x7986eea480
+        BNM_TargetApp           justDelegateDef(1) x: 10, y: 60
+        BNM_TargetApp           justDelegateDef(3) x: 10, y: 60
+        BNM_TargetApp           justDelegateDef(500) x: 10, y: 60
+        BNM_TargetApp           JustUnityAction x: 70, y: 9
+        BNM_TargetApp           JustAction x: 30, y: 42
+        BNM_TargetApp           JustEvent x: 7, y: 234
+     */
 }
 
 void OnLoaded_Example_02() {
     using namespace BNM;
 
-    //! Unity структуры
+    //! Unity structures
 
-    // Математические структуры
-    // Над этими структурами можно проводить математические операции аналогичные оным в Unity
+    // Mathematical structures
+    // Mathematical operations similar to those in Unity can be performed on these structures
     Vector2 vector2;
     Vector3 vector3;
     Vector4 vector4;
@@ -93,21 +183,24 @@ void OnLoaded_Example_02() {
     Matrix4x4 matrix4x4;
     Quaternion quaternion;
 
-    // Структуры для Raycast
+    // Structures for Raycast
     Ray ray;
     RaycastHit raycastHit;
 
-    //! Mono структуры
+    //! Mono structures
 
-    //! System.String, подробнее описано в примере 01
+    //! System.String, for more information, see Example 01
     Mono::String *string;
 
-    //! В методе описан Array
+    //! Method describes Array
     MonoArray();
 
-    //! В методе описан List
+    //! Method describes List
     MonoList();
 
-    //! В методе описан Dictionary
-    // MonoDictionary();
+    //! Method describes Dictionary
+    MonoDictionary();
+
+    //! Namespace describes Delegates and Actions
+   using namespace DelegatesAndActions;
 }

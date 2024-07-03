@@ -10,11 +10,9 @@
 
 namespace BNM::MANAGEMENT_STRUCTURES {
 
-#pragma pack(push, 1)
-
-    // Данные о новых полях
+    // Data about new fields
     struct CustomField {
-        inline constexpr CustomField() noexcept = default;
+        inline constexpr CustomField() = default;
         std::string_view _name{};
         size_t _size{};
         CompileTimeClass _type{};
@@ -22,46 +20,56 @@ namespace BNM::MANAGEMENT_STRUCTURES {
         BNM::IL2CPP::FieldInfo *myInfo{};
     };
 
-    // Данные о новых методах
+    // Data about new methods
     struct CustomMethod {
-        inline constexpr CustomMethod() noexcept = default;
+        inline constexpr CustomMethod() = default;
         void *_address{};
         void *_invoker{};
         std::string_view _name{};
         CompileTimeClass _returnType{};
         std::vector<CompileTimeClass> _parameterTypes{};
-        bool _isStatic{};
         void *_originalAddress{};
+        BNM::IL2CPP::MethodInfo *_origin{};
         BNM::IL2CPP::MethodInfo *myInfo{};
+        uint8_t _isStatic : 1{0};
+        uint8_t _isInvokeHook : 1{0};
+        uint8_t _isBasicHook : 1{0};
+        uint8_t _skipTypeMatch : 1{0};
         template<typename> struct OriginInvokeGetter {};
         template<typename RetT, typename T, typename ...ArgsT>
         struct OriginInvokeGetter<RetT(T:: *)(ArgsT...)> {
+            BNM::IL2CPP::MethodInfo *_origin{};
             void *_originalAddress{};
-            explicit OriginInvokeGetter(void *_originalAddress) : _originalAddress(_originalAddress) {}
-            RetT Invoke(T *instance, ArgsT ...args) {
-                if constexpr (std::is_same_v<RetT, void>) ((RetT (*)(T *, ArgsT...))_originalAddress)(instance, args...);
-                else return ((RetT (*)(T *, ArgsT...))_originalAddress)(instance, args...);
+            explicit OriginInvokeGetter(const CustomMethod &method) : _origin(method._origin), _originalAddress(method._originalAddress) {}
+            inline RetT Invoke(T *instance, ArgsT ...args) {
+                if (!_origin) return None();
+                if constexpr (std::is_same_v<RetT, void>) ((RetT (*)(T *, ArgsT..., BNM::IL2CPP::MethodInfo *))_originalAddress)(instance, args..., _origin);
+                else return ((RetT (*)(T *, ArgsT..., BNM::IL2CPP::MethodInfo *))_originalAddress)(instance, args..., _origin);
             }
+            inline RetT None() { if constexpr (!std::is_same_v<RetT, void>) return {}; }
         };
         template<typename RetT, typename ...ArgsT>
         struct OriginInvokeGetter<RetT(*)(ArgsT...)> {
+            BNM::IL2CPP::MethodInfo *_origin{};
             void *_originalAddress{};
-            explicit OriginInvokeGetter(void *_originalAddress) : _originalAddress(_originalAddress) {}
-            RetT Invoke(ArgsT ...args) {
+            explicit OriginInvokeGetter(const CustomMethod &method) : _origin(method._origin), _originalAddress(method._originalAddress) {}
+            inline RetT Invoke(ArgsT ...args) {
+                if (!_origin) return None();
 #if UNITY_VER > 174
-                if constexpr (std::is_same_v<RetT, void>) ((RetT (*)(ArgsT...))_originalAddress)(args...);
-                else return ((RetT (*)(ArgsT...))_originalAddress)(args...);
+                if constexpr (std::is_same_v<RetT, void>) ((RetT (*)(ArgsT..., BNM::IL2CPP::MethodInfo *))_originalAddress)(args..., _origin);
+                else return ((RetT (*)(ArgsT..., BNM::IL2CPP::MethodInfo *))_originalAddress)(args..., _origin);
 #else
-                if constexpr (std::is_same_v<RetT, void>) ((RetT (*)(void *, ArgsT...))_originalAddress)(nullptr, args...);
-                else return ((RetT (*)(void *, ArgsT...))_originalAddress)(nullptr, args...);
+                if constexpr (std::is_same_v<RetT, void>) ((RetT (*)(void *, ArgsT..., BNM::IL2CPP::MethodInfo *))_originalAddress)(nullptr, args..., _origin);
+                else return ((RetT (*)(void *, ArgsT..., BNM::IL2CPP::MethodInfo *))_originalAddress)(nullptr, args..., _origin);
 #endif
             }
+            inline RetT None() { if constexpr (!std::is_same_v<RetT, void>) return {}; }
         };
     };
 
-    // Данные о новых классах
+    // Data about new classes
     struct CustomClass {
-        inline constexpr CustomClass() noexcept = default;
+        inline constexpr CustomClass() = default;
         size_t _size{};
         CompileTimeClass _targetType{};
         CompileTimeClass _baseType{};
@@ -73,18 +81,20 @@ namespace BNM::MANAGEMENT_STRUCTURES {
         BNM::MonoType *type{};
     };
 
-    // Добавить новый класс в список
+    // Add a new class to the list
     void AddClass(CustomClass *klass);
 
     namespace _InvokerHelper {
-        // Распаковать аргумент
-        template<typename T>
+        // Unpack argument
+        template<typename T, std::enable_if_t<std::is_reference_v<T>, bool> = true>
+        inline constexpr T &UnpackArg(void *arg) { return *(typename std::remove_reference_t<T> *)arg; }
+        template<typename T, std::enable_if_t<!std::is_reference_v<T>, bool> = true>
         inline constexpr T UnpackArg(void *arg) {
-            if constexpr (std::is_pointer<T>::value) return (T) arg;
+            if constexpr (std::is_pointer_v<T>) return (T) arg;
             else return *(T *)arg;
         }
 
-#if UNITY_VER >= 221
+#if UNITY_VER >= 211
 #define ARG_4_PACK data
 #define ARG_4_INVOKE returnValue
         template<typename T>
@@ -105,7 +115,7 @@ namespace BNM::MANAGEMENT_STRUCTURES {
 
     template<bool, typename> struct GetMethodInvoker {};
 
-    // Класс для создания инициатора вызовов для методов
+    // Class for creating method invoker
     template<typename RetT, typename T, typename ...ArgsT>
     struct GetMethodInvoker<false, RetT(T:: *)(ArgsT...)> {
         template<std::size_t ...As>
@@ -160,57 +170,53 @@ namespace BNM::MANAGEMENT_STRUCTURES {
 #undef ARG_4_PACK
 #undef ARG_4_INVOKE
 
-#pragma pack(pop)
-
 }
 
 #define BNM_CustomClass(_class_, _targetType_, _baseType_, _owner_, ...) \
-private: \
-    struct _BNMCustomClass : BNM::MANAGEMENT_STRUCTURES::CustomClass { \
-        inline _BNMCustomClass() : BNM::MANAGEMENT_STRUCTURES::CustomClass() { \
-            _size = sizeof(_class_); \
-            _targetType = _targetType_; \
-            _baseType = _baseType_; \
-            _owner = _owner_; \
-            _interfaces = {__VA_ARGS__}; \
-            BNM::MANAGEMENT_STRUCTURES::AddClass(this); \
-        } \
-    }; \
-public: \
-    inline static _BNMCustomClass BNMCustomClass __attribute__((init_priority (101))) {}; \
-    using _BNMCustomClassType = _class_
+struct _BNMCustomClass : BNM::MANAGEMENT_STRUCTURES::CustomClass { \
+    inline _BNMCustomClass() : BNM::MANAGEMENT_STRUCTURES::CustomClass() { \
+        _size = sizeof(_class_); \
+        _targetType = _targetType_; \
+        _baseType = _baseType_; \
+        _owner = _owner_; \
+        _interfaces = {__VA_ARGS__}; \
+        BNM::MANAGEMENT_STRUCTURES::AddClass(this); \
+    } \
+}; \
+inline static _BNMCustomClass BNMCustomClass __attribute__((init_priority (101))) {}; \
+using _BNMCustomClassType = _class_
 
 
 #define BNM_CustomField(_field_, _type_, _name_) \
-private: \
-	struct _BNMCustomField_##_field_ : BNM::MANAGEMENT_STRUCTURES::CustomField { \
-        inline _BNMCustomField_##_field_() : BNM::MANAGEMENT_STRUCTURES::CustomField() { \
-            _name = OBFUSCATE_BNM(_name_); \
-            _size = sizeof(_field_); \
-            _type = _type_; \
-            offset = offsetof(_BNMCustomClassType, _field_); \
-            BNMCustomClass._fields.push_back(this); \
-        } \
-    }; \
-public: \
-    inline static _BNMCustomField_##_field_ BNMCustomField_##_field_ __attribute__((init_priority (102))) {}
+struct _BNMCustomField_##_field_ : BNM::MANAGEMENT_STRUCTURES::CustomField { \
+    inline _BNMCustomField_##_field_() : BNM::MANAGEMENT_STRUCTURES::CustomField() { \
+        _name = OBFUSCATE_BNM(_name_); \
+        _size = sizeof(_field_); \
+        _type = _type_; \
+        offset = offsetof(_BNMCustomClassType, _field_); \
+        BNMCustomClass._fields.push_back(this); \
+    } \
+}; \
+inline static _BNMCustomField_##_field_ BNMCustomField_##_field_ __attribute__((init_priority (102))) {}
 
 #define BNM_CustomMethod(_method_, _isStatic_, _type_, _name_, ...) \
-private: \
-	struct _BNMCustomMethod_##_method_ : BNM::MANAGEMENT_STRUCTURES::CustomMethod { \
-        inline _BNMCustomMethod_##_method_() : BNM::MANAGEMENT_STRUCTURES::CustomMethod() { \
-            constexpr auto p = &_BNMCustomClassType::_method_; _address = *(void **)&p; \
-            _invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<_isStatic_, decltype(&_BNMCustomClassType::_method_)>::Invoke; \
-            _name = OBFUSCATE_BNM(_name_); \
-            _returnType = _type_; \
-            _isStatic = _isStatic_; \
-            _parameterTypes = {__VA_ARGS__}; \
-            BNMCustomClass._methods.push_back(this); \
-        } \
-    }; \
-public: \
-    inline static _BNMCustomMethod_##_method_ BNMCustomMethod_##_method_ __attribute__((init_priority (102))) {}
+struct _BNMCustomMethod_##_method_ : BNM::MANAGEMENT_STRUCTURES::CustomMethod { \
+    inline _BNMCustomMethod_##_method_() : BNM::MANAGEMENT_STRUCTURES::CustomMethod() { \
+        constexpr auto p = &_BNMCustomClassType::_method_; _address = *(void **)&p; \
+        _invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<_isStatic_, decltype(&_BNMCustomClassType::_method_)>::Invoke; \
+        _name = OBFUSCATE_BNM(_name_); \
+        _returnType = _type_; \
+        _isStatic = _isStatic_; \
+        _parameterTypes = {__VA_ARGS__}; \
+        BNMCustomClass._methods.push_back(this); \
+    } \
+}; \
+inline static _BNMCustomMethod_##_method_ BNMCustomMethod_##_method_ __attribute__((init_priority (102))) {}
 
-#define BNM_CallOriginalCustomMethod(_method_, ...) BNM::MANAGEMENT_STRUCTURES::CustomMethod::OriginInvokeGetter<decltype(&_BNMCustomClassType::_method_)>(BNMCustomMethod_##_method_._originalAddress).Invoke(__VA_ARGS__)
+#define BNM_CustomMethodMarkAsInvokeHook(_method_) inline static struct _BNMCustomMethodMarkAs_##_method_ { _BNMCustomMethodMarkAs_##_method_() { BNMCustomMethod_##_method_._isInvokeHook = true; } } _BNMCustomMethodMarkAs_##_method_ __attribute__((init_priority (103))) {}
+#define BNM_CustomMethodMarkAsBasicHook(_method_) inline static struct _BNMCustomMethodMarkAs_##_method_ { _BNMCustomMethodMarkAs_##_method_() { BNMCustomMethod_##_method_._isBasicHook = true; } } _BNMCustomMethodMarkAs_##_method_ __attribute__((init_priority (103))) {}
+#define BNM_CustomMethodSkipTypeMatch(_method_) inline static struct _BNMCustomMethodSkipTypeMatch_##_method_ { _BNMCustomMethodSkipTypeMatch_##_method_() { BNMCustomMethod_##_method_._skipTypeMatch = true; } } _BNMCustomMethodSkipTypeMatch_##_method_ __attribute__((init_priority (103))) {}
+
+#define BNM_CallCustomMethodOrigin(_method_, ...) BNM::MANAGEMENT_STRUCTURES::CustomMethod::OriginInvokeGetter<decltype(&_BNMCustomClassType::_method_)>(BNMCustomMethod_##_method_).Invoke(__VA_ARGS__)
 
 #endif

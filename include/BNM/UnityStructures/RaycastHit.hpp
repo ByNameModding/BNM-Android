@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Vector3.h"
-#include "Vector2.h"
+#include "Vector3.hpp"
+#include "Vector2.hpp"
 
 namespace BNM::Structures::Unity {
     struct RaycastHit {

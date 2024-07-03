@@ -7,48 +7,48 @@
 using namespace BNM;
 
 void BNM::MANAGEMENT_STRUCTURES::AddClass(CustomClass *klass) {
-    if (!BNM::Internal::ClassesManagement::classesManagementVector) Internal::ClassesManagement::classesManagementVector = new std::vector<MANAGEMENT_STRUCTURES::CustomClass *>();
+    if (!BNM::Internal::ClassesManagement::classesManagementVector) {
+        Internal::ClassesManagement::classesManagementVector = (std::vector<MANAGEMENT_STRUCTURES::CustomClass *> *) BNM_malloc(sizeof(std::vector<MANAGEMENT_STRUCTURES::CustomClass *>));
+        memset((void *) Internal::ClassesManagement::classesManagementVector, 0, sizeof(std::vector<MANAGEMENT_STRUCTURES::CustomClass *>));
+    }
+
     Internal::ClassesManagement::classesManagementVector->push_back(klass);
 }
 
 
-#define BNM_I2C_NEW(type) (IL2CPP::type *) malloc(sizeof(IL2CPP::type))
+#define BNM_I2C_NEW(type) (IL2CPP::type *) BNM_malloc(sizeof(IL2CPP::type))
 
 struct CustomClassInfo {
     const char *_namespace{}, *_name{}, *_imageName{};
     BNM::Class _class{};
 };
 
-// Код изменения данных существующего класса
+// The code for changing the data of an existing class
 void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Class target);
-// Код создания новых классов
+// Code for creating new classes
 void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const CustomClassInfo &classInfo);
 
-// Найти нужный класс или информацию о нём
+// Find the desired class or information about it
 CustomClassInfo GetClassInfo(const BNM::CompileTimeClass &compileTimeClass);
 
-// Код создания нового образа и его сборки
+// The code for creating a new image and assembling it
 IL2CPP::Il2CppImage *MakeImage(std::string_view imageName);
-// Код обработки нового метода для последующего его создания/изменения
+// The code for processing a new method for its subsequent creation/modification
 IL2CPP::MethodInfo *ProcessCustomMethod(MANAGEMENT_STRUCTURES::CustomMethod *method, Class target, bool *hooked = nullptr);
-// Код установки данных в поля
+// The code for setting data in fields
 void SetupField(IL2CPP::FieldInfo *newField, MANAGEMENT_STRUCTURES::CustomField *field);
 
 
 void ProcessInterface(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface, std::vector<IL2CPP::Il2CppClass *> &interfaces);
-// Код изменения родителя класса и владельца вложенного класса
+// The code for changing the parent of the class and the owner of the nested class
 void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *owner, IL2CPP::Il2CppClass *parent);
-// Код проверки наличия интерфейса у класса и его родителей
+// Code for checking whether a class and its parents have an interface
 bool HasInterface(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface);
-// Код установки типа класса
-void SetupTypes(IL2CPP::Il2CppClass *target);
+// Class type setup code
+void SetupTypes(IL2CPP::Il2CppClass *target);;
 
 void Internal::ClassesManagement::ProcessCustomClasses() {
     if (classesManagementVector == nullptr) return;
-    BNM_LOG_DEBUG("classesManagementVector: %lu", classesManagementVector->size());
-#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
-    std::lock_guard<std::mutex> lock(customClassesMutex);
-#endif
 
     for (auto customClass : *classesManagementVector) {
         auto type = customClass->_targetType;
@@ -66,7 +66,7 @@ void Internal::ClassesManagement::ProcessCustomClasses() {
     }
 
     classesManagementVector->clear(); classesManagementVector->shrink_to_fit();
-    delete classesManagementVector;
+    BNM_free((void *) classesManagementVector);
     classesManagementVector = nullptr;
 }
 
@@ -110,7 +110,7 @@ void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Class tar
         }
 
         if (!methodsToAdd.empty()) {
-            auto newMethods = (IL2CPP::MethodInfo **) malloc((oldCount + methodsToAdd.size()) * sizeof(IL2CPP::MethodInfo *));
+            auto newMethods = (IL2CPP::MethodInfo **) BNM_malloc((oldCount + methodsToAdd.size()) * sizeof(IL2CPP::MethodInfo *));
 
             auto oldSize = oldCount * sizeof(IL2CPP::MethodInfo *);
 
@@ -126,7 +126,7 @@ void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Class tar
     if (newFieldsCount) {
         auto oldCount = klass->field_count;
 
-        auto newFields = (IL2CPP::FieldInfo *)malloc((oldCount + newFieldsCount) * sizeof(IL2CPP::FieldInfo));
+        auto newFields = (IL2CPP::FieldInfo *) BNM_malloc((oldCount + newFieldsCount) * sizeof(IL2CPP::FieldInfo));
 
         if (oldCount) memcpy(newFields, klass->fields, oldCount * sizeof(IL2CPP::FieldInfo));
 
@@ -155,8 +155,15 @@ void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Class tar
 char forEmptyString = '\0';
 void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const CustomClassInfo &classInfo) {
     Image image{};
-    if (classInfo._imageName) image = Image(classInfo._imageName);
-    else image = Image(OBFUSCATE_BNM("Assembly-CSharp.dll"));
+    if (classInfo._imageName) {
+        auto &assemblies = *Internal::Assembly$$GetAllAssemblies();
+        for (auto assembly: assemblies) {
+            auto currentImage = Internal::il2cppMethods.il2cpp_assembly_get_image(assembly);
+            if (!Internal::CompareImageName(currentImage, classInfo._imageName)) continue;
+            image = currentImage;
+            break;
+        }
+    } else image = Image(OBFUSCATE_BNM("Assembly-CSharp.dll"));
     if (!image) image = MakeImage(classInfo._imageName);
 
     IL2CPP::Il2CppClass *parent = customClass->_baseType;
@@ -176,7 +183,7 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
         if (auto cls = interface.ToClass(); cls)
             ProcessInterface(parent, cls, interfaces);
 
-    // Требуется для переопределения виртуальных методов
+    // Required to override virtual methods
     auto newVtableSize = parent->vtable_count;
     std::vector<IL2CPP::VirtualInvokeData> newVTable(newVtableSize);
     for (uint16_t i = 0; i < parent->vtable_count; ++i) newVTable[i] = parent->vtable[i];
@@ -189,16 +196,16 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
         }
     }
 
-    // Создать все новые методы
+    // Create all new methods
     uint8_t hasFinalize = 0;
-    auto methods = (const IL2CPP::MethodInfo **) malloc(customClass->_methods.size() * sizeof(IL2CPP::MethodInfo *));
+    auto methods = (const IL2CPP::MethodInfo **) BNM_malloc(customClass->_methods.size() * sizeof(IL2CPP::MethodInfo *));
 
     for (size_t i = 0; i < customClass->_methods.size(); ++i) {
         auto method = customClass->_methods[i];
 
         method->myInfo = ProcessCustomMethod(method, {});
 
-        // Замена методов в таблице виртуальных методов
+        // Replacing methods in the virtual methods table
         for (uint16_t v = 0; v < newVtableSize; ++v) {
             auto &vTable = newVTable[v];
             auto count = vTable.method->parameters_count;
@@ -214,35 +221,37 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
                 }
 
                 if (!hasFinalize) hasFinalize = v == Internal::finalizerSlot;
+                method->_origin = (BNM::IL2CPP::MethodInfo *) vTable.method;
+                method->_originalAddress = (void *) (vTable.method ? vTable.method->methodPointer : nullptr);
                 vTable.method = method->myInfo;
                 vTable.methodPtr = method->myInfo->methodPointer;
                 break;
 
             }
             NEXT:
-            uint8_t thisGotoRequiresCpp23Min;
+            [[maybe_unused]] uint8_t thisGotoRequiresCpp23Min;
         }
 
         methods[i] = method->myInfo;
 
     }
 
-    auto klass = customClass->myClass = (IL2CPP::Il2CppClass *)malloc(sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
+    auto klass = customClass->myClass = (IL2CPP::Il2CppClass *) BNM_malloc(sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
     memset(klass, 0, sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
 
     klass->image = image;
 
-    // Запретить il2cpp вызывать LivenessState::TraverseGCDescriptor для класса
+    // Prevent il2cpp from calling LivenessState::TraverseGCDescriptor for a class
     klass->gc_desc = nullptr;
 
     auto len = strlen(classInfo._name);
-    klass->name = (char *) malloc(len + 1);
+    klass->name = (char *) BNM_malloc(len + 1);
     memcpy((void *)klass->name, classInfo._name, len);
     ((char *)klass->name)[len] = 0;
 
     if (!owner && classInfo._namespace) {
         len = strlen(classInfo._namespace);
-        klass->namespaze = (char *) malloc(len + 1);
+        klass->namespaze = (char *) BNM_malloc(len + 1);
         memcpy((void *)klass->namespaze, classInfo._namespace, len);
         ((char *)klass->namespaze)[len] = 0;
     } else klass->namespaze = &forEmptyString;
@@ -254,7 +263,7 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
 
     SetupClassOwnerAndParent(klass, owner, parent);
 
-    // BNM не поддерживает создание generic классов
+    // BNM does not support the creation of generic classes
     klass->generic_class = nullptr;
 
 #if UNITY_VER < 202
@@ -270,10 +279,10 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
 
     klass->field_count = customClass->_fields.size();
     if (klass->field_count > 0) {
-        // Создать список полей
-        auto fields = (IL2CPP::FieldInfo *)malloc(klass->field_count * sizeof(IL2CPP::FieldInfo));
+        // Create a list of fields
+        auto fields = (IL2CPP::FieldInfo *) BNM_malloc(klass->field_count * sizeof(IL2CPP::FieldInfo));
 
-        // Получить первое поле
+        // Get the first field
         IL2CPP::FieldInfo *newField = fields;
         for (auto field : customClass->_fields) {
             SetupField(newField, field);
@@ -287,10 +296,10 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
         klass->fields = fields;
     } else klass->fields = nullptr;
 
-    // Добавить интерфейсы
+    // Add Interfaces
     if (!interfaces.empty()) {
         klass->interfaces_count = interfaces.size();
-        klass->implementedInterfaces = (IL2CPP::Il2CppClass **) malloc(interfaces.size() * sizeof(IL2CPP::Il2CppClass *));
+        klass->implementedInterfaces = (IL2CPP::Il2CppClass **) BNM_malloc(interfaces.size() * sizeof(IL2CPP::Il2CppClass *));
         memcpy(klass->implementedInterfaces, interfaces.data(), interfaces.size() * sizeof(IL2CPP::Il2CppClass *));
     } else {
         klass->interfaces_count = 0;
@@ -303,7 +312,7 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
 #define kls declaring_type
 #endif
 
-    // Завершение создания методов
+    // Completing the creation of methods
     for (auto method : customClass->_methods) method->myInfo->kls = klass;
     klass->method_count = customClass->_methods.size();
     klass->methods = methods;
@@ -311,30 +320,30 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
 
 #undef kls
 
-    // Копировать флаги родителя и убрать ABSTRACT флаг, если существует
+    // Copy the parent flags and remove the ABSTRACT flag if it exists
     klass->flags = klass->parent->flags & ~(0x00000080 | 0x00000020); // TYPE_ATTRIBUTE_ABSTRACT
 
-    // Инициализировать размеры
+    // Initialize sizes
     klass->native_size = -1;
     klass->element_size = sizeof(void *);
     klass->instance_size = klass->actualSize = customClass->_size;
 
-    // Установить таблицу виртуальных методов
+    // Install a table of virtual methods
     klass->vtable_count = newVTable.size();
     for (size_t i = 0; i < newVTable.size(); ++i) klass->vtable[i] = newVTable[i];
 
-    // Установить адреса интерфейсов
+    // Set interface addresses
     klass->interface_offsets_count = newInterOffsets.size();
-    klass->interfaceOffsets = (IL2CPP::Il2CppRuntimeInterfaceOffsetPair *) malloc(newInterOffsets.size() * sizeof(IL2CPP::Il2CppRuntimeInterfaceOffsetPair));
+    klass->interfaceOffsets = (IL2CPP::Il2CppRuntimeInterfaceOffsetPair *) BNM_malloc(newInterOffsets.size() * sizeof(IL2CPP::Il2CppRuntimeInterfaceOffsetPair));
     memcpy(klass->interfaceOffsets, newInterOffsets.data(), newInterOffsets.size() * sizeof(IL2CPP::Il2CppRuntimeInterfaceOffsetPair));
 
     klass->interopData = nullptr;
-    klass->events = nullptr; // Создание не поддерживается
-    klass->properties = nullptr; // Создание не поддерживается
+    klass->events = nullptr; // Creation is not supported
+    klass->properties = nullptr; // Creation is not supported
     klass->nestedTypes = nullptr;
-    klass->rgctx_data = nullptr; // Требуется для generic
+    klass->rgctx_data = nullptr; // Required for generic
 
-    klass->static_fields = nullptr; // Создание не поддерживается
+    klass->static_fields = nullptr; // Creation is not supported
     klass->static_fields_size = 0;
 
     klass->genericRecursionDepth = 0;
@@ -348,10 +357,11 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
 
 #if UNITY_VER < 211
     // BNM создаёт только классы, т.к. новые struct особо не нужны для модификаций
+    // BNM creates only classes, because new structs are not particularly needed for modifications
     klass->valuetype = 0;
 #endif
 
-    // BNM не поддерживает создание конструктора статических полей (.cctor). Il2Cpp устроен так, что его не вызовет никогда, да и BNM не позволяет создавать статических полей
+    // BNM does not support creating a static field constructor (.cctor). Il2Cpp is designed so that it will never be called, and BNM does not allow you to create static fields
     klass->has_cctor = 0;
 
     klass->has_references = 0;
@@ -396,10 +406,10 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
 
     klass->cctor_thread = 0;
 
-    // Добавить класс к списку созданных классов
-    Internal::ClassesManagement::BNMClassesMap.addClass(image.GetInfo(), klass);
+    // Add a class to the list of created classes
+    Internal::ClassesManagement::BNMClassesMap.AddClass(image.GetInfo(), klass);
 
-    // Получить С#-тип
+    // Get the C# type
     customClass->type = Class(klass);
 
     BNM_LOG_INFO(DBG_BNM_MSG_ClassesManagement_CreateClass_Added, klass, klass->namespaze, klass->name, parent->namespaze, parent->name, klass->image->name);
@@ -422,7 +432,7 @@ CustomClassInfo GetClassInfo(const BNM::CompileTimeClass &compileTimeClass) {
 
         auto index = (uint8_t) info->_baseType;
 
-        // Защита от других типов. Нас не интересуют Generic, Modifier и другое, что не относится к иерархии классов.
+        // Protection from other types. We are not interested in Generic, Modifier, and other things that do not relate to the class hierarchy.
         if (index != (uint8_t) BNM::CompileTimeClass::_BaseType::Class) continue;
 
         CompileTimeClassProcessors::processors[index](tmp, (BNM::CompileTimeClass::_BaseInfo *) info);
@@ -454,11 +464,11 @@ IL2CPP::Il2CppImage *MakeImage(std::string_view imageName) {
 
     auto nameLen = imageName.size();
 #if UNITY_VER >= 171
-    newImg->nameNoExt = (char *) malloc(nameLen + 1);
+    newImg->nameNoExt = (char *) BNM_malloc(nameLen + 1);
     memcpy((void *)newImg->nameNoExt, (void *)imageName.data(), nameLen);
     ((char *)newImg->nameNoExt)[nameLen] = 0;
 #endif
-    newImg->name = (char *) malloc(nameLen + 5);
+    newImg->name = (char *) BNM_malloc(nameLen + 5);
     memcpy((void *)newImg->name, (void *)imageName.data(), nameLen);
     auto nameEnd = ((char *)(newImg->name + nameLen));
     nameEnd[0] = '.'; nameEnd[1] = 'd'; nameEnd[2] = 'l'; nameEnd[3] = 'l'; nameEnd[4] = 0;
@@ -474,8 +484,8 @@ IL2CPP::Il2CppImage *MakeImage(std::string_view imageName) {
 #endif
 
 #if UNITY_VER > 201
-    // Создать пустой Il2CppImageDefinition
-    auto handle = (IL2CPP::Il2CppImageDefinition *) malloc(sizeof(IL2CPP::Il2CppImageDefinition));
+    // Create an empty Il2CppImageDefinition
+    auto handle = (IL2CPP::Il2CppImageDefinition *) BNM_malloc(sizeof(IL2CPP::Il2CppImageDefinition));
     memset(handle, 0, sizeof(IL2CPP::Il2CppImageDefinition));
     handle->typeStart = -1;
     handle->entryPointIndex = -1;
@@ -494,34 +504,33 @@ IL2CPP::Il2CppImage *MakeImage(std::string_view imageName) {
 #   if UNITY_VER >= 171
     newImg->exportedTypeStart = -1;
 #   endif
-
 #endif
-    // Инициализировать переменные
+    // Initialize variables
     newImg->typeCount = 0;
 #if UNITY_VER >= 171
     newImg->exportedTypeCount = 0;
 #endif
     newImg->token = 1;
 
-    // Создать новую сборку для образа
+    // Create a new build for the image
     auto newAsm = BNM_I2C_NEW(Il2CppAssembly);
     auto &aName = newAsm->aname;
 #if UNITY_VER > 174
-    // Установить образ и сборку
+    // Set image and assembly
     newAsm->image = newImg;
     newAsm->image->assembly = newAsm;
     aName.name = newImg->name;
     aName.culture = nullptr;
     aName.public_key = nullptr;
 #else
-    // Отрицательное значение для отключения анализа от il2cpp
+    // Negative value to disable analysis from il2cpp
     static int newAsmCount = 1;
     newImg->assemblyIndex = newAsm->imageIndex = -newAsmCount;
     newAsmCount++;
     aName.publicKeyIndex = aName.hashValueIndex = aName.nameIndex = 0;
     aName.cultureIndex = -1;
 #endif
-    // Инициализировать эти переменные на всякий случай
+    // Initialize these variables just in case
     aName.revision = aName.build = aName.minor = aName.major = 0;
 #if UNITY_VER > 174
     aName.public_key_token[0] = aName.hash_len = 0;
@@ -533,15 +542,24 @@ IL2CPP::Il2CppImage *MakeImage(std::string_view imageName) {
     newAsm->referencedAssemblyStart = -1;
     newAsm->referencedAssemblyCount = 0;
 
-    // Используя это, BNM может проверить, создана ли им эта сборка
+    // Using this, BNM can check if it has created this assembly
     newImg->nameToClassHashTable = (decltype(newImg->nameToClassHashTable)) -0x424e4d;
 
-    // Добавить сборку в список
+    // Add an assembly to the list
     Internal::Assembly$$GetAllAssemblies()->push_back(newAsm);
 
     BNM_LOG_INFO(DBG_BNM_MSG_ClassesManagement_MakeImage_Added_Image, imageName.data());
 
     return newImg;
+}
+
+IL2CPP::VirtualInvokeData *TryFindVirtualMethod(Class target, IL2CPP::MethodInfo *targetMethod) {
+    for (uint16_t i = 0; i < target._data->vtable_count; ++i) {
+        auto &it = target._data->vtable[i];
+        if (it.method != targetMethod) continue;
+        return &it;
+    }
+    return nullptr;
 }
 
 IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *method);
@@ -552,6 +570,8 @@ IL2CPP::MethodInfo *ProcessCustomMethod(MANAGEMENT_STRUCTURES::CustomMethod *met
 
     auto originalMethod = Internal::IterateMethods(target, [method, parameters](IL2CPP::MethodInfo *klassMethod) {
         if (method->_name != klassMethod->name || klassMethod->parameters_count != parameters) return false;
+        if (method->_skipTypeMatch) return true;
+
         for (uint8_t i = 0; i < parameters; ++i) {
 #if UNITY_VER < 212
             auto param = (klassMethod->parameters + i)->parameter_type;
@@ -564,25 +584,53 @@ IL2CPP::MethodInfo *ProcessCustomMethod(MANAGEMENT_STRUCTURES::CustomMethod *met
         return true;
     });
 
-    if (!originalMethod) return CreateMethod(method);
-
-#ifndef BNM_AUTO_HOOK_DISABLE_VIRTUAL_HOOK
-    IL2CPP::VirtualInvokeData *vTable{};
-    for (uint16_t i = 0; i < target._data->vtable_count; ++i) {
-        auto &it = target._data->vtable[i];
-
-        if (it.method != originalMethod) continue;
-
-        vTable = &it;
-        break;
-    }
-
-    if (vTable) {
-        method->_originalAddress = (void *) vTable->methodPtr;
-        vTable->methodPtr = (void(*)()) method->_address;
-    } else
+#if UNITY_VER > 174
+#define kls klass
+#else
+#define kls declaring_type
 #endif
 
+    if (!originalMethod || originalMethod->kls != target._data) {
+        bool isVirtual = originalMethod != nullptr && (originalMethod->flags & 0x0040) == 0x0040;
+        auto parent = originalMethod;
+        originalMethod = CreateMethod(method);
+        if (!hooked || !isVirtual) return originalMethod;
+        if (auto vTable = TryFindVirtualMethod(target, parent); vTable != nullptr) {
+            method->_origin = parent;
+            method->_originalAddress = (void *) parent->methodPointer;
+            vTable->methodPtr = (void (*)()) method->_address;
+            vTable->method = originalMethod;
+            return originalMethod;
+        }
+    }
+#undef kls
+
+
+    if (method->_isInvokeHook) {
+        method->_origin = originalMethod;
+        method->_originalAddress = (void *) originalMethod->methodPointer;
+        originalMethod->methodPointer = (void(*)()) method->_address;
+        if (hooked) *hooked = true;
+        return originalMethod;
+    }
+
+#ifdef BNM_AUTO_HOOK_DISABLE_VIRTUAL_HOOK
+    goto SKIP_NON_VIRTUAL;
+#endif
+
+    if ((originalMethod->flags & 0x0040) == 0 || method->_isBasicHook) goto SKIP_NON_VIRTUAL;
+
+    if (auto vTable = TryFindVirtualMethod(target, originalMethod); vTable != nullptr) {
+        method->_origin = (BNM::IL2CPP::MethodInfo *) vTable->method;
+        method->_originalAddress = (void *) method->_origin->methodPointer;
+        vTable->methodPtr = (void(*)()) method->_address;
+        if (hooked) *hooked = true;
+        return originalMethod;
+    }
+
+    SKIP_NON_VIRTUAL:
+
+    method->_origin = originalMethod;
     ::HOOK((void *)originalMethod->methodPointer, method->_address, method->_originalAddress);
 
     if (hooked) *hooked = true;
@@ -596,37 +644,38 @@ IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *method) {
     myInfo->invoker_method = (decltype(myInfo->invoker_method)) method->_invoker;
     myInfo->parameters_count = method->_parameterTypes.size();
 
-    auto name = (char *) malloc(method->_name.size() + 1);
+    auto name = (char *) BNM_malloc(method->_name.size() + 1);
     memcpy((void *)name, method->_name.data(), method->_name.size());
     name[method->_name.size()] = 0;
     myInfo->name = name;
 
-    // Установить флаги метода
+    // Set method flags
     myInfo->flags = 0x0006 | 0x0080; // PUBLIC | HIDE_BY_SIG
     if (method->_isStatic) myInfo->flags |= 0x0010; // |= STATIC
     if (method->_name == Internal::constructorName) myInfo->flags |= 0x0800 | 0x1000; // |= SPECIAL_NAME | RT_SPECIAL_NAME
 
-    // BNM не поддерживает создание generic-методов
+    // BNM does not support the creation of generic methods
     myInfo->is_generic = false;
 
-    // Установить возвращаемый тип
+    // Set the return type
     auto methodType = method->_returnType.ToClass();
     if (!methodType) methodType = Internal::vmData.Object;
     myInfo->return_type = methodType.GetIl2CppType();
 
-    // Создать аргументы
+    // Create arguments
     auto argsCount = myInfo->parameters_count;
     if (argsCount) {
         auto &types = method->_parameterTypes;
 #if UNITY_VER < 212
-        myInfo->parameters = (IL2CPP::ParameterInfo *) malloc(argsCount * sizeof(IL2CPP::ParameterInfo));
+        myInfo->parameters = (IL2CPP::ParameterInfo *) BNM_malloc(argsCount * sizeof(IL2CPP::ParameterInfo));
 
         auto parameter = (IL2CPP::ParameterInfo *)myInfo->parameters;
         for (uint8_t p = 0; p < argsCount; ++p) {
-            parameter->name = nullptr; // Имя параметра не интересует движок вообще никак
+            // The name of parameter does not interest the engine in any way at all
+            parameter->name = nullptr;
             parameter->position = p;
 
-            // Установить тип в любом случае
+            // Set the type anyway
             auto type = p < types.size() ? types[p].ToClass() : Internal::vmData.Object;
             if (!type) type = Internal::vmData.Object;
             parameter->parameter_type = type.GetIl2CppType();
@@ -636,13 +685,13 @@ IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *method) {
         }
 #else
 
-        auto parameters = (IL2CPP::Il2CppType **) malloc(argsCount * sizeof(IL2CPP::Il2CppType *));
+        auto parameters = (IL2CPP::Il2CppType **) BNM_malloc(argsCount * sizeof(IL2CPP::Il2CppType *));
 
         myInfo->parameters = (const IL2CPP::Il2CppType **) parameters;
         for (uint8_t p = 0; p < argsCount; ++p) {
             auto parameter = BNM_I2C_NEW(Il2CppType);
 
-            // Установить тип в любом случае
+            // Set the type anyway
             auto type = p < types.size() ? types[p].ToClass() : Internal::vmData.Object;
             if (!type) type = Internal::vmData.Object;
             memcpy(parameter, type.GetIl2CppType(), sizeof(IL2CPP::Il2CppType));
@@ -659,11 +708,11 @@ IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *method) {
 void SetupField(IL2CPP::FieldInfo *newField, MANAGEMENT_STRUCTURES::CustomField *field) {
     auto name = field->_name;
     auto len = name.size();
-    newField->name = (char *) malloc(len + 1);
+    newField->name = (char *) BNM_malloc(len + 1);
     memcpy((void *)newField->name, name.data(), len);
     ((char *)newField->name)[len] = 0;
 
-    // Копировать тип
+    // Copy type
     newField->type = BNM_I2C_NEW(Il2CppType);
     auto fieldType = field->_type.ToClass();
     if (!fieldType) fieldType = Internal::vmData.Object;
@@ -677,13 +726,13 @@ void SetupField(IL2CPP::FieldInfo *newField, MANAGEMENT_STRUCTURES::CustomField 
 void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *owner, IL2CPP::Il2CppClass *parent) {
     if (!parent) goto SETUP_OWNER;
 
-    // Установить родителя
+    // Set the parent
 
     if ((target->flags & 0x09000000) == 0x09000000) free(target->typeHierarchy);
     target->flags |= 0x09000000;
 
     target->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
-    target->typeHierarchy = (IL2CPP::Il2CppClass **) malloc(target->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
+    target->typeHierarchy = (IL2CPP::Il2CppClass **) BNM_malloc(target->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
     memcpy(target->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
     target->typeHierarchy[parent->typeHierarchyDepth] = target;
     target->parent = parent;
@@ -691,27 +740,27 @@ void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *
     SETUP_OWNER:
     if (!owner) return;
 
-    // Установить владельца
+    // Set the owner
 
     auto oldOwner = target->declaringType;
     auto oldInnerList = owner->nestedTypes;
 
     target->declaringType = owner;
 
-    // Добавить класс в список нового владельца
-    auto newInnerList = (IL2CPP::Il2CppClass **) malloc(sizeof(IL2CPP::Il2CppClass) * (owner->nested_type_count + 1));
+    // Add a class to the new owner's list
+    auto newInnerList = (IL2CPP::Il2CppClass **) BNM_malloc(sizeof(IL2CPP::Il2CppClass) * (owner->nested_type_count + 1));
     memcpy(newInnerList, owner->nestedTypes, sizeof(IL2CPP::Il2CppClass) * owner->nested_type_count);
     newInnerList[owner->nested_type_count++] = target;
     owner->nestedTypes = newInnerList;
 
-    // Отметить класс, чтобы использовать меньше памяти
+    // Mark the class to use less memory
     if ((owner->flags & 0x90000000) == 0x90000000) free(oldInnerList);
     owner->flags |= 0x90000000;
 
-    // Удалить класс из списка старого владельца
+    // Remove a class from the old owner's list
     if (oldOwner) {
         oldInnerList = oldOwner->nestedTypes;
-        newInnerList = (IL2CPP::Il2CppClass **) malloc(sizeof(IL2CPP::Il2CppClass) * (oldOwner->nested_type_count - 1));
+        newInnerList = (IL2CPP::Il2CppClass **) BNM_malloc(sizeof(IL2CPP::Il2CppClass) * (oldOwner->nested_type_count - 1));
         uint8_t skipped = 0;
         for (uint16_t i = 0; i < oldOwner->nested_type_count; ++i) {
             if (skipped == 0) if (skipped = (oldInnerList[i] == target); skipped) continue;
@@ -720,7 +769,7 @@ void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *
         oldOwner->nestedTypes = newInnerList;
         --oldOwner->nested_type_count;
 
-        // Отметить класс, чтобы использовать меньше памяти
+        // Mark the class to use less memory
         if ((oldOwner->flags & 0x90000000) == 0x90000000) free(oldInnerList);
         oldOwner->flags |= 0x90000000;
     }

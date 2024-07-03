@@ -3,16 +3,11 @@ cmake_minimum_required(VERSION 3.8...3.26)
 
 project(BNM)
 
-# Собирать примеры BNM
 # Build BNM examples
 set(BNM_BUILD_EXAMPLES OFF)
 
-# Добавить зависимость на liblog.so
 # Add dependents to liblog.so
 set(BNM_LINK_LOG OFF)
-
-set(MY_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -38,6 +33,7 @@ add_library(
         src/Coroutine.cpp
         src/Delegates.cpp
         src/EventBase.cpp
+        src/Exceptions.cpp
         src/FieldBase.cpp
         src/Hooks.cpp
         src/Image.cpp
@@ -73,13 +69,12 @@ if (${BNM_BUILD_EXAMPLES})
             examples/Main.cpp
             examples/01_Basics.cpp
             examples/02_OtherStructures.cpp
+            examples/03_Generic.cpp
             examples/04_CompileTimeClasses.cpp
             examples/05_ClassesManagement.cpp
-            examples/03_Generic.cpp
-    )
-    add_library(BNM_Old_Examples
-            SHARED
-            examples/OldExamples.cpp
+            examples/06_Coroutine.cpp
+            examples/07_CustomFinder.cpp
+            examples/08_Exceptions.cpp
     )
 
     target_include_directories(
@@ -88,20 +83,8 @@ if (${BNM_BUILD_EXAMPLES})
             ${PUBLIC_INCLUDE_DIRS}
     )
 
-    target_include_directories(
-            BNM_Old_Examples
-            PUBLIC
-            ${PUBLIC_INCLUDE_DIRS}
-    )
-
     target_link_libraries(
             BNM_Examples
-            PUBLIC
-            BNM
-            log
-    )
-    target_link_libraries(
-            BNM_Old_Examples
             PUBLIC
             BNM
             log

@@ -4,15 +4,16 @@
 #include <BNM/BasicMonoStructures.hpp>
 #include <BNM/UnityStructures.hpp>
 #include <BNM/Field.hpp>
+#include "BNM/ComplexMonoStructures.hpp"
 
 #ifdef BNM_CLASSES_MANAGEMENT
 
 using namespace BNM::Structures::Unity;
 using namespace BNM::Structures::Mono;
 
-// Добавим в игру класс
+// Let's add a class to the game
 /*
-    namespace BNM_Example_03 {
+    namespace BNM_Example_05 {
         public class BNM_ExampleObject : UnityEngine.MonoBehaviour, UnityEngine.IExposedPropertyTable {
             int Value;
             void Start();
@@ -20,30 +21,31 @@ using namespace BNM::Structures::Mono;
         };
     };
 */
-//! BNM::IL2CPP::Il2CppObject нужен если объект наследует System.Object или ничего
-//! BNM::UnityEngine::Object нужен если объект наследует UnityEngine.ScriptableObject
-//! BNM::UnityEngine::MonoBehaviour нужен если объект наследует UnityEngine.MonoBehaviour
+//! BNM::IL2CPP::Il2CppObject is needed if the object inherits System.Object or nothing
+//! BNM::UnityEngine::Object is needed if the object inherits UnityEngine.ScriptableObject
+//! BNM::UnityEngine::MonoBehaviour is needed if the object inherits UnityEngine.MonoBehaviour
 struct BNM_ExampleObject : public BNM::UnityEngine::MonoBehaviour {
 
     BNM_CustomClass(BNM_ExampleObject,
-                    BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("BNM_ExampleObject"), OBFUSCATE_BNM("BNM_Example_03")).Build(),
-                    BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("MonoBehaviour"), OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("UnityEngine.CoreModule")).Build(),
-                    {} /*BNM::CompileTimeClass()*/ /*BNM::CompileTimeClassBuilder().Build()*/,
-                    BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("IExposedPropertyTable"), OBFUSCATE_BNM("UnityEngine")).Build(),
+                    BNM::CompileTimeClassBuilder(OBFUSCATE_BNM("BNM_Example_05"), OBFUSCATE_BNM("BNM_ExampleObject")).Build(),
+                    BNM::CompileTimeClassBuilder(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("MonoBehaviour"), OBFUSCATE_BNM("UnityEngine.CoreModule")).Build(),
+                    // Here need specify base class, if you need to create inner class
+                    {},
+                    BNM::CompileTimeClassBuilder(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("IExposedPropertyTable")).Build(),
                     );
 
-    // Чтобы установить поля, например `veryImportantValue`
-    // Иначе в нём будет мусор из памяти
+    // To set fields, for example `veryImportantValue`
+    // Otherwise it will have garbage from memory
     void Constructor() {
         BNM::UnityEngine::MonoBehaviour tmp = *this;
         *this = BNM_ExampleObject();
-        memcpy(this, &tmp, sizeof(BNM::UnityEngine::MonoBehaviour));
+        *((BNM::UnityEngine::MonoBehaviour *)this) = tmp;
     }
 
     int Value{};
     uintptr_t veryImportantValue{0x424E4D};
     void Start() {
-        BNM_LOG_INFO("BNM_ExampleObject::Start! Верен ли veryImportantValue: %d", veryImportantValue == 0x424E4D);
+        BNM_LOG_INFO("BNM_ExampleObject::Start! Верен ли veryImportantValue (Is veryImportantValue true): %d", veryImportantValue == 0x424E4D);
     }
 
     void *GetReferenceValue(int id, bool *isValid) {
@@ -52,9 +54,9 @@ struct BNM_ExampleObject : public BNM::UnityEngine::MonoBehaviour {
         return nullptr;
     }
 
-    // Для переопределения virtual методов или подмены методов, типы должны полностью совпадать
+    // To override virtual methods or replace methods, the types must be exactly the same
     BNM_CustomMethod(GetReferenceValue, false, BNM::GetType<BNM::IL2CPP::Il2CppObject *>(), "GetReferenceValue",
-                 BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("IExposedPropertyTable"), OBFUSCATE_BNM("UnityEngine")).Build(),
+                 BNM::CompileTimeClassBuilder(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("IExposedPropertyTable")).Build(),
                  BNM::GetType<bool>());
 
     BNM_CustomMethod(Start, false, BNM::GetType<void>(), "Start");
@@ -64,47 +66,51 @@ struct BNM_ExampleObject : public BNM::UnityEngine::MonoBehaviour {
     BNM_CustomMethod(Constructor, false, BNM::GetType<void>(), ".ctor");
 };
 
-//! Изменим класс Player
-/*
-    public class Player : UnityEngine.MonoBehaviour {
-        int Coins;
-        void Update();
-    };
-*/
-//! Приведя к виду
-/*
-    public class Player : UnityEngine.MonoBehaviour {
-        int Coins;
-        void Start();
-        void Update();
-    };
-*/
-// Наследование не требуется, но если вы добавите поле и будете использовать этот класс в коде, то все поля должны совпадать с полями в игре
-struct Player {
-    BNM_CustomClass(Player,
-                    BNM::CompileTimeClassBuilder().Class(OBFUSCATE_BNM("Player"), nullptr, OBFUSCATE_BNM("Assembly-CSharp.dll") /*Можно не указывать, поиск будет по всем dll*/).Build(),
-                    {}, {},
-    );
+//! Let's look at an example from example 02
+
+// This class was created to replace Start and use class' fields
+struct Delegates :
+        // Since we want to use the fields directly, we need to specify parent to match addresses of fields themselves.
+        BNM::UnityEngine::MonoBehaviour {
+    // Here we specify fields. It is not necessary to specify them before or after BNM_CustomClass.
+    BNM::MulticastDelegate<int> *justDelegateDef;
+    BNM::UnityEngine::UnityAction<int, int> *JustUnityAction;
+    BNM::Structures::Mono::Action<int, int> *JustAction;
+    BNM::UnityEngine::UnityEvent<int, int> *JustEvent;
+    // If the field is not needed and you do not create this class in C++ using new or any other methods, you can omit all fields that come after the necessary ones.
+    void *logClass;
+
+    BNM_CustomClass(Delegates, BNM::CompileTimeClassBuilder(nullptr, OBFUSCATE_BNM("Delegates")).Build(), {}, {});
     void Start() {
-        BNM_LOG_INFO("Player::Start!");
-        BNM::Class((BNM::IL2CPP::Il2CppObject *)this).GetField(OBFUSCATE_BNM("Coins")).cast<int>()[(void *)this] = 2147483647;
-    }
+        BNM_CallCustomMethodOrigin(Start, this);
 
-    BNM_CustomMethod(Start, false, BNM::GetType<void>(), "Start");
-
-    // Метод будет автоматически подменён
-    BNM_CustomMethod(Update, false, BNM::GetType<void>(), "Update");
-    void Update() {
-        // Вызвать оригинальный Update
-        BNM_CallOriginalCustomMethod(Update, this);
+        BNM_LOG_DEBUG("justDelegateDef: %p", justDelegateDef);
+        BNM_LOG_DEBUG("JustUnityAction: %p", JustUnityAction);
+        BNM_LOG_DEBUG("JustAction: %p", JustAction);
+        BNM_LOG_DEBUG("JustEvent: %p", JustEvent);
+        if (justDelegateDef) justDelegateDef->Invoke(10, 60);
+        if (JustUnityAction) JustUnityAction->Invoke(70, 9);
+        if (JustAction) JustAction->Invoke(30, 42);
+        if (JustEvent) JustEvent->Invoke(7, 234);
     }
+    // We specify all information about method
+    BNM_CustomMethod(Start, false, BNM::GetType<void>(), OBFUSCATE_BNM("Start"));
+    // Used to speed up the search for methods. Tells BNM not to compare the types of fields, but simply check their number.
+    BNM_CustomMethodSkipTypeMatch(Start);
+
+    // Specifies BNM to use method hook via Invoke. It doesn't have to be specified, it just makes it easier for BNM to work.
+    BNM_CustomMethodMarkAsInvokeHook(Start);
+
+    // Also BNM have:
+    //! BNM_CustomMethodMarkAsBasicHook()
+    // It works the same way as BNM_CustomMethodMarkAsInvokeHook, but says to use hook using hooking software.
 };
 
 void OnLoaded_Example_05() {
     using namespace BNM;
 
     //! auto BNM_ExampleObjectClass = LoadClass(OBFUSCATE_BNM("BNM_Example_03"), OBFUSCATE_BNM("BNM_ExampleObject"))
-    // или
+    // or
     Class BNM_ExampleObjectClass = BNM_ExampleObject::BNMCustomClass.myClass;
 }
 

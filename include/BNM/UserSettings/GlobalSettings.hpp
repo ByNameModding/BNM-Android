@@ -15,13 +15,14 @@ static_assert(false, "ByNameModding требуется C++20 и выше!");
 //#define UNITY_VER 194 // 2019.4.x
 //#define UNITY_VER 201 // 2020.1.x
 //#define UNITY_VER 202 // 2020.2.x - 2020.3.19
-#define UNITY_VER 203 // 2020.3.20 - 2020.3.xx
-//#define UNITY_VER 211 // 2021.1.x (Нужно установить UNITY_PATCH_VER на 24 если x (2021.1.x) >= 24) (Need set UNITY_PATCH_VER to 24 if x (2021.1.x) >= 24)
+//#define UNITY_VER 203 // 2020.3.20 - 2020.3.xx
+//#define UNITY_VER 211 // 2021.1.x (Need set UNITY_PATCH_VER to 24 if x (2021.1.x) >= 24)
 //#define UNITY_VER 212 // 2021.2.x
 //#define UNITY_VER 213 // 2021.3.x
 //#define UNITY_VER 221 // 2022.1.x
-//#define UNITY_VER 222 // 2022.2.x - 2022.3.x
-//#define UNITY_VER 231 // 2023.1.x - 2023.2.x+
+#define UNITY_VER 222 // 2022.2.x - 2022.3.x
+//#define UNITY_VER 231 // 2023.1.x
+//#define UNITY_VER 232 // 2023.2.x+
 
 #define UNITY_PATCH_VER 32 // Для особых случаев (For special cases)
 
@@ -55,11 +56,9 @@ static_assert(false, "ByNameModding требуется C++20 и выше!");
 //! Disable auto hook via virtual method table in ClassesManagement
 // #define BNM_AUTO_HOOK_DISABLE_VIRTUAL_HOOK
 
-//! Использовать System.AppDomain для получения il2cpp::vm::Assembly::GetAllAssemblies
-//! Может привести к сбоям игры на arm64
-//! Use System.AppDomain to get il2cpp::vm::Assembly::GetAllAssemblies
-//! May cause game crashes on arm64
-// #define BNM_USE_APPDOMAIN
+//! Старые добрые времена...
+//! The good old days...
+// #define BNM_OLD_GOOD_DAYS
 
 #ifndef NDEBUG
 
@@ -133,23 +132,25 @@ inline void UNHOOK(PTR_T ptr) {
 */
 
 // Dummy
+#include <cassert>
+
 template<typename PTR_T, typename NEW_T, typename T_OLD>
 inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
-    static_assert("Нет ПО для подмены! (No hooking software!)");
+    assert("Нет ПО для подмены! (No hooking software!)");
     if ((void *) ptr != nullptr) ((void)0);
     return nullptr;
 }
 
 template<typename PTR_T, typename NEW_T, typename T_OLD>
 inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
-    static_assert("Нет ПО для подмены! (No hooking software!)");
+    assert("Нет ПО для подмены! (No hooking software!)");
     if ((void *) ptr != nullptr) ((void)0);
     return nullptr;
 }
 
 template<typename PTR_T>
 inline void UNHOOK(PTR_T ptr) {
-    static_assert("Нет ПО для подмены! (No hooking software!)");
+    assert("Нет ПО для подмены! (No hooking software!)");
     if ((void *) ptr != nullptr) ((void)0);
 }
 
@@ -162,6 +163,13 @@ inline void UNHOOK(PTR_T ptr) {
 #define BNM_dlclose dlclose
 #define BNM_dladdr dladdr
 
+
+#include <cstdlib>
+
+// Если вам нужно скрыть методы работы с памятью
+// If you need to hide memory management methods
+#define BNM_malloc malloc
+#define BNM_free free
 
 #include <android/log.h>
 
@@ -213,4 +221,4 @@ namespace BNM {
 #endif
 }
 
-#define BNM_VER "2.0_beta"
+#define BNM_VER "2.0"

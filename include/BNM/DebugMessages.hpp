@@ -19,16 +19,19 @@
 #define DBG_BNM_MSG_Class_GetField_NotFound "Field: [%s]::[%s].(%s) - not found."
 #define DBG_BNM_MSG_Class_GetEvent_NotFound "Event: [%s]::[%s].(%s) - not found."
 #define DBG_BNM_MSG_Class_CreateNewInstance_Abstract_Warn "You trying to create an object of an abstract class or interface %s?\nThis is not possible in C#."
+#define DBG_BNM_MSG_Class_Dead_Error "An attempt to use dead class!"
 
 
 #define DBG_BNM_MSG_CompileTimeClass_ToClass_default_Warn "[CompileTimeClassProcessors::Warn] No type of information or unknown type!"
+#define DBG_BNM_MSG_CompileTimeClass_ToClass_Inner_Warn "[CompileTimeClassProcessors::ProcessModifierInfo] Getting an inner class before getting the main class is not possible!"
 #define DBG_BNM_MSG_CompileTimeClass_ToClass_Modifier_Warn "[CompileTimeClassProcessors::ProcessModifierInfo] Getting the class modifier before getting the class itself is impossible!"
 #define DBG_BNM_MSG_CompileTimeClass_ToClass_Generic_Warn "[CompileTimeClassProcessors::ProcessGenericInfo] Getting a generic class before getting the class itself is impossible!"
-#define DBG_BNM_MSG_CompileTimeClass_ToClass_OoB_Warn "[CompileTimeClass::ToClass] Type %u, greater than or equal to the number of possible handlers!"
+#define DBG_BNM_MSG_CompileTimeClass_ToClass_OoB_Warn "[CompileTimeClass::ToClass] Type %lu, greater than or equal to the number of possible handlers!"
 
 
 
-#define DBG_BNM_MSG_String_SelfCheck_Error "ERROR: monoString dead"
+#define DBG_BNM_MSG_String_str_Error "ERROR: monoString dead"
+#define DBG_BNM_MSG_String_SelfCheck_Error "[String::SelfCheck] Trying to use a dead string!"
 #define DBG_BNM_MSG_Array_SelfCheck_Error "[monoArray<>::SelfCheck] Trying to use a dead array!"
 #define DBG_BNM_MSG_List_SelfCheck_Error "[monoList<>::SelfCheck] Trying to use a dead list!"
 
@@ -41,6 +44,7 @@
 
 #define DBG_BNM_MSG_Field_GetPointer_Dead "Dead"
 #define DBG_BNM_MSG_Field_GetPointer_Error "Null pointer to the field [%s]"
+#define DBG_BNM_MSG_Field_GetSet_Error "An attempt to use dead field!"
 
 
 #define DBG_BNM_MSG_MethodBase_str_nullptr "Dead method"
@@ -50,6 +54,7 @@
 #define DBG_BNM_MSG_MethodBase_GetGeneric_Warn "Method %s is not generic!"
 #define DBG_BNM_MSG_MethodBase_Virtualize_Warn "Failed to get the virtual version of %s method - the object is not set."
 
+#define DBG_BNM_MSG_Method_Call_Dead "An attempt to call dead method!"
 #define DBG_BNM_MSG_Method_Call_Warn "An attempt to call %s with an incorrect number of arguments... I hope you know what you're doing. BNM cannot add MethodInfo to arguments :(. Please fix it."
 #define DBG_BNM_MSG_Method_Call_Error "You cannot call the instance %s method without instance! Please set instance before calling the method."
 
@@ -61,8 +66,8 @@
 #define DBG_BNM_MSG_PropertyBase_str_not_exists "not exists"
 #define DBG_BNM_MSG_PropertyBase_str_static "static"
 
-#define DBG_BNM_MSG_Property_Get_Error "An attempt to call property %s that does not have a getter method"
-#define DBG_BNM_MSG_Property_Set_Error "An attempt to call property %s that does not have a setter method"
+#define DBG_BNM_MSG_Property_Get_Error "An attempt to call property's (%s) getter that does not exist"
+#define DBG_BNM_MSG_Property_Set_Error "An attempt to call property's (%s) setter that does not exist"
 
 
 #define DBG_BNM_MSG_EventBase_str_nullptr "Dead event"
@@ -73,15 +78,15 @@
 #define DBG_BNM_MSG_EventBase_str_not_exists "not exists"
 #define DBG_BNM_MSG_EventBase_str_static "static"
 
-#define DBG_BNM_MSG_Event_Add_Error "An attempt to call event %s that does not have add method"
-#define DBG_BNM_MSG_Event_Remove_Error "An attempt to call event %s that does not have remove method"
-#define DBG_BNM_MSG_Event_Raise_Error "An attempt to call event %s that does not have raise method"
+#define DBG_BNM_MSG_Event_Add_Error "An attempt to call event's (%s) add method that does not exist"
+#define DBG_BNM_MSG_Event_Remove_Error "An attempt to call event's (%s) remove method that does not exist"
+#define DBG_BNM_MSG_Event_Raise_Error "An attempt to call event's (%s) raise method that does not exist"
 
 
 #define DBG_BNM_MSG_ClassesManagement_MakeImage_Added_Image "Added new image: [%s]."
 #define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Target "[ModifyClasses] Target: %s"
-#define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Added_Method "\tAdded %smethod %s %d."
-#define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Hooked_Method "\tHooked %smethod %s %d."
+#define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Added_Method "\tAdded %smethod %s %lu."
+#define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Hooked_Method "\tHooked %smethod %s %lu."
 #define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Method_Static "static "
 #define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Added_Field "\tAdded field %s."
 #define DBG_BNM_MSG_ClassesManagement_CreateClass_Added "[CreateClass] Added new class (%p) [%s]::[%s], parent - [%s]::[%s], в [%s]."
@@ -92,5 +97,19 @@
 #define DBG_BNM_MSG_DataIterator_Error "Null object in the iterator"
 
 #define DBG_BNM_MSG_GetExternMethod_Warn "Extern method %s not found. Please check the code."
+
+
+#define DBG_BNM_MSG_TryLoadByJNI_Fail "Failed to load libil2cpp.so by path!"
+
+
+#define DBG_BNM_MSG_SetupBNM_Class_Init "[SetupBNM] il2cpp::vm::Class::Init in lib: %p."
+#define DBG_BNM_MSG_SetupBNM_Image_GetTypes "[SetupBNM] il2cpp::vm::Image::GetTypes in lib: %p."
+#define DBG_BNM_MSG_SetupBNM_image_get_class_exists "[SetupBNM] code has il2cpp_image_get_class. BNM will use it."
+#define DBG_BNM_MSG_SetupBNM_Class_FromIl2CppType "[SetupBNM] il2cpp::vm::Class::FromIl2CppType in lib: %p."
+#define DBG_BNM_MSG_SetupBNM_Type_GetClassOrElementClass "[SetupBNM] il2cpp::vm::Type::GetClassOrElementClass in lib: %p."
+#define DBG_BNM_MSG_SetupBNM_Image_FromName "[SetupBNM] il2cpp::vm::Image::FromName in lib: %p."
+#define DBG_BNM_MSG_SetupBNM_MetadataCache_GetImageFromIndex "[SetupBNM] il2cpp::vm::MetadataCache::GetImageFromIndex in lib: %p."
+#define DBG_BNM_MSG_SetupBNM_Assembly_Load "[SetupBNM] il2cpp::vm::Assembly::Load in lib: %p."
+#define DBG_BNM_MSG_SetupBNM_Assembly_GetAllAssemblies "[SetupBNM] il2cpp::vm::Assembly::GetAllAssemblies in lib: %p."
 
 #endif

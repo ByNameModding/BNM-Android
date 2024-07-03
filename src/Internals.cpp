@@ -8,10 +8,10 @@ namespace BNM::Internal {
     Loading::MethodFinder usersFinderMethod{};
     void *usersFinderMethodData{};
 
-    // Список с переменными из виртуальной машины il2cpp
+    // A list with variables from the il2cpp VM
     _VMData vmData{};
 
-    // il2cpp методы, чтобы не искать их каждый запрос BNM
+    // il2cpp methods to avoid searching for them every BNM query
     _IL2CppMethods il2cppMethods{};
 
     std::list<void(*)()> onIl2CppLoaded{};
@@ -32,12 +32,16 @@ namespace BNM::Internal {
     void *BNM_il2cpp_class_from_system_type_origin{};
     IL2CPP::Il2CppClass *(*old_BNM_il2cpp_class_from_system_type)(IL2CPP::Il2CppReflectionType*){};
 
+#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
+    std::shared_mutex loadingMutex{};
+#endif
+
 #ifdef BNM_CLASSES_MANAGEMENT
     namespace ClassesManagement {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
-        std::shared_mutex classesFindAccessMutex{}, customClassesMutex{};
+        std::shared_mutex classesFindAccessMutex{};
 #endif
-        // Список со всеми классами, которые BNM должен создать/изменить
+        // A list with all the classes that BNM should create/modify
         std::vector<MANAGEMENT_STRUCTURES::CustomClass *> *classesManagementVector = nullptr;
 
         IL2CPP::Il2CppClass *(*old_Class$$FromIl2CppType)(IL2CPP::Il2CppType *type){};

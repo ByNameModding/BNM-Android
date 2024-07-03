@@ -4,6 +4,11 @@
 #define BNM_IL2CPP_API_il2cpp_init "il2cpp_init"
 #define BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type "il2cpp_class_from_il2cpp_type"
 
+#define BNM_IL2CPP_API_il2cpp_array_new_specific "il2cpp_array_new_specific"
+#define BNM_IL2CPP_API_il2cpp_class_from_type "il2cpp_class_from_type"
+#define BNM_IL2CPP_API_il2cpp_type_get_class_or_element_class "il2cpp_type_get_class_or_element_class"
+#define BNM_IL2CPP_API_il2cpp_domain_get_assemblies "il2cpp_domain_get_assemblies"
+
 #define BNM_IL2CPP_API_il2cpp_image_get_class "il2cpp_image_get_class"
 #define BNM_IL2CPP_API_il2cpp_get_corlib "il2cpp_get_corlib"
 #define BNM_IL2CPP_API_il2cpp_class_from_name "il2cpp_class_from_name"
@@ -18,3 +23,4 @@
 #define BNM_IL2CPP_API_il2cpp_field_static_set_value "il2cpp_field_static_set_value"
 #define BNM_IL2CPP_API_il2cpp_string_new "il2cpp_string_new"
 #define BNM_IL2CPP_API_il2cpp_resolve_icall "il2cpp_resolve_icall"
+#define BNM_IL2CPP_API_il2cpp_runtime_invoke"il2cpp_runtime_invoke"

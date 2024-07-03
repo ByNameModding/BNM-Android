@@ -3,6 +3,7 @@
 #include "Field.hpp"
 #include "Method.hpp"
 #include "Property.hpp"
+#include "Event.hpp"
 
 namespace BNM::Operators {
     template<typename P, typename T, typename = std::enable_if<std::is_pointer_v<P>>>
@@ -21,6 +22,11 @@ namespace BNM::Operators {
         return property;
     }
     template<typename P, typename T, typename = std::enable_if<std::is_pointer_v<P>>>
+    inline Event<T> &operator ->*(const P pointer, Event<T> &event) {
+        event[(IL2CPP::Il2CppObject *)pointer];
+        return event;
+    }
+    template<typename P, typename T, typename = std::enable_if<std::is_pointer_v<P>>>
     inline Field<T> &operator >>(const P pointer, Field<T> &field) {
         field[(IL2CPP::Il2CppObject *)pointer];
         return field;
@@ -34,5 +40,10 @@ namespace BNM::Operators {
     inline Property<T> &operator >>(const P pointer, Property<T> &property) {
         property[(IL2CPP::Il2CppObject *)pointer];
         return property;
+    }
+    template<typename P, typename T, typename = std::enable_if<std::is_pointer_v<P>>>
+    inline Event<T> &operator >>(const P pointer, Event<T> &event) {
+        event[(IL2CPP::Il2CppObject *)pointer];
+        return event;
     }
 }

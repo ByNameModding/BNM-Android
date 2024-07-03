@@ -8,7 +8,7 @@
 #include "Il2CppHeaders.hpp"
 
 namespace BNM {
-    // Проверить, действителен ли указатель
+    // Check if the pointer is valid
     template <typename T>
     inline bool IsAllocated(T x) {
 #ifdef BNM_ALLOW_SAFE_IS_ALLOCATED
@@ -32,20 +32,20 @@ namespace BNM {
 
     namespace Structures::Mono { struct String; }
 
-    // Метод создания C#-строк собираемых сборщиком мусора, если он включён в игре
+    // The method of creating C# strings collected by the garbage collector, if it is enabled in the game
     Structures::Mono::String *CreateMonoString(const char *str);
     Structures::Mono::String *CreateMonoString(const std::string_view &str);
 
-    // Получить внешние методы (icall)
+    // Get external methods (icall)
     void *GetExternMethod(const std::string_view &str);
 
-    // Истина, когда il2cpp и BNM загружены
+    // True when il2cpp and BNM are loaded
     bool IsLoaded();
 
-    // Не закрывать его! BNM вызовет сбой из-за этого.
+    // Don't close it! BNM will cause a crash because of this.
     void *GetIl2CppLibraryHandle();
 
-    // Распаковка объекта, просто копия метода из il2cpp
+    // Unpacking the object, just a copy of the method from il2cpp
     template<typename T>
     inline T UnboxObject(T obj) { return (T)(void *)(((char *)obj) + sizeof(BNM::IL2CPP::Il2CppObject)); }
 
@@ -54,7 +54,7 @@ namespace BNM {
         *(void **)&method = (void *)ptr;
     }
 
-    // Для статических полей потоков
+    // For thread static fields
     namespace PRIVATE_FieldUtils {
         void GetStaticValue(IL2CPP::FieldInfo *info, void *value);
         void SetStaticValue(IL2CPP::FieldInfo *info, void *value);
@@ -67,4 +67,12 @@ namespace BNM {
         void LogCompileTimeClass(const BNM::CompileTimeClass &compileTimeClass);
     }
 #endif
+
+#if UNITY_VER >= 232
+    inline BNM_INT_PTR UnmarshalUnityObject(BNM_INT_PTR gcHandlePtr) {
+        auto gcHandle = *(BNM_INT_PTR *)gcHandlePtr;
+        return gcHandle & ~(BNM_INT_PTR)1;
+    }
+#endif
+
 }

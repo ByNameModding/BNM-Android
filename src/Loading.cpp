@@ -8,8 +8,11 @@
 using namespace BNM;
 
 void Internal::Load() {
+#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
+    std::shared_lock lock(loadingMutex);
+#endif
 
-    // Загрузить BNM
+    // Load BNM
     SetupBNM();
 #ifdef BNM_CLASSES_MANAGEMENT
 
@@ -26,7 +29,7 @@ void Internal::Load() {
 #endif
     state = true;
 
-    // Вызвать все события после загрузки il2cpp
+    // Call all events after loading il2cpp
     auto events = onIl2CppLoaded;
     for (auto event : events) event();
 }
@@ -36,7 +39,7 @@ void *Internal::GetIl2CppMethod(const char *methodName) {
     
     return usersFinderMethod(methodName, usersFinderMethodData);
     
-    DLFCN:;
+    DLFCN:
     if (!il2cppLibraryHandle) return nullptr;
     return BNM_dlsym(il2cppLibraryHandle, methodName);
 }
@@ -94,24 +97,24 @@ bool Loading::TryLoadByJNI(JNIEnv *env, jobject context) {
     env->DeleteLocalRef(applicationInfo); env->DeleteLocalRef(applicationInfoClass);
 
     if (isLibrariesExtracted)
-        // По пути до библиотеки /data/app/.../имя пакета-.../lib/архитектура/libil2cpp.so
+        // Path to the library /data/app/.../package name-.../lib/architecture/libil2cpp.so
         file = std::string(cDir) + OBFUSCATE_BNM("/libil2cpp.so");
     else
-        // Из base.apk /data/app/.../имя пакета-.../base.apk!/lib/архитектура/libil2cpp.so
+        // From base.apk /data/app/.../package name-.../base.apk!/lib/architecture/libil2cpp.so
         file = std::string(cDir) + OBFUSCATE_BNM("!/lib/" CURRENT_ARCH "/libil2cpp.so");
 
-    // Попробовать загрузить il2cpp по этому пути
+    // Try to download il2cpp using this path
     auto handle = BNM_dlopen(file.c_str(), RTLD_LAZY);
     if (!(result = CheckHandle(handle))) {
-        BNM_LOG_ERR_IF(isLibrariesExtracted, "Не удалось загрузить libil2cpp.so по пути!");
+        BNM_LOG_ERR_IF(isLibrariesExtracted, DBG_BNM_MSG_TryLoadByJNI_Fail);
     } else goto FINISH;
     if (isLibrariesExtracted) goto FINISH;
     file.clear();
 
-    // Из split_config.архитектура.apk /data/app/.../имя пакета-.../split_config.архитектура.apk!/lib/архитектура/libil2cpp.so
+    // From split_config.architecture.apk /data/app/.../package name-.../split_config.architecture.apk!/lib/architecture/libil2cpp.so
     file = std::string(cDir).substr(0, cDir.length() - 8) + OBFUSCATE_BNM("split_config." CURRENT_ARCH ".apk!/lib/" CURRENT_ARCH "/libil2cpp.so");
     handle = BNM_dlopen(file.c_str(), RTLD_LAZY);
-    if (!(result = CheckHandle(handle))) BNM_LOG_ERR("Не удалось загрузить libil2cpp.so по пути!");
+    if (!(result = CheckHandle(handle))) BNM_LOG_ERR(DBG_BNM_MSG_TryLoadByJNI_Fail);
 
     FINISH:
     env->ReleaseStringUTFChars(jDir, cDir.data()); env->DeleteLocalRef(jDir);
@@ -144,19 +147,19 @@ void Loading::TrySetupByUsersFinder() {
 }
 
 namespace AssemblerUtils {
-    // Перевернуть шестнадцатеричную строку (из 001122 в 221100)
+    // Reverse hexadecimal string (from 001122 to 221100)
     std::string ReverseHexString(const std::string &hex) {
         std::string out{};
         for (size_t i = 0; i < hex.length(); i += 2) out.insert(0, hex.substr(i, 2));
         return out;
     }
 
-    // Конвертировать шестнадцатеричную строку в значение
-    unsigned long long HexStr2Value(const std::string &hex) { return strtoull(hex.c_str(), nullptr, 16); }
+    // Convert hexadecimal string to a value
+    BNM_PTR HexStr2Value(const std::string &hex) { return strtoull(hex.c_str(), nullptr, 16); }
 
 #if defined(__ARM_ARCH_7A__)
 
-    // Проверить, является ли ассемблер `bl ...` или `b ...`
+    // Check if the assembly is `bl ...`or `b ...`
     bool IsBranchHex(const std::string &hex) {
         BNM_PTR hexW = HexStr2Value(ReverseHexString(hex));
         return (hexW & 0x0A000000) == 0x0A000000;
@@ -164,7 +167,7 @@ namespace AssemblerUtils {
 
 #elif defined(__aarch64__)
 
-    // Проверить, является ли ассемблер `bl ...` или `b ...`
+    // Check if the assembly is `bl ...`or `b ...`
     bool IsBranchHex(const std::string &hex) {
         BNM_PTR hexW = HexStr2Value(ReverseHexString(hex));
         return (hexW & 0xFC000000) == 0x14000000 || (hexW & 0xFC000000) == 0x94000000;
@@ -172,18 +175,20 @@ namespace AssemblerUtils {
 
 #elif defined(__i386__) || defined(__x86_64__)
 
-    // Проверить, является ли ассемблер `call ...`
+    // Check if the assembly is `call ...`
     bool IsCallHex(const std::string &hex) { return hex[0] == 'E' && hex[1] == '8'; }
 #elif defined(__riscv)
-#error "Он вышел для Android?"
+#error "Is it released for Android?"
 #else
-#error "BNM поддерживает только arm64, arm, x86 и x86_64"
+#error "BNM only supports arm64, arm, x86 and x86_64"
 #endif
     const char *hexChars = OBFUSCATE_BNM("0123456789ABCDEF");
     // Прочитать память, как шестнадцатеричную строку
-    std::string ReadFiveBytesOfMemoryMax(BNM_PTR address, size_t len) {
-        char temp[5]; memset(temp, 0, len);
-        std::string ret;
+    // Read the memory as a hexadecimal string
+    template<size_t len>
+    std::string ReadMemory(BNM_PTR address) {
+        char temp[len]; memset(temp, 0, len);
+        std::string ret{};
         if (memcpy(temp, (void *)address, len) == nullptr) return std::move(ret);
         ret.resize(len * 2, 0);
         auto buf = (char *)ret.data();
@@ -194,7 +199,7 @@ namespace AssemblerUtils {
         return std::move(ret);
     }
 
-    // Декодировать b или bl и получить адрес, по которому он переходит
+    // Decode b or bl and get the address it goes to
     bool DecodeBranchOrCall(const std::string &hex, BNM_PTR offset, BNM_PTR &outOffset) {
 #if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
         if (!IsBranchHex(hex)) return false;
@@ -203,48 +208,48 @@ namespace AssemblerUtils {
 #else
         uint8_t add = 8;
 #endif
-        // Эта строка основана на коде capstone
+        // This line is based on the capstone code
         outOffset = ((int32_t)(((((HexStr2Value(ReverseHexString(hex))) & (((uint32_t)1 << 24) - 1) << 0) >> 0) << 2) << (32 - 26)) >> (32 - 26)) + offset + add;
 #elif defined(__i386__) || defined(__x86_64__)
         if (!IsCallHex(hex)) return false;
-        // Адрес + адрес из `call` + размер инструкции
+        // Address + address from the `call` + size of the instruction
         outOffset = offset + HexStr2Value(ReverseHexString(hex).substr(0, 8)) + 5;
 #else
-#error "BNM поддерживает только arm64, arm, x86 и x86_64"
+#error "BNM only supports arm64, arm, x86 and x86_64"
         return false;
 #endif
         return true;
     }
 
-    // Идёт по памяти и пытается найти b-, bl- или call-инструкции
-    // Потом получает адрес, по которому они переходят
-    // index: 0 - первый, 1 - второй и т. д.
+    // Goes through memory and tries to find b-, bl- or call instructions
+    // Then gets the address they go to
+    // index: 1 is the first, 2 is the second, etc.
     BNM_PTR FindNextJump(BNM_PTR start, uint8_t index) {
 #if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
         BNM_PTR offset = 0;
-        std::string curHex = ReadFiveBytesOfMemoryMax(start, 4);
+        std::string curHex = ReadMemory<4>(start);
         BNM_PTR outOffset = 0;
         bool out;
         while (!(out = DecodeBranchOrCall(curHex, start + offset, outOffset)) || index != 1) {
             offset += 4;
-            curHex = ReadFiveBytesOfMemoryMax(start + offset, 4);
+            curHex = ReadMemory<4>(start + offset);
             if (out) index--;
         }
         return outOffset;
 #elif defined(__i386__) || defined(__x86_64__)
         BNM_PTR offset = 0;
-        std::string curHex = ReadFiveBytesOfMemoryMax(start, 1);
+        std::string curHex = ReadMemory<1>(start);
         BNM_PTR outOffset = 0;
         bool out;
         while (!(out = IsCallHex(curHex)) || index != 1) {
             offset += 1;
-            curHex = ReadFiveBytesOfMemoryMax(start + offset, 1);
+            curHex = ReadMemory<1>(start + offset);
             if (out) index--;
         }
-        DecodeBranchOrCall(ReadFiveBytesOfMemoryMax(start + offset, 5), start + offset, outOffset);
+        DecodeBranchOrCall(ReadMemory<5>(start + offset), start + offset, outOffset);
         return outOffset;
 #else
-#error "BNM поддерживает только arm64, arm, x86 и x86_64"
+#error "BNM only supports arm64, arm, x86 and x86_64"
         return 0;
 #endif
     }
@@ -256,12 +261,12 @@ void Internal::LateInit(void *il2cpp_class_from_il2cpp_type_addr) {
 #if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
     const uint8_t count = 1;
 #elif defined(__i386__) || defined(__x86_64__)
-    // x86 имеет один доп. вызов в начеле
+    // x86 has one add-on call at start
     const uint8_t count = 2;
 #endif
 
     //! il2cpp::vm::Class::FromIl2CppType
-    // Путь:
+    // Путь (Path):
     // il2cpp_class_from_il2cpp_type ->
     // il2cpp::vm::Class::FromIl2CppType
     auto from_il2cpp_type = AssemblerUtils::FindNextJump((BNM_PTR) il2cpp_class_from_il2cpp_type_addr, count);
@@ -287,17 +292,17 @@ void Internal::SetupBNM() {
 #if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
     const uint8_t count = 1;
 #elif defined(__i386__) || defined(__x86_64__)
-    // x86 имеет один доп. вызов в начеле
+    // x86 has one add-on call at start
     const uint8_t count = 2;
 #endif
 
     //! il2cpp::vm::Class::Init
-    // Путь:
+    // Path:
     // il2cpp_array_new_specific ->
     // il2cpp::vm::Array::NewSpecific ->
     // il2cpp::vm::Class::Init
-    Class$$Init = (decltype(Class$$Init)) AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_array_new_specific")), count), count);
-    BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Class::Init в библиотеке: %p.", OffsetInLib((void *)Class$$Init));
+    Class$$Init = (decltype(Class$$Init)) AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_array_new_specific)), count), count);
+    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Class_Init, OffsetInLib((void *)Class$$Init));
 
 
 #define INIT_IL2CPP_API(name) il2cppMethods.name = (decltype(il2cppMethods.name)) GetIl2CppMethod(BNM_IL2CPP_API_##name)
@@ -317,6 +322,7 @@ void Internal::SetupBNM() {
     INIT_IL2CPP_API(il2cpp_field_static_set_value);
     INIT_IL2CPP_API(il2cpp_string_new);
     INIT_IL2CPP_API(il2cpp_resolve_icall);
+    INIT_IL2CPP_API(il2cpp_runtime_invoke);
 
 #undef INIT_IL2CPP_API
     
@@ -332,99 +338,76 @@ void Internal::SetupBNM() {
 #else
         const int sCount = count + 2;
 #endif
-        // Путь:
+        // Path:
         // System.Reflection.Assembly.GetTypes(bool) ->
         // il2cpp::icalls::mscorlib::System::Reflection::Assembly::GetTypes ->
         // il2cpp::icalls::mscorlib::System::Module::InternalGetTypes ->
         // il2cpp::vm::Image::GetTypes
         orig_Image$$GetTypes = (decltype(orig_Image$$GetTypes)) AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump(GetTypesAdr, count), sCount), count);
 
-        BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Image::GetTypes в библиотеке: %p.", OffsetInLib((void *)orig_Image$$GetTypes));
-    } else BNM_LOG_DEBUG("[SetupBNM] в коде есть il2cpp_image_get_class. BNM будет использовать его.");
+        BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Image_GetTypes, OffsetInLib((void *)orig_Image$$GetTypes));
+    } else BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_image_get_class_exists);
 
 #ifdef BNM_CLASSES_MANAGEMENT
 
     //! il2cpp::vm::Class::FromIl2CppType
-    // Путь:
+    // Path:
     // il2cpp_class_from_type ->
     // il2cpp::vm::Class::FromIl2CppType
-    auto from_type_adr = AssemblerUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_class_from_type")), count);
+    auto from_type_adr = AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_type)), count);
     ::HOOK(from_type_adr, ClassesManagement::Class$$FromIl2CppType, ClassesManagement::old_Class$$FromIl2CppType);
-    BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Class::FromIl2CppType в библиотеке: %p.", OffsetInLib((void *)from_type_adr));
+    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Class_FromIl2CppType, OffsetInLib((void *)from_type_adr));
 
 
     //! il2cpp::vm::Type::GetClassOrElementClass
-    // Путь:
+    // Path:
     // il2cpp_type_get_class_or_element_class ->
     // il2cpp::vm::Type::GetClassOrElementClass
-    auto type_get_class_adr = AssemblerUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_type_get_class_or_element_class")), count);
+    auto type_get_class_adr = AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_type_get_class_or_element_class)), count);
     ::HOOK(type_get_class_adr, ClassesManagement::Type$$GetClassOrElementClass, ClassesManagement::old_Type$$GetClassOrElementClass);
-    BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Type::GetClassOrElementClass в библиотеке: %p.", OffsetInLib((void *)type_get_class_adr));
+    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Type_GetClassOrElementClass, OffsetInLib((void *)type_get_class_adr));
 
     //! il2cpp::vm::Image::ClassFromName
-    // Путь:
+    // Path:
     // il2cpp_class_from_name ->
     // il2cpp::vm::Class::FromName ->
     // il2cpp::vm::Image::ClassFromName
     auto from_name_adr = AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump((BNM_PTR) il2cppMethods.il2cpp_class_from_name, count), count);
     ::HOOK(from_name_adr, ClassesManagement::Class$$FromName, ClassesManagement::old_Class$$FromName);
-    BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Image::FromName в библиотеке: %p.", OffsetInLib((void *)from_name_adr));
+    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Image_FromName, OffsetInLib((void *)from_name_adr));
 #if UNITY_VER <= 174
 
     //! il2cpp::vm::MetadataCache::GetImageFromIndex
-    // Путь:
+    // Path:
     // il2cpp_assembly_get_image ->
     // il2cpp::vm::Assembly::GetImage ->
     // il2cpp::vm::MetadataCache::GetImageFromIndex
     auto GetImageFromIndexOffset = AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump((BNM_PTR) il2cppMethods.il2cpp_assembly_get_image, count), count);
     ::HOOK(GetImageFromIndexOffset, ClassesManagement::new_GetImageFromIndex, ClassesManagement::old_GetImageFromIndex);
-    BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::MetadataCache::GetImageFromIndex в библиотеке: %p.", OffsetInLib((void *)GetImageFromIndexOffset));
+    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_MetadataCache_GetImageFromIndex, OffsetInLib((void *)GetImageFromIndexOffset));
 
     //! il2cpp::vm::Assembly::Load
-    // Путь:
+    // Path:
     // il2cpp_domain_assembly_open ->
     // il2cpp::vm::Assembly::Load
     BNM_PTR AssemblyLoadOffset = AssemblerUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
     ::HOOK(AssemblyLoadOffset, ClassesManagement::Assembly$$Load, nullptr);
-    BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::Load в библиотеке: %p.", OffsetInLib((void *)AssemblyLoadOffset));
+    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Assembly_Load, OffsetInLib((void *)AssemblyLoadOffset));
 
 #endif
 #endif
 
     //! il2cpp::vm::Assembly::GetAllAssemblies
-#ifdef BNM_USE_APPDOMAIN
-    auto assemblyClass = il2cppMethods.il2cpp_class_from_name(il2cppMethods.il2cpp_get_corlib(), OBFUSCATE_BNM("System"), OBFUSCATE_BNM("AppDomain"));
-    auto getAssembly = Class(assemblyClass).GetMethod(OBFUSCATE_BNM("GetAssemblies"), 1);
-    if (getAssembly) {
-        const int sCount
-#if !defined(__aarch64__) && UNITY_VER >= 211
-            = count;
-#else
-            = count + 1;
-#endif
-        // Путь:
-        // System.AppDomain.GetAssemblies(bool) ->
-        // il2cpp::icalls::mscorlib::System::AppDomain::GetAssemblies ->
-        // il2cpp::vm::Assembly::GetAllAssemblies
-        BNM_PTR GetAssembliesAdr = AssemblerUtils::FindNextJump(getAssembly.GetOffset(), count);
-        Assembly$$GetAllAssemblies = (std::vector<IL2CPP::Il2CppAssembly *> *(*)())(AssemblerUtils::FindNextJump(GetAssembliesAdr, sCount));
-        BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::GetAllAssemblies через AppDomain в библиотеке: %p.", OffsetInLib((void *)Assembly$$GetAllAssemblies));
-    } else {
-#endif
-    // Путь:
+    // Path:
     // il2cpp_domain_get_assemblies ->
     // il2cpp::vm::Assembly::GetAllAssemblies
-    auto adr = (BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_domain_get_assemblies"));
+    auto adr = (BNM_PTR) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_domain_get_assemblies));
     Assembly$$GetAllAssemblies = (std::vector<IL2CPP::Il2CppAssembly *> *(*)())(AssemblerUtils::FindNextJump(adr, count));
-    BNM_LOG_DEBUG("[SetupBNM] il2cpp::vm::Assembly::GetAllAssemblies через domain в библиотеке: %p.", OffsetInLib((void *)Assembly$$GetAllAssemblies));
-    
-#ifdef BNM_USE_APPDOMAIN
-    }
-#endif
+    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Assembly_GetAllAssemblies, OffsetInLib((void *)Assembly$$GetAllAssemblies));
 
     auto mscorlib = il2cppMethods.il2cpp_get_corlib();
 
-    // Получить MakeGenericMethod_impl. В зависимости от версии Unity, он может быть в разных классах.
+    // Get MakeGenericMethod_impl. Depending on the version of Unity, it may be in different classes.
     auto runtimeMethodInfoClassPtr = TryGetClassInImage(mscorlib, OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("RuntimeMethodInfo"));
     if (runtimeMethodInfoClassPtr) {
         Internal::Class$$Init(runtimeMethodInfoClassPtr);
@@ -432,7 +415,7 @@ void Internal::SetupBNM() {
             return !strcmp(methodBase._data->name, OBFUSCATE_BNM("MakeGenericMethod_impl"));
         }));
     }
-    if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl)
+    if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl.Initialized())
         vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = Class(OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("MonoMethod"), mscorlib).GetMethod(OBFUSCATE_BNM("MakeGenericMethod_impl"));
 
     auto runtimeTypeClass = Class(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("RuntimeType"), mscorlib);
@@ -457,15 +440,15 @@ void Internal::SetupBNM() {
     vmData.RuntimeType$$make_byref_type = runtimeTypeClass.GetMethod(OBFUSCATE_BNM("make_byref_type"), 0);
     vmData.String$$Empty = stringClass.GetField(OBFUSCATE_BNM("Empty")).cast<Structures::Mono::String *>().GetPointer();
 
-    auto listClass = Class(OBFUSCATE_BNM("System.Collections.Generic"), OBFUSCATE_BNM("List`1"));
+    auto listClass = vmData.System$$List = Class(OBFUSCATE_BNM("System.Collections.Generic"), OBFUSCATE_BNM("List`1"));
     auto cls = listClass._data;
     auto size = sizeof(IL2CPP::Il2CppClass) + cls->vtable_count * sizeof(IL2CPP::VirtualInvokeData);
-    listClass._data = (IL2CPP::Il2CppClass *) malloc(size);
+    listClass._data = (IL2CPP::Il2CppClass *) BNM_malloc(size);
     memcpy(listClass._data, cls, size);
     listClass._data->has_finalize = 0;
     listClass._data->instance_size = sizeof(Structures::Mono::List<void*>);
 
-    // Обход создания статического поля _emptyArray, потому что его не может существовать
+    // Bypassing the creation of a static _emptyArray field because it cannot exist
     listClass._data->has_cctor = 0;
     listClass._data->cctor_started = 0;
 #if UNITY_VER >= 212
@@ -476,10 +459,10 @@ void Internal::SetupBNM() {
 
     auto constructor = listClass.GetMethod(Internal::constructorName, 0)._data;
 
-    auto newMethods = (IL2CPP::MethodInfo **) malloc(sizeof(IL2CPP::MethodInfo *) * listClass._data->method_count);
+    auto newMethods = (IL2CPP::MethodInfo **) BNM_malloc(sizeof(IL2CPP::MethodInfo *) * listClass._data->method_count);
     memcpy(newMethods, listClass._data->methods, sizeof(IL2CPP::MethodInfo *) * listClass._data->method_count);
 
-    auto newConstructor = (IL2CPP::MethodInfo *) malloc(sizeof(IL2CPP::MethodInfo));
+    auto newConstructor = (IL2CPP::MethodInfo *) BNM_malloc(sizeof(IL2CPP::MethodInfo));
     memcpy(newConstructor, constructor, sizeof(IL2CPP::MethodInfo));
     newConstructor->methodPointer = (decltype(newConstructor->methodPointer)) EmptyMethod;
     newConstructor->invoker_method = (decltype(newConstructor->invoker_method)) EmptyMethod;

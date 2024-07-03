@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Vector3.h"
+#include "Vector3.hpp"
 
 namespace BNM::Structures::Unity {
     struct Vector4;
@@ -47,7 +47,7 @@ namespace BNM::Structures::Unity {
         Vector4 operator-() const { return {-x, -y, -z, -w}; }
         inline operator Vector3() const { return {x, y, z}; }
 
-        static const Vector4 positiveinfinity;
+        static const Vector4 positiveInfinity;
         static const Vector4 negativeInfinity;
         static const Vector4 zero;
         static const Vector4 one;

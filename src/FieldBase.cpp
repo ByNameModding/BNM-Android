@@ -4,7 +4,7 @@
 
 using namespace BNM;
 
-// Для статических полей потоков
+// For static fields of streams
 namespace BNM::PRIVATE_FieldUtils {
     void GetStaticValue(IL2CPP::FieldInfo *info, void *value) { return Internal::il2cppMethods.il2cpp_field_static_get_value(info, value); }
 
