@@ -2,6 +2,7 @@
 
 #include <new>
 #include <array>
+#include <string_view>
 
 #include "UserSettings/GlobalSettings.hpp"
 #include "Il2CppHeaders.hpp"
