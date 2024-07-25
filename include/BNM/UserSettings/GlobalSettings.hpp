@@ -1,5 +1,5 @@
 #if __cplusplus < 202002L
-static_assert(false, "ByNameModding требуется C++20 и выше!");
+static_assert(false, "ByNameModding requires C++20 and above!");
 #endif
 
 #pragma once
@@ -221,4 +221,4 @@ namespace BNM {
 #endif
 }
 
-#define BNM_VER "2.0"
+#define BNM_VER "2.0.2"

@@ -23,4 +23,4 @@
 #define BNM_IL2CPP_API_il2cpp_field_static_set_value "il2cpp_field_static_set_value"
 #define BNM_IL2CPP_API_il2cpp_string_new "il2cpp_string_new"
 #define BNM_IL2CPP_API_il2cpp_resolve_icall "il2cpp_resolve_icall"
-#define BNM_IL2CPP_API_il2cpp_runtime_invoke"il2cpp_runtime_invoke"
+#define BNM_IL2CPP_API_il2cpp_runtime_invoke "il2cpp_runtime_invoke"

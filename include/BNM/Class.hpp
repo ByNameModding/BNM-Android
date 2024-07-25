@@ -199,7 +199,7 @@ namespace BNM {
             CompileTimeClass result{};
 
             auto info = (CompileTimeClass::_ClassInfo *) BNM_malloc(sizeof(CompileTimeClass::_ClassInfo));
-            *info = CompileTimeClass::_ClassInfo{_name, _namespace, _imageName};
+            *info = CompileTimeClass::_ClassInfo{_namespace, _name, _imageName};
             result._stack.push_back(info);
 
             if (_modifier != CompileTimeClass::ModifierType::None) {
@@ -222,7 +222,7 @@ namespace BNM {
         inline CompileTimeClassBuilder(const char *_namespace, const char *_name, const char *_imageName = nullptr, bool autoFree = true) {
             _data._autoFree = autoFree;
             auto info = (CompileTimeClass::_ClassInfo *) BNM_malloc(sizeof(CompileTimeClass::_ClassInfo));
-            *info = CompileTimeClass::_ClassInfo{_name, _namespace, _imageName};
+            *info = CompileTimeClass::_ClassInfo{_namespace, _name, _imageName};
             _data._stack.push_back(info);
         }
         inline CompileTimeClassBuilder &Class(const char *_name) {
