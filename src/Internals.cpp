@@ -2,8 +2,7 @@
 #include "Internals.hpp"
 
 namespace BNM::Internal {
-    bool state = false;
-    bool lateInitAllowed = false;
+    States states{};
     void *il2cppLibraryHandle{};
     Loading::MethodFinder usersFinderMethod{};
     void *usersFinderMethodData{};

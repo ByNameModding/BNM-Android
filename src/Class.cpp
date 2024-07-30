@@ -405,10 +405,10 @@ namespace CompileTimeClassProcessors {
             return;
         }
 
-        auto classInfo = (CompileTimeClass::_ClassInfo *) info;
+        auto innerInfo = (CompileTimeClass::_InnerInfo *) info;
 
         if (!target._loadedClass) return;
-        target._loadedClass = target._loadedClass.GetInnerClass(classInfo->_name);
+        target._loadedClass = target._loadedClass.GetInnerClass(innerInfo->_name);
     }
 
     // _ModifierInfo

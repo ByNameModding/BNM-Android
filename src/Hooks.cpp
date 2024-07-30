@@ -4,13 +4,28 @@ using namespace BNM;
 
 
 void Internal::BNM_il2cpp_init(const char *domain_name) {
+    states.isInsideInit = true;
+
     old_BNM_il2cpp_init(domain_name);
 
     Load();
+
+    states.isInsideInit = false;
 }
 
 IL2CPP::Il2CppClass *Internal::BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppReflectionType *type) {
     auto klass = old_BNM_il2cpp_class_from_system_type(type);
+
+    if (states.isInsideInit) {
+        UNHOOK(BNM_il2cpp_class_from_system_type_origin);
+        return klass;
+    }
+
+    auto domain = il2cppMethods.il2cpp_domain_get();
+    auto thread = il2cppMethods.il2cpp_thread_current(domain);
+
+    // The domain is the last thing that sets up in il2cpp::vm::Runtime::Init, so we check if it's setted up before loading BNM.
+    if (!thread || !thread->internal_thread || (void *) domain->default_context != (void *) thread->internal_thread->current_appcontext) return klass;
 
     Load();
 

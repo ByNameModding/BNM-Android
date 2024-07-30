@@ -27,7 +27,7 @@ void Internal::Load() {
 #endif
 
 #endif
-    state = true;
+    states.state = true;
 
     // Call all events after loading il2cpp
     auto events = onIl2CppLoaded;
@@ -45,7 +45,7 @@ void *Internal::GetIl2CppMethod(const char *methodName) {
 }
 
 void Loading::AllowedLateInitHook() {
-    Internal::lateInitAllowed = true;
+    Internal::states.lateInitAllowed = true;
 }
 
 bool CheckHandle(void *handle) {
@@ -54,7 +54,7 @@ bool CheckHandle(void *handle) {
 
     ::HOOK(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
 
-    if (Internal::lateInitAllowed) Internal::LateInit(BNM_dlsym(handle, OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type)));
+    if (Internal::states.lateInitAllowed) Internal::LateInit(BNM_dlsym(handle, OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type)));
 
     Internal::il2cppLibraryHandle = handle;
     return true;
@@ -75,7 +75,7 @@ bool CheckHandle(void *handle) {
 bool Loading::TryLoadByJNI(JNIEnv *env, jobject context) {
     bool result = false;
 
-    if (!env || Internal::il2cppLibraryHandle || Internal::state) return result;
+    if (!env || Internal::il2cppLibraryHandle || Internal::states.state) return result;
 
     if (context == nullptr) {
         jclass activityThread = env->FindClass(OBFUSCATE_BNM("android/app/ActivityThread"));
@@ -137,7 +137,7 @@ bool Loading::TryLoadByUsersFinder() {
 
     ::HOOK(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
 
-    if (Internal::lateInitAllowed) Internal::LateInit(Internal::usersFinderMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type), Internal::usersFinderMethodData));
+    if (Internal::states.lateInitAllowed) Internal::LateInit(Internal::usersFinderMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type), Internal::usersFinderMethodData));
 
     return true;
 }
@@ -323,6 +323,8 @@ void Internal::SetupBNM() {
     INIT_IL2CPP_API(il2cpp_string_new);
     INIT_IL2CPP_API(il2cpp_resolve_icall);
     INIT_IL2CPP_API(il2cpp_runtime_invoke);
+    INIT_IL2CPP_API(il2cpp_domain_get);
+    INIT_IL2CPP_API(il2cpp_thread_current);
 
 #undef INIT_IL2CPP_API
     

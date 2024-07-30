@@ -179,7 +179,7 @@ namespace BNM {
             const char *_namespace{}, *_name{}, *_imageName{};
         };
         struct _InnerInfo : _BaseInfo {
-            _InnerInfo(const char *_name) : _BaseInfo(_BaseType::Class), _name(_name) {}
+            _InnerInfo(const char *_name) : _BaseInfo(_BaseType::Inner), _name(_name) {}
             const char *_name{};
         };
         struct _ModifierInfo : _BaseInfo {

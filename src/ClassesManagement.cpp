@@ -365,7 +365,8 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
     klass->has_cctor = 0;
 
     klass->has_references = 0;
-    klass->size_inited = klass->is_vtable_initialized = 1;
+    klass->size_inited = 1;
+    klass->is_vtable_initialized = 1;
     klass->initialized = 1;
 #if UNITY_VER > 182
 

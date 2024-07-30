@@ -18,9 +18,11 @@
 #endif
 
 namespace BNM::Internal {
-
-    extern bool state;
-    extern bool lateInitAllowed;
+    struct States {
+        uint8_t state : 1{};
+        uint8_t lateInitAllowed : 1{};
+        uint8_t isInsideInit : 1{};
+    } extern states;
     extern void *il2cppLibraryHandle;
     extern Loading::MethodFinder usersFinderMethod;
     extern void *usersFinderMethodData;
@@ -55,7 +57,9 @@ namespace BNM::Internal {
         void (*il2cpp_field_static_set_value)(const BNM::IL2CPP::FieldInfo *, void *){};
         BNM::Structures::Mono::String *(*il2cpp_string_new)(const char *){};
         void *(*il2cpp_resolve_icall)(const char *){};
-        void *(*il2cpp_runtime_invoke)(BNM::IL2CPP::MethodInfo *, void *, void **, BNM::IL2CPP::Il2CppException **);
+        void *(*il2cpp_runtime_invoke)(BNM::IL2CPP::MethodInfo *, void *, void **, BNM::IL2CPP::Il2CppException **){};
+        BNM::IL2CPP::Il2CppDomain *(*il2cpp_domain_get)(){};
+        BNM::IL2CPP::Il2CppThread *(*il2cpp_thread_current)(BNM::IL2CPP::Il2CppDomain *){};
     } extern il2cppMethods;
 
 #pragma pack(pop)

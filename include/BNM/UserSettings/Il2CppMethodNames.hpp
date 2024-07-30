@@ -24,3 +24,5 @@
 #define BNM_IL2CPP_API_il2cpp_string_new "il2cpp_string_new"
 #define BNM_IL2CPP_API_il2cpp_resolve_icall "il2cpp_resolve_icall"
 #define BNM_IL2CPP_API_il2cpp_runtime_invoke "il2cpp_runtime_invoke"
+#define BNM_IL2CPP_API_il2cpp_domain_get "il2cpp_domain_get"
+#define BNM_IL2CPP_API_il2cpp_thread_current "il2cpp_thread_current"

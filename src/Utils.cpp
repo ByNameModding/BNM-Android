@@ -21,7 +21,7 @@ void *BNM::GetExternMethod(const std::string_view &str) {
 }
 
 bool BNM::IsLoaded() {
-    return Internal::state;
+    return Internal::states.state;
 }
 
 void *BNM::GetIl2CppLibraryHandle() {
