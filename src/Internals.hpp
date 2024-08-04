@@ -24,8 +24,8 @@ namespace BNM::Internal {
         uint8_t isInsideInit : 1{};
     } extern states;
     extern void *il2cppLibraryHandle;
-    extern Loading::MethodFinder usersFinderMethod;
-    extern void *usersFinderMethodData;
+    extern Loading::MethodFinder currentFinderMethod;
+    extern void *currentFinderData;
 
 #pragma pack(push, 1)
     // A list with variables from the il2cpp VM
@@ -58,8 +58,6 @@ namespace BNM::Internal {
         BNM::Structures::Mono::String *(*il2cpp_string_new)(const char *){};
         void *(*il2cpp_resolve_icall)(const char *){};
         void *(*il2cpp_runtime_invoke)(BNM::IL2CPP::MethodInfo *, void *, void **, BNM::IL2CPP::Il2CppException **){};
-        BNM::IL2CPP::Il2CppDomain *(*il2cpp_domain_get)(){};
-        BNM::IL2CPP::Il2CppThread *(*il2cpp_thread_current)(BNM::IL2CPP::Il2CppDomain *){};
     } extern il2cppMethods;
 
 #pragma pack(pop)
@@ -83,6 +81,7 @@ namespace BNM::Internal {
 
     void *GetIl2CppMethod(const char *methodName);
 
+    extern void *BNM_il2cpp_init_origin;
     extern void (*old_BNM_il2cpp_init)(const char *);
     void BNM_il2cpp_init(const char *domain_name);
 

@@ -35,13 +35,7 @@ void Internal::Load() {
 }
 
 void *Internal::GetIl2CppMethod(const char *methodName) {
-    if (!usersFinderMethod) goto DLFCN;
-    
-    return usersFinderMethod(methodName, usersFinderMethodData);
-    
-    DLFCN:
-    if (!il2cppLibraryHandle) return nullptr;
-    return BNM_dlsym(il2cppLibraryHandle, methodName);
+    return currentFinderMethod(methodName, currentFinderData);
 }
 
 void Loading::AllowedLateInitHook() {
@@ -52,7 +46,7 @@ bool CheckHandle(void *handle) {
     void *init = BNM_dlsym(handle, OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_init));
     if (!init) return false;
 
-    ::HOOK(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
+    Internal::BNM_il2cpp_init_origin = ::HOOK(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
 
     if (Internal::states.lateInitAllowed) Internal::LateInit(BNM_dlsym(handle, OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type)));
 
@@ -126,18 +120,18 @@ bool Loading::TryLoadByDlfcnHandle(void *handle) {
 }
 
 void Loading::SetMethodFinder(BNM::Loading::MethodFinder finderMethod, void *userData) {
-    Internal::usersFinderMethod = finderMethod;
-    Internal::usersFinderMethodData = userData;
+    Internal::currentFinderMethod = finderMethod;
+    Internal::currentFinderData = userData;
 }
 
 bool Loading::TryLoadByUsersFinder() {
 
-    auto init = Internal::usersFinderMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_init), Internal::usersFinderMethodData);
+    auto init = Internal::currentFinderMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_init), Internal::currentFinderData);
     if (!init) return false;
 
-    ::HOOK(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
+    Internal::BNM_il2cpp_init_origin = ::HOOK(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
 
-    if (Internal::states.lateInitAllowed) Internal::LateInit(Internal::usersFinderMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type), Internal::usersFinderMethodData));
+    if (Internal::states.lateInitAllowed) Internal::LateInit(Internal::currentFinderMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type), Internal::currentFinderData));
 
     return true;
 }
@@ -323,8 +317,6 @@ void Internal::SetupBNM() {
     INIT_IL2CPP_API(il2cpp_string_new);
     INIT_IL2CPP_API(il2cpp_resolve_icall);
     INIT_IL2CPP_API(il2cpp_runtime_invoke);
-    INIT_IL2CPP_API(il2cpp_domain_get);
-    INIT_IL2CPP_API(il2cpp_thread_current);
 
 #undef INIT_IL2CPP_API
     

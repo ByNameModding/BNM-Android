@@ -8,6 +8,7 @@
 #include "Il2CppHeaders.hpp"
 
 namespace BNM {
+    template <typename T> bool CheckForNull(T obj) __attribute__((noinline)) { return (void *) obj; }
     // Check if the pointer is valid
     template <typename T>
     inline bool IsAllocated(T x) {

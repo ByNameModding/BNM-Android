@@ -24,7 +24,9 @@ namespace BNM::UnityEngine {
     struct Object : public BNM::IL2CPP::Il2CppObject {
         constexpr Object() : BNM::IL2CPP::Il2CppObject({}) {}
         BNM_INT_PTR m_CachedPtr = 0;
-        inline bool Alive() { return std::launder(this) && (BNM_PTR)m_CachedPtr; }
+        inline bool Alive() __attribute__((always_inline)) {
+            return CheckForNull(this) && m_CachedPtr;
+        }
         inline bool Same(void *object) { return Same((Object *)object); }
         inline bool Same(Object *object) { return (!Alive() && !object->Alive()) || (Alive() && object->Alive() && m_CachedPtr == object->m_CachedPtr); }
     };

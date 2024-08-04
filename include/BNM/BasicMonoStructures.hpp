@@ -7,6 +7,7 @@
 #include "UserSettings/GlobalSettings.hpp"
 #include "Il2CppHeaders.hpp"
 #include "DebugMessages.hpp"
+#include "Utils.hpp"
 
 namespace BNM::Utils {
     template<typename T>
@@ -71,7 +72,9 @@ namespace BNM::Structures::Mono {
         [[nodiscard]] bool SelfCheck() const;
 #endif
         void Destroy();
-        inline bool IsNullOrEmpty() { return !std::launder(this) || !length; }
+        inline bool IsNullOrEmpty() {
+            return !BNM::CheckForNull(this) || !length;
+        }
     };
     template<typename T>
     struct Array : BNM::IL2CPP::Il2CppObject  {
@@ -115,7 +118,7 @@ namespace BNM::Structures::Mono {
         inline void Destroy() { if (!klass) free(this); }
 #ifdef BNM_ALLOW_SELF_CHECKS
         [[nodiscard]] bool SelfCheck() const {
-            if (std::launder(this)) return true;
+            if (CheckForNull(this)) return true;
             BNM_LOG_ERR(DBG_BNM_MSG_Array_SelfCheck_Error);
             return false;
         }
@@ -242,7 +245,7 @@ namespace BNM::Structures::Mono {
         }
 #ifdef BNM_ALLOW_SELF_CHECKS
         [[nodiscard]] bool SelfCheck() const {
-            if (std::launder(this)) return true;
+            if (CheckForNull(this)) return true;
             BNM_LOG_ERR(DBG_BNM_MSG_List_SelfCheck_Error);
             return false;
         }

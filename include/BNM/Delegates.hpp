@@ -14,16 +14,20 @@ namespace BNM {
     struct DelegateBase : IL2CPP::Il2CppDelegate {
         inline constexpr DelegateBase() = default;
 
-        inline IL2CPP::Il2CppObject* GetInstance() { return std::launder(this) ? target : nullptr; }
+        inline IL2CPP::Il2CppObject* GetInstance() {
+            return CheckForNull(this) ? target : nullptr;
+        }
         inline MethodBase GetMethod() {
-            if (!std::launder(this)) return {};
+            if (!CheckForNull(this)) return {};
             auto method = MethodBase(this->method);
             auto instance = GetInstance();
             if (instance) method.SetInstance(instance);
             return std::move(method);
         }
 
-        inline bool Initialized() const noexcept { return std::launder(this); }
+        inline bool Initialized() const noexcept {
+            return CheckForNull(this);
+        }
         inline operator bool() noexcept { return Initialized(); }
         inline operator bool() const noexcept { return Initialized(); }
         template<typename NewRet>
@@ -35,7 +39,7 @@ namespace BNM {
 
         inline std::vector<MethodBase> GetMethods() {
             std::vector<MethodBase> ret{};
-            if (!std::launder(this)) return ret;
+            if (!CheckForNull(this)) return ret;
 
             auto delegates = (Structures::Mono::Array<DelegateBase *> *) this->delegates;
             for (IL2CPP::il2cpp_array_size_t i = 0; i < delegates->capacity; ++i) ret.push_back(delegates->At(i)->GetMethod());
@@ -64,7 +68,7 @@ namespace BNM {
     struct MulticastDelegate : public MulticastDelegateBase {
         template<typename ...Params>
         inline Ret Invoke(Params ...params) {
-            if (!std::launder(this)) { if constexpr (std::is_same<Ret, void>::value) return; else return {}; }
+            if (!CheckForNull(this)) { if constexpr (std::is_same<Ret, void>::value) return; else return {}; }
 
             auto delegates = (Structures::Mono::Array<DelegateBase *> *) this->delegates;
             if (!delegates) return ((Delegate<Ret>*)this)->Invoke(params...);

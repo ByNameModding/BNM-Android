@@ -58,7 +58,7 @@ String *String::Empty() {
 
 #ifdef BNM_ALLOW_SELF_CHECKS
 bool String::SelfCheck() const {
-    if (std::launder(this)) return true;
+    if (CheckForNull(this)) return true;
     BNM_LOG_ERR(DBG_BNM_MSG_String_SelfCheck_Error);
     return false;
 }

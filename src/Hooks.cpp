@@ -1,4 +1,5 @@
 #include "Internals.hpp"
+#include <BNM/UserSettings/Il2CppMethodNames.hpp>
 
 using namespace BNM;
 
@@ -7,6 +8,8 @@ void Internal::BNM_il2cpp_init(const char *domain_name) {
     states.isInsideInit = true;
 
     old_BNM_il2cpp_init(domain_name);
+
+    UNHOOK(BNM_il2cpp_init_origin);
 
     Load();
 
@@ -21,8 +24,17 @@ IL2CPP::Il2CppClass *Internal::BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppR
         return klass;
     }
 
-    auto domain = il2cppMethods.il2cpp_domain_get();
-    auto thread = il2cppMethods.il2cpp_thread_current(domain);
+    // This methods used only here.
+    static BNM::IL2CPP::Il2CppDomain *(*il2cpp_domain_get)(){};
+    static BNM::IL2CPP::Il2CppThread *(*il2cpp_thread_current)(BNM::IL2CPP::Il2CppDomain *){};
+
+    if (!il2cpp_domain_get) {
+        il2cpp_domain_get = (decltype(il2cpp_domain_get)) GetIl2CppMethod(BNM_IL2CPP_API_il2cpp_domain_get);
+        il2cpp_thread_current = (decltype(il2cpp_thread_current)) GetIl2CppMethod(BNM_IL2CPP_API_il2cpp_thread_current);
+    }
+
+    auto domain = il2cpp_domain_get();
+    auto thread = il2cpp_thread_current(domain);
 
     // The domain is the last thing that sets up in il2cpp::vm::Runtime::Init, so we check if it's setted up before loading BNM.
     if (!thread || !thread->internal_thread || (void *) domain->default_context != (void *) thread->internal_thread->current_appcontext) return klass;

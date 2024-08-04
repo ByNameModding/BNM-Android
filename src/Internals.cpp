@@ -4,8 +4,11 @@
 namespace BNM::Internal {
     States states{};
     void *il2cppLibraryHandle{};
-    Loading::MethodFinder usersFinderMethod{};
-    void *usersFinderMethodData{};
+
+    void *BasicFinder(const char *name, void *userData) { return BNM_dlsym(*(void **)userData, name); }
+
+    Loading::MethodFinder currentFinderMethod = BasicFinder;
+    void *currentFinderData = &il2cppLibraryHandle;
 
     // A list with variables from the il2cpp VM
     _VMData vmData{};
@@ -26,6 +29,7 @@ namespace BNM::Internal {
 
     void (*Class$$Init)(IL2CPP::Il2CppClass *klass){};
 
+    void *BNM_il2cpp_init_origin{};
     void (*old_BNM_il2cpp_init)(const char *){};
 
     void *BNM_il2cpp_class_from_system_type_origin{};
