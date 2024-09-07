@@ -14,6 +14,9 @@ void Internal::Load() {
 
     // Load BNM
     SetupBNM();
+
+    BNM::Internal::LoadDefaults();
+
 #ifdef BNM_CLASSES_MANAGEMENT
 
 #ifdef BNM_COROUTINE
@@ -317,6 +320,10 @@ void Internal::SetupBNM() {
     INIT_IL2CPP_API(il2cpp_string_new);
     INIT_IL2CPP_API(il2cpp_resolve_icall);
     INIT_IL2CPP_API(il2cpp_runtime_invoke);
+    INIT_IL2CPP_API(il2cpp_domain_get);
+    INIT_IL2CPP_API(il2cpp_thread_current);
+    INIT_IL2CPP_API(il2cpp_thread_attach);
+    INIT_IL2CPP_API(il2cpp_thread_detach);
 
 #undef INIT_IL2CPP_API
     
@@ -457,7 +464,7 @@ void Internal::SetupBNM() {
     memcpy(newMethods, listClass._data->methods, sizeof(IL2CPP::MethodInfo *) * listClass._data->method_count);
 
     auto newConstructor = (IL2CPP::MethodInfo *) BNM_malloc(sizeof(IL2CPP::MethodInfo));
-    memcpy(newConstructor, constructor, sizeof(IL2CPP::MethodInfo));
+    *newConstructor = *constructor;
     newConstructor->methodPointer = (decltype(newConstructor->methodPointer)) EmptyMethod;
     newConstructor->invoker_method = (decltype(newConstructor->invoker_method)) EmptyMethod;
 

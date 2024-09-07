@@ -26,3 +26,5 @@
 #define BNM_IL2CPP_API_il2cpp_runtime_invoke "il2cpp_runtime_invoke"
 #define BNM_IL2CPP_API_il2cpp_domain_get "il2cpp_domain_get"
 #define BNM_IL2CPP_API_il2cpp_thread_current "il2cpp_thread_current"
+#define BNM_IL2CPP_API_il2cpp_thread_attach "il2cpp_thread_attach"
+#define BNM_IL2CPP_API_il2cpp_thread_detach "il2cpp_thread_detach"

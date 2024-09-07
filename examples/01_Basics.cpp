@@ -77,11 +77,6 @@ void PlayerStart(BNM::UnityEngine::Object *instance) {
 
     //! Changing the player's name
 
-    // The string can be created in 2 ways:
-    // * String::Create - does not get into the Unity garbage collector, i.e. you will need to manually delete it
-    // * BNM::CreateMonoString - gets into the Unity garbage collector, and it will delete it itself when needed
-
-    // In this case, it is better to use BNM::CreateMonoString because this string will be in the game for some time and therefore it will be inconvenient to manually delete it
     *playerName = BNM::CreateMonoString(OBFUSCATE_BNM("BNM_Player"));
 }
 

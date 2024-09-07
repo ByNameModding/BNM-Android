@@ -461,6 +461,11 @@ namespace CompileTimeClassProcessors {
 
 
 Class CompileTimeClass::ToClass() {
+    if (_isReferenced) {
+        _isReferenced = false;
+        auto ref = *reference;
+        _loadedClass = ref;
+    }
     if (_loadedClass) return _loadedClass;
     if (_stack.empty()) return {(IL2CPP::Il2CppClass *) nullptr};
 

@@ -25,8 +25,8 @@ void OnLoaded_Example_04() {
             .Class(OBFUSCATE_BNM("ExampleInnerClass")) // ExampleNamespace.ExampleClass.ExampleInnerClass
             .Class(OBFUSCATE_BNM("ExampleInnerGenericClass`3")) // ExampleNamespace.ExampleClass.ExampleInnerClass.ExampleInnerGenericClass<T1, T2, T3>
             .Generic({
-                BNM::GetType<int>(),
-                BNM::GetType<float>(),
+                BNM::Defaults::Get<int>(),
+                BNM::Defaults::Get<float>(),
                 CompileTimeClassBuilder(OBFUSCATE_BNM("ExampleNamespace"), OBFUSCATE_BNM("ExampleClass")).Build()
             }) // ExampleNamespace.ExampleClass.ExampleInnerClass.ExampleInnerGenericClass<int, float, ExampleNamespace.ExampleClass>
             .Modifier(CompileTimeClass::ModifierType::Array) // ExampleNamespace.ExampleClass.ExampleInnerClass.ExampleInnerGenericClass<int, float, ExampleNamespace.ExampleClass>[]

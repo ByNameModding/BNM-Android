@@ -8,6 +8,7 @@
 #include "Il2CppHeaders.hpp"
 #include "DebugMessages.hpp"
 #include "Utils.hpp"
+#include "Defaults.hpp"
 
 namespace BNM::Utils {
     template<typename T>
@@ -65,17 +66,17 @@ namespace BNM::Structures::Mono {
         IL2CPP::Il2CppChar chars[0];
         std::string str();
         [[nodiscard]] unsigned int GetHash() const;
-        static String *Create(const char *str);
-        static String *Create(const std::string &str);
         static String *Empty();
 #ifdef BNM_ALLOW_SELF_CHECKS
         [[nodiscard]] bool SelfCheck() const;
 #endif
-        void Destroy();
         inline bool IsNullOrEmpty() {
             return !BNM::CheckForNull(this) || !length;
         }
     };
+    namespace __Internal_Array {
+        void *ArrayFromClass(IL2CPP::Il2CppClass *, IL2CPP::il2cpp_array_size_t);
+    }
     template<typename T>
     struct Array : BNM::IL2CPP::Il2CppObject  {
         IL2CPP::Il2CppArrayBounds *bounds{};
@@ -100,17 +101,17 @@ namespace BNM::Structures::Mono {
         inline Utils::DataIterator<T> operator[] (IL2CPP::il2cpp_array_size_t index) const { BNM_CHECK_SELF({}); if (GetCapacity() < index) return {}; return &m_Items[index]; }
         inline Utils::DataIterator<T> At(IL2CPP::il2cpp_array_size_t index) const { BNM_CHECK_SELF({}); if (GetCapacity() < index) return {}; return &m_Items[index]; }
         [[nodiscard]] inline bool Empty() const { BNM_CHECK_SELF(false); return GetCapacity() <= 0;}
-        static Array<T> *Create(size_t capacity) {
-            auto monoArr = (Array<T> *) BNM_malloc(sizeof(Array) + sizeof(T) * capacity);
+        static Array<T> *Create(size_t capacity, bool _forceNonGC = false) {
+            auto cls = _forceNonGC ? BNM::Defaults::DefaultTypeRef{} : BNM::Defaults::Get<T>();
+            auto monoArr = (Array<T> *) (cls.Valid() ? __Internal_Array::ArrayFromClass(cls, capacity) : BNM_malloc(sizeof(Array) + sizeof(T) * capacity));
             memset(monoArr, 0, sizeof(Array) + sizeof(T) * capacity);
-            monoArr->klass = nullptr;
+            if (!cls.Valid()) monoArr->klass = nullptr;
             monoArr->capacity = capacity;
             return monoArr;
         }
-        static Array<T> *Create(const std::vector<T> &vec) { return Create((T *)vec.data(), vec.size()); }
-        static Array<T> *Create(T *arr, size_t size) {
-            Array<T> *monoArr = Create(size);
-            monoArr->klass = nullptr;
+        static Array<T> *Create(const std::vector<T> &vec, bool _forceNonGC = false) { return Create((T *)vec.data(), vec.size(), _forceNonGC); }
+        static Array<T> *Create(T *arr, size_t size, bool _forceNonGC = false) {
+            Array<T> *monoArr = Create(size, _forceNonGC);
             monoArr->CopyFrom(arr, size);
             return monoArr;
         }
@@ -220,7 +221,7 @@ namespace BNM::Structures::Mono {
         void Insert(int index, T item) {
             if (index > size) return;
             if (size == items->capacity) GrowIfNeeded(1);
-            if (index < size) memcpy(items->m_Items + index + 1, items->m_Items + index, (size - index) * sizeof(T));
+            if (index < size) memmove(items->m_Items + index + 1, items->m_Items + index, (size - index) * sizeof(T));
             items->m_Items[index] = item;
             ++size;
             ++version;
@@ -239,7 +240,7 @@ namespace BNM::Structures::Mono {
         }
         void Shift(int start, int delta) {
             if (delta < 0) start -= delta;
-            if (start < size) memcpy(items->m_Items + start + delta, items->m_Items + start, size - start);
+            if (start < size) memmove(items->m_Items + start + delta, items->m_Items + start, size - start);
             size += delta;
             if (delta < 0) memset(items->m_Items + size + delta, 0, -delta * sizeof(T));
         }

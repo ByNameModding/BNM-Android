@@ -17,10 +17,10 @@ struct CustomYieldInstruction : BNM::IL2CPP::Il2CppObject {
     bool MoveNext() { return waitUntilTime > std::chrono::system_clock::now(); }
     void Reset() { waitUntilTime = {}; }
     Il2CppObject *Current() { return nullptr; }
-    BNM_CustomMethod(Finalize, false, BNM::GetType<void>(), "Finalize");
-    BNM_CustomMethod(MoveNext, false, BNM::GetType<bool>(), "MoveNext");
-    BNM_CustomMethod(Reset, false, BNM::GetType<void>(), "Reset");
-    BNM_CustomMethod(Current, false, BNM::GetType<BNM::IL2CPP::Il2CppObject *>(), "get_Current");
+    BNM_CustomMethod(Finalize, false, BNM::Defaults::Get<void>(), "Finalize");
+    BNM_CustomMethod(MoveNext, false, BNM::Defaults::Get<bool>(), "MoveNext");
+    BNM_CustomMethod(Reset, false, BNM::Defaults::Get<void>(), "Reset");
+    BNM_CustomMethod(Current, false, BNM::Defaults::Get<BNM::IL2CPP::Il2CppObject *>(), "get_Current");
 
     void Setup(long long seconds) {
         Reset();
@@ -95,8 +95,8 @@ struct EnumeratorTests : public BNM::UnityEngine::MonoBehaviour {
         Destory(thing);
     }
 
-    BNM_CustomMethod(Start, false, BNM::GetType<void>(), "Start");
-    BNM_CustomMethod(Update, false, BNM::GetType<void>(), "Update");
+    BNM_CustomMethod(Start, false, BNM::Defaults::Get<void>(), "Start");
+    BNM_CustomMethod(Update, false, BNM::Defaults::Get<void>(), "Update");
 };
 
 void OnLoaded_Example_06() {

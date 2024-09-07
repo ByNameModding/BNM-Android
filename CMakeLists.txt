@@ -31,6 +31,7 @@ add_library(
         src/Class.cpp
         src/ClassesManagement.cpp
         src/Coroutine.cpp
+        src/Defaults.cpp
         src/Delegates.cpp
         src/EventBase.cpp
         src/Exceptions.cpp

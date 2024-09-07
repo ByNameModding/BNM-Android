@@ -55,15 +55,15 @@ struct BNM_ExampleObject : public BNM::UnityEngine::MonoBehaviour {
     }
 
     // To override virtual methods or replace methods, the types must be exactly the same
-    BNM_CustomMethod(GetReferenceValue, false, BNM::GetType<BNM::IL2CPP::Il2CppObject *>(), "GetReferenceValue",
+    BNM_CustomMethod(GetReferenceValue, false, BNM::Defaults::Get<BNM::IL2CPP::Il2CppObject *>(), "GetReferenceValue",
                  BNM::CompileTimeClassBuilder(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("IExposedPropertyTable")).Build(),
-                 BNM::GetType<bool>());
+                 BNM::Defaults::Get<bool>());
 
-    BNM_CustomMethod(Start, false, BNM::GetType<void>(), "Start");
+    BNM_CustomMethod(Start, false, BNM::Defaults::Get<void>(), "Start");
 
-    BNM_CustomField(Value, BNM::GetType<int>(), "Value");
+    BNM_CustomField(Value, BNM::Defaults::Get<int>(), "Value");
 
-    BNM_CustomMethod(Constructor, false, BNM::GetType<void>(), ".ctor");
+    BNM_CustomMethod(Constructor, false, BNM::Defaults::Get<void>(), ".ctor");
 };
 
 //! Let's look at an example from example 02
@@ -94,7 +94,7 @@ struct Delegates :
         if (JustEvent) JustEvent->Invoke(7, 234);
     }
     // We specify all information about method
-    BNM_CustomMethod(Start, false, BNM::GetType<void>(), OBFUSCATE_BNM("Start"));
+    BNM_CustomMethod(Start, false, BNM::Defaults::Get<void>(), OBFUSCATE_BNM("Start"));
     // Used to speed up the search for methods. Tells BNM not to compare the types of fields, but simply check their number.
     BNM_CustomMethodSkipTypeMatch(Start);
 

@@ -42,7 +42,7 @@ struct BNM::Coroutine::_IEnumeratorInit {
             customMethod_Finalize._address = *(void **) &p;
             customMethod_Finalize._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<false, decltype(&IEnumerator::Finalize)>::Invoke;
             customMethod_Finalize._name = OBFUSCATE_BNM("Finalize");
-            customMethod_Finalize._returnType = BNM::GetType<void>();
+            customMethod_Finalize._returnType = BNM::Defaults::Get<void>();
             customMethod_Finalize._isStatic = false;
             customMethod_Finalize._parameterTypes = {};
             customClass._methods.push_back(&customMethod_Finalize);
@@ -52,7 +52,7 @@ struct BNM::Coroutine::_IEnumeratorInit {
             customMethod_MoveNext._address = *(void **) &p;
             customMethod_MoveNext._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<false, decltype(&IEnumerator::MoveNext)>::Invoke;
             customMethod_MoveNext._name = OBFUSCATE_BNM("MoveNext");
-            customMethod_MoveNext._returnType = BNM::GetType<bool>();
+            customMethod_MoveNext._returnType = BNM::Defaults::Get<bool>();
             customMethod_MoveNext._isStatic = false;
             customMethod_MoveNext._parameterTypes = {};
             customClass._methods.push_back(&customMethod_MoveNext);
@@ -62,7 +62,7 @@ struct BNM::Coroutine::_IEnumeratorInit {
             customMethod_Reset._address = *(void **) &p;
             customMethod_Reset._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<false, decltype(&IEnumerator::Reset)>::Invoke;
             customMethod_Reset._name = OBFUSCATE_BNM("Reset");
-            customMethod_Reset._returnType = BNM::GetType<void>();
+            customMethod_Reset._returnType = BNM::Defaults::Get<void>();
             customMethod_Reset._isStatic = false;
             customMethod_Reset._parameterTypes = {};
             customClass._methods.push_back(&customMethod_Reset);
@@ -72,7 +72,7 @@ struct BNM::Coroutine::_IEnumeratorInit {
             customMethod_Current._address = *(void **) &p;
             customMethod_Current._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<false, decltype(&IEnumerator::Current)>::Invoke;
             customMethod_Current._name = OBFUSCATE_BNM("get_Current");
-            customMethod_Current._returnType = BNM::GetType<BNM::IL2CPP::Il2CppObject *>();
+            customMethod_Current._returnType = BNM::Defaults::Get<BNM::IL2CPP::Il2CppObject *>();
             customClass._methods.push_back(&customMethod_Current);
         }
     }
@@ -94,7 +94,7 @@ void BNM::Internal::SetupCoroutine() {
         customMethod_Finalize._address = *(void **) &p;
         customMethod_Finalize._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<false, decltype(&CustomWait::Finalize)>::Invoke;
         customMethod_Finalize._name = OBFUSCATE_BNM("Finalize");
-        customMethod_Finalize._returnType = BNM::GetType<void>();
+        customMethod_Finalize._returnType = BNM::Defaults::Get<void>();
         customMethod_Finalize._isStatic = false;
         customMethod_Finalize._parameterTypes = {};
         customClass._methods.push_back(&customMethod_Finalize);
@@ -104,7 +104,7 @@ void BNM::Internal::SetupCoroutine() {
         customMethod_MoveNext._address = *(void **) &p;
         customMethod_MoveNext._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<false, decltype(&CustomWait::MoveNext)>::Invoke;
         customMethod_MoveNext._name = OBFUSCATE_BNM("MoveNext");
-        customMethod_MoveNext._returnType = BNM::GetType<bool>();
+        customMethod_MoveNext._returnType = BNM::Defaults::Get<bool>();
         customMethod_MoveNext._isStatic = false;
         customMethod_MoveNext._parameterTypes = {};
         customClass._methods.push_back(&customMethod_MoveNext);
@@ -114,7 +114,7 @@ void BNM::Internal::SetupCoroutine() {
         customMethod_Reset._address = *(void **) &p;
         customMethod_Reset._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<false, decltype(&CustomWait::Reset)>::Invoke;
         customMethod_Reset._name = OBFUSCATE_BNM("Reset");
-        customMethod_Reset._returnType = BNM::GetType<void>();
+        customMethod_Reset._returnType = BNM::Defaults::Get<void>();
         customMethod_Reset._isStatic = false;
         customMethod_Reset._parameterTypes = {};
         customClass._methods.push_back(&customMethod_Reset);
@@ -124,7 +124,7 @@ void BNM::Internal::SetupCoroutine() {
         customMethod_Current._address = *(void **) &p;
         customMethod_Current._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<false, decltype(&CustomWait::Current)>::Invoke;
         customMethod_Current._name = OBFUSCATE_BNM("get_Current");
-        customMethod_Current._returnType = BNM::GetType<BNM::IL2CPP::Il2CppObject *>();
+        customMethod_Current._returnType = BNM::Defaults::Get<BNM::IL2CPP::Il2CppObject *>();
         customClass._methods.push_back(&customMethod_Current);
     }
 }

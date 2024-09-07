@@ -147,25 +147,25 @@ namespace BNM::UnityEngine {
 
                 switch ((PersistentListenerMode) persistentCall->m_Mode) {
                     case PersistentListenerMode::EventDefined:
-                        methodBase = targetType.GetMethod(methodName, {BNM::GetType<Params>()...});
+                        methodBase = targetType.GetMethod(methodName, {BNM::Defaults::Get<Params>()...});
                         break;
                     case PersistentListenerMode::Void:
                         methodBase = targetType.GetMethod(methodName, 0);
                         break;
                     case PersistentListenerMode::Object:
-                        methodBase = targetType.GetMethod(methodName, {argumentType.Alive() ? argumentType : BNM::GetType<Object *>()});
+                        methodBase = targetType.GetMethod(methodName, {argumentType.Alive() ? argumentType : BNM::Defaults::Get<Object *>()});
                         break;
                     case PersistentListenerMode::Int:
-                        methodBase = targetType.GetMethod(methodName, {BNM::GetType<int>()});
+                        methodBase = targetType.GetMethod(methodName, {BNM::Defaults::Get<int>()});
                         break;
                     case PersistentListenerMode::Float:
-                        methodBase = targetType.GetMethod(methodName, {BNM::GetType<float>()});
+                        methodBase = targetType.GetMethod(methodName, {BNM::Defaults::Get<float>()});
                         break;
                     case PersistentListenerMode::String:
-                        methodBase = targetType.GetMethod(methodName, {BNM::GetType<Structures::Mono::String *>()});
+                        methodBase = targetType.GetMethod(methodName, {BNM::Defaults::Get<Structures::Mono::String *>()});
                         break;
                     case PersistentListenerMode::Bool:
-                        methodBase = targetType.GetMethod(methodName, {BNM::GetType<bool>()});
+                        methodBase = targetType.GetMethod(methodName, {BNM::Defaults::Get<bool>()});
                         break;
                 }
                 if (!methodBase.Initialized() || !methodBase._isStatic && !persistentCall->m_Target) continue;

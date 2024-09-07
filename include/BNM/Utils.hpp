@@ -33,8 +33,7 @@ namespace BNM {
 
     namespace Structures::Mono { struct String; }
 
-    // The method of creating C# strings collected by the garbage collector, if it is enabled in the game
-    Structures::Mono::String *CreateMonoString(const char *str);
+    // Method for creating C# strings
     Structures::Mono::String *CreateMonoString(const std::string_view &str);
 
     // Get external methods (icall)
@@ -43,7 +42,7 @@ namespace BNM {
     // True when il2cpp and BNM are loaded
     bool IsLoaded();
 
-    // Don't close it! BNM will cause a crash because of this.
+    // Dlfcn handle of libil2cpp.so
     void *GetIl2CppLibraryHandle();
 
     // Unpacking the object, just a copy of the method from il2cpp
@@ -69,11 +68,14 @@ namespace BNM {
     }
 #endif
 
+    bool AttachIl2Cpp();
+    IL2CPP::Il2CppThread *CurrentIl2CppThread();
+    void DetachIl2Cpp();
+
 #if UNITY_VER >= 232
     inline BNM_INT_PTR UnmarshalUnityObject(BNM_INT_PTR gcHandlePtr) {
         auto gcHandle = *(BNM_INT_PTR *)gcHandlePtr;
         return gcHandle & ~(BNM_INT_PTR)1;
     }
 #endif
-
 }

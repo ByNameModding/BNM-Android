@@ -6,7 +6,7 @@ void OnLoaded_Example_03() {
 
     // ---------------------------------------------------- Generic methods ----------------------------------------------------
 
-    auto object = GetType<void *>().ToClass();
+    auto object = BNM::Defaults::Get<void *>().ToClass();
 
     auto gameObject = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("GameObject"), Image(OBFUSCATE_BNM("UnityEngine.CoreModule")));
 
@@ -47,7 +47,7 @@ void OnLoaded_Example_03() {
     auto dictionaryClass = BNM::Class(OBFUSCATE_BNM("System.Collections.Generic"), OBFUSCATE_BNM("Dictionary`2"), BNM::Image(OBFUSCATE_BNM("mscorlib.dll")));
 
     // And so - `Dictionary<int, int>`
-    auto dictionary_int_int_Class = dictionaryClass.GetGeneric({BNM::GetType<int>(), BNM::GetType<int>()});
+    auto dictionary_int_int_Class = dictionaryClass.GetGeneric({BNM::Defaults::Get<int>(), BNM::Defaults::Get<int>()});
 
     // Let's check the results using the address of the Add method as an example
     BNM_LOG_INFO("Dictionary<TKey, TValue>::Add: 0x%lX", (BNM_PTR)BNM::Utils::OffsetInLib((void *)dictionaryClass.GetMethod("Add", 2).GetOffset()));

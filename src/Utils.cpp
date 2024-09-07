@@ -5,12 +5,8 @@
 
 using namespace BNM;
 
-Structures::Mono::String *BNM::CreateMonoString(const char *str) {
-    return Internal::il2cppMethods.il2cpp_string_new(str);
-}
-
 Structures::Mono::String *BNM::CreateMonoString(const std::string_view &str) {
-    return CreateMonoString(str.data());
+    return Internal::il2cppMethods.il2cpp_string_new(str.data());
 }
 
 void *BNM::GetExternMethod(const std::string_view &str) {
@@ -208,3 +204,19 @@ void BNM::Utils::LogCompileTimeClass(const BNM::CompileTimeClass &compileTimeCla
 
 }
 #endif
+
+bool BNM::AttachIl2Cpp() {
+    if (CurrentIl2CppThread()) return false;
+    Internal::il2cppMethods.il2cpp_thread_attach(Internal::il2cppMethods.il2cpp_domain_get());
+    return true;
+}
+
+IL2CPP::Il2CppThread *BNM::CurrentIl2CppThread() {
+    return Internal::il2cppMethods.il2cpp_thread_current(Internal::il2cppMethods.il2cpp_domain_get());
+}
+
+void BNM::DetachIl2Cpp() {
+    auto thread = BNM::CurrentIl2CppThread();
+    if (!thread) return;
+    Internal::il2cppMethods.il2cpp_thread_detach(thread);
+}

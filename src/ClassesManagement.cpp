@@ -239,6 +239,18 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
     auto klass = customClass->myClass = (IL2CPP::Il2CppClass *) BNM_malloc(sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
     memset(klass, 0, sizeof(IL2CPP::Il2CppClass) + newVTable.size() * sizeof(IL2CPP::VirtualInvokeData));
 
+    klass->initialized = 1;
+    klass->init_pending = 0;
+#if UNITY_VER > 182
+
+    klass->initialized_and_no_error = 1;
+
+#if UNITY_VER < 212
+    klass->has_initialization_error = 0;
+#endif
+
+#endif
+
     klass->image = image;
 
     // Prevent il2cpp from calling LivenessState::TraverseGCDescriptor for a class
@@ -367,15 +379,9 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
     klass->has_references = 0;
     klass->size_inited = 1;
     klass->is_vtable_initialized = 1;
-    klass->initialized = 1;
+
 #if UNITY_VER > 182
-
-    klass->initialized_and_no_error = 1;
     klass->initializationExceptionGCHandle = (decltype(klass->initializationExceptionGCHandle)) 0;
-
-#   if UNITY_VER < 212
-    klass->has_initialization_error = 0;
-#   endif
 
 #   if UNITY_VER < 222
     klass->naturalAligment = 1;
@@ -384,7 +390,6 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
 #   endif
 
 #endif
-    klass->init_pending = 0;
     klass->enumtype = 0;
     klass->minimumAlignment = 1;
     klass->is_generic = 0;
@@ -645,6 +650,10 @@ IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *method) {
     myInfo->invoker_method = (decltype(myInfo->invoker_method)) method->_invoker;
     myInfo->parameters_count = method->_parameterTypes.size();
 
+#if UNITY_VER >= 212
+    myInfo->virtualMethodPointer = (decltype(myInfo->virtualMethodPointer)) method->_address;
+#endif
+
     auto name = (char *) BNM_malloc(method->_name.size() + 1);
     memcpy((void *)name, method->_name.data(), method->_name.size());
     name[method->_name.size()] = 0;
@@ -695,7 +704,7 @@ IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *method) {
             // Set the type anyway
             auto type = p < types.size() ? types[p].ToClass() : Internal::vmData.Object;
             if (!type) type = Internal::vmData.Object;
-            memcpy(parameter, type.GetIl2CppType(), sizeof(IL2CPP::Il2CppType));
+            *parameter = *type.GetIl2CppType();
 
             parameters[p] = parameter;
         }
@@ -717,7 +726,7 @@ void SetupField(IL2CPP::FieldInfo *newField, MANAGEMENT_STRUCTURES::CustomField 
     newField->type = BNM_I2C_NEW(Il2CppType);
     auto fieldType = field->_type.ToClass();
     if (!fieldType) fieldType = Internal::vmData.Object;
-    memcpy((void *)newField->type, (void *)fieldType.GetIl2CppType(), sizeof(IL2CPP::Il2CppType));
+    *((IL2CPP::Il2CppType *)newField->type) = *fieldType.GetIl2CppType();
 
     ((IL2CPP::Il2CppType*)newField->type)->attrs |= 0x0006; // PUBLIC
     newField->token = newField->type->attrs;

@@ -45,9 +45,9 @@ void MonoList() {
     // LoadClass().NewListUnsafe<Type>(size) - gets into the garbage collector, but all methods are handled by BNM
 
     //! To avoid searching for the System.Int32 class (the int value class in C#)
-    //! You can use BNM::GetType<Type>()
-    //! BNM::GetType supports only basic types
-    auto intClass = BNM::GetType<int>().ToClass();
+    //! You can use BNM::Defaults::Get<Type>()
+    //! BNM::Defaults::Get supports only basic types
+    auto intClass = BNM::Defaults::Get<int>().ToClass();
 
     list = intClass.NewList<int>();
 
@@ -65,7 +65,7 @@ void MonoDictionary() {
 
     // For more information about generic, see example 03
     auto dictionaryClass = BNM::Class(OBFUSCATE_BNM("System.Collections.Generic"), OBFUSCATE_BNM("Dictionary`2"), BNM::Image(OBFUSCATE_BNM("mscorlib.dll")));
-    auto dictionary_int_int_Class = dictionaryClass.GetGeneric({BNM::GetType<int>(), BNM::GetType<int>()});
+    auto dictionary_int_int_Class = dictionaryClass.GetGeneric({BNM::Defaults::Get<int>(), BNM::Defaults::Get<int>()});
 
     dictionary = (Mono::Dictionary<int, int> *) dictionary_int_int_Class.CreateNewObjectParameters();
 
@@ -149,7 +149,7 @@ namespace DelegatesAndActions {
             if (JustAction) JustAction->Invoke(30, 42);
             if (JustEvent) JustEvent->Invoke(7, 234);
         }
-        BNM_CustomMethod(Start, false, BNM::GetType<void>(), OBFUSCATE_BNM("Start"));
+        BNM_CustomMethod(Start, false, BNM::Defaults::Get<void>(), OBFUSCATE_BNM("Start"));
         BNM_CustomMethodSkipTypeMatch(Start);
         BNM_CustomMethodMarkAsInvokeHook(Start);
     };

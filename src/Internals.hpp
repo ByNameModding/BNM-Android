@@ -58,6 +58,10 @@ namespace BNM::Internal {
         BNM::Structures::Mono::String *(*il2cpp_string_new)(const char *){};
         void *(*il2cpp_resolve_icall)(const char *){};
         void *(*il2cpp_runtime_invoke)(BNM::IL2CPP::MethodInfo *, void *, void **, BNM::IL2CPP::Il2CppException **){};
+        IL2CPP::Il2CppDomain *(*il2cpp_domain_get)(){};
+        IL2CPP::Il2CppThread *(*il2cpp_thread_current)(IL2CPP::Il2CppDomain *){};
+        IL2CPP::Il2CppThread *(*il2cpp_thread_attach)(IL2CPP::Il2CppDomain *){};
+        void (*il2cpp_thread_detach)(IL2CPP::Il2CppThread *){};
     } extern il2cppMethods;
 
 #pragma pack(pop)
@@ -90,6 +94,8 @@ namespace BNM::Internal {
     IL2CPP::Il2CppClass *BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppReflectionType *type);
 
     void SetupBNM();
+
+    void LoadDefaults();
 
 #ifdef BNM_COROUTINE
     void SetupCoroutine();

@@ -3,6 +3,7 @@
 #include <utf8.h>
 
 #include <BNM/BasicMonoStructures.hpp>
+#include <BNM/Class.hpp>
 #include "Internals.hpp"
 
 typedef std::basic_string<BNM::IL2CPP::Il2CppChar> string16;
@@ -23,6 +24,10 @@ string16 Utf8ToUtf16(const char *utf8String, size_t length) {
 
 using namespace BNM::Structures::Mono;
 
+void *__Internal_Array::ArrayFromClass(IL2CPP::Il2CppClass *cls, IL2CPP::il2cpp_array_size_t capacity) {
+    return (void *) BNM::Class(cls).NewArray<void *>(capacity);
+}
+
 std::string String::str() {
     BNM_CHECK_SELF(DBG_BNM_MSG_String_str_Error);
     if (!length) return {};
@@ -37,21 +42,6 @@ unsigned int String::GetHash() const {
     return h;
 }
 
-// Create basic C# string, as il2cpp does
-String *String::Create(const char *str) {
-    const size_t length = strlen(str);
-    const size_t utf16Size = sizeof(IL2CPP::Il2CppChar) * length;
-    auto ret = (String *) BNM_malloc(sizeof(String) + utf16Size);
-    memset(ret, 0, sizeof(String) + utf16Size);
-    ret->length = (int)length;
-    auto u16 = Utf8ToUtf16(str, ret->length);
-    memcpy(ret->chars, u16.data(), utf16Size);
-    auto empty = Empty();
-    if (empty) ret->klass = empty->klass;
-    return (String *)ret;
-}
-String *String::Create(const std::string &str) { return Create(str.c_str()); }
-
 String *String::Empty() {
     return Internal::vmData.String$$Empty ? *Internal::vmData.String$$Empty : nullptr;
 }
@@ -63,11 +53,6 @@ bool String::SelfCheck() const {
     return false;
 }
 #endif
-
-void String::Destroy() {
-    length = 0;
-    free(this);
-}
 
 // The only normal way to call CompareExchange for SyncRoot is for List
 void *PRIVATE_MonoListData::CompareExchange4List(void *syncRoot) {
@@ -98,7 +83,7 @@ BNM::IL2CPP::Il2CppClass *BNM::Structures::Mono::PRIVATE_MonoListData::TryGetMon
 
         if (methodInfo == nullptr) {
             methodInfo = (IL2CPP::MethodInfo *) BNM_malloc(sizeof(IL2CPP::MethodInfo));
-            memcpy((void *) methodInfo, (void *) cur.method, sizeof(IL2CPP::MethodInfo));
+            *methodInfo = *cur.method;
             methodInfo->methodPointer = (decltype(methodInfo->methodPointer)) iterator->ptr;
         }
         cur.method = methodInfo;
