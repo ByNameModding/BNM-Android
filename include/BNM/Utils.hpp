@@ -8,7 +8,7 @@
 #include "Il2CppHeaders.hpp"
 
 namespace BNM {
-    template <typename T> bool CheckForNull(T obj) __attribute__((noinline)) { return (void *) obj; }
+    template <typename T> bool __attribute__((noinline)) CheckForNull(T obj) { return (void *) obj; }
     // Check if the pointer is valid
     template <typename T>
     inline bool IsAllocated(T x) {
@@ -78,4 +78,9 @@ namespace BNM {
         return gcHandle & ~(BNM_INT_PTR)1;
     }
 #endif
+
+    namespace PRIVATE_INTERNAL {
+        template<typename T>
+        inline T ReturnEmpty() { if constexpr (std::is_same<T, void>::value) return; else return {}; }
+    }
 }

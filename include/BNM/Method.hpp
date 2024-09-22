@@ -25,7 +25,7 @@ namespace BNM {
         // Call method
         template<typename ...Parameters>
         Ret Call(Parameters ...parameters) const {
-            if (!_init) { BNM_LOG_ERR(DBG_BNM_MSG_Method_Call_Dead); if constexpr (std::is_same<Ret, void>::value) return; else return {}; }
+            if (!_init) { BNM_LOG_ERR(DBG_BNM_MSG_Method_Call_Dead); return BNM::PRIVATE_INTERNAL::ReturnEmpty<Ret>(); }
             bool canInfo = true;
             if (sizeof...(Parameters) != _data->parameters_count){
                 canInfo = false;

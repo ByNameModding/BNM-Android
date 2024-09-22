@@ -3,6 +3,7 @@
 #include "UserSettings/GlobalSettings.hpp"
 #include "Method.hpp"
 #include "BasicMonoStructures.hpp"
+#include "Utils.hpp"
 
 namespace BNM {
 
@@ -38,10 +39,12 @@ namespace BNM {
         inline constexpr MulticastDelegateBase() = default;
 
         inline std::vector<MethodBase> GetMethods() {
-            std::vector<MethodBase> ret{};
-            if (!CheckForNull(this)) return ret;
+            if (!CheckForNull(this)) return {};
 
             auto delegates = (Structures::Mono::Array<DelegateBase *> *) this->delegates;
+            if (!delegates) return {};
+
+            std::vector<MethodBase> ret{};
             for (IL2CPP::il2cpp_array_size_t i = 0; i < delegates->capacity; ++i) ret.push_back(delegates->At(i)->GetMethod());
             return std::move(ret);
         }
@@ -68,7 +71,7 @@ namespace BNM {
     struct MulticastDelegate : public MulticastDelegateBase {
         template<typename ...Params>
         inline Ret Invoke(Params ...params) {
-            if (!CheckForNull(this)) { if constexpr (std::is_same<Ret, void>::value) return; else return {}; }
+            if (!CheckForNull(this)) return BNM::PRIVATE_INTERNAL::ReturnEmpty<Ret>();
 
             auto delegates = (Structures::Mono::Array<DelegateBase *> *) this->delegates;
             if (!delegates) return ((Delegate<Ret>*)this)->Invoke(params...);

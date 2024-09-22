@@ -30,10 +30,6 @@ void MonoArray() {
     auto dataVec = array->ToVector(); // std::vector<int>
     // or
     auto firstData = array->At(0); // First element of the array
-
-    //! Delete an array to free up memory
-    //! It is ONLY necessary when creating using Array<Type>::Create!
-    array->Destroy();
 }
 
 void MonoList() {

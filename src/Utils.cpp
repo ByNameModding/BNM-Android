@@ -112,11 +112,14 @@ IL2CPP::Il2CppClass *Internal::TryGetClassInImage(const IL2CPP::Il2CppImage *ima
 Class Internal::TryMakeGenericClass(Class genericType, const std::vector<CompileTimeClass> &templateTypes) {
     if (!vmData.RuntimeType$$MakeGenericType.Initialized()) return {};
     auto monoType = genericType.GetMonoType();
-    auto monoGenericsList = Structures::Mono::Array<MonoType *>::Create(templateTypes.size());
+    auto monoGenericsList = Structures::Mono::Array<MonoType *>::Create(templateTypes.size(), true);
     for (IL2CPP::il2cpp_array_size_t i = 0; i < (IL2CPP::il2cpp_array_size_t) templateTypes.size(); ++i)
         (*monoGenericsList)[i] = templateTypes[i].ToClass().GetMonoType();
+
     Class typedGenericType = vmData.RuntimeType$$MakeGenericType(monoType, monoGenericsList);
+
     monoGenericsList->Destroy();
+
     return typedGenericType;
 }
 
@@ -124,7 +127,7 @@ MethodBase Internal::TryMakeGenericMethod(const MethodBase &genericMethod, const
     if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl.Initialized() || !genericMethod.GetInfo()->is_generic) return {};
     IL2CPP::Il2CppReflectionMethod reflectionMethod;
     reflectionMethod.method = genericMethod.GetInfo();
-    auto monoGenericsList = Structures::Mono::Array<MonoType *>::Create(templateTypes.size());
+    auto monoGenericsList = Structures::Mono::Array<MonoType *>::Create(templateTypes.size(), true);
     for (IL2CPP::il2cpp_array_size_t i = 0; i < (IL2CPP::il2cpp_array_size_t) templateTypes.size(); ++i) (*monoGenericsList)[i] = templateTypes[i].ToClass().GetMonoType();
 
     MethodBase typedGenericMethod = vmData.RuntimeMethodInfo$$MakeGenericMethod_impl[(void *)&reflectionMethod](monoGenericsList)->method;
