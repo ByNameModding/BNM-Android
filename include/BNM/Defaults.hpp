@@ -39,7 +39,7 @@ namespace BNM::Defaults {
 
     struct DefaultTypeRef {
         Internal::ClassType *reference{};
-        constexpr inline bool Valid() const { return *reference != nullptr; }
+        constexpr inline bool Valid() const { return reference && *reference; }
         constexpr inline operator Internal::ClassType() const { return *reference; }
         operator CompileTimeClass() const;
         operator BNM::Class() const;

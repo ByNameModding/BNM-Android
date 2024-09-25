@@ -42,7 +42,7 @@ namespace BNM {
             if (!CheckForNull(this)) return {};
 
             auto delegates = (Structures::Mono::Array<DelegateBase *> *) this->delegates;
-            if (!delegates) return {};
+            if (!delegates) return {((DelegateBase *)this)->GetMethod()};
 
             std::vector<MethodBase> ret{};
             for (IL2CPP::il2cpp_array_size_t i = 0; i < delegates->capacity; ++i) ret.push_back(delegates->At(i)->GetMethod());
