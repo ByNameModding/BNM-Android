@@ -3,7 +3,7 @@
 #include "BNM/UnityStructures/Color.hpp"
 #include "BNM/UnityStructures/Vector4.hpp"
 #include "BNM/Utils.hpp"
-#include "Internals.hpp"
+#include <Internals.hpp>
 
 
 namespace BNM::Structures::Unity {

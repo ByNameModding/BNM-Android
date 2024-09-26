@@ -1,5 +1,10 @@
 #pragma once
 
+/*
+    Don't include this file if you don't know how BNM and il2cpp API work.
+    This file can be included only by advanced users that know how BNM and il2cpp API work.
+*/
+
 #include <list>
 #include <vector>
 #include <map>
@@ -102,6 +107,7 @@ namespace BNM::Internal {
     void LoadCoroutine();
 #endif
 
+    IL2CPP::Il2CppImage *TryGetImage(const std::string_view &_name);
     IL2CPP::Il2CppClass *TryGetClassInImage(const IL2CPP::Il2CppImage *image, const std::string_view &_namespace, const std::string_view &_name);
 
     Class TryMakeGenericClass(Class genericType, const std::vector<CompileTimeClass> &templateTypes);
@@ -139,7 +145,7 @@ namespace BNM::Internal {
         extern IL2CPP::Il2CppClass *(*old_Type$$GetClassOrElementClass)(IL2CPP::Il2CppType *type);
         IL2CPP::Il2CppClass *Type$$GetClassOrElementClass(IL2CPP::Il2CppType *type);
 
-        extern IL2CPP::Il2CppClass *(*old_Class$$FromName)(IL2CPP::Il2CppImage *image, const char *ns, const char *name);
+        extern IL2CPP::Il2CppClass *(*old_Class$$FromName)(IL2CPP::Il2CppImage *image, const char *namespaze, const char *name);
         IL2CPP::Il2CppClass *Class$$FromName(IL2CPP::Il2CppImage *image, const char *namespaze, const char *name);
 
 #if UNITY_VER <= 174

@@ -4,7 +4,7 @@
 #include <BNM/PropertyBase.hpp>
 #include <BNM/EventBase.hpp>
 #include <BNM/DebugMessages.hpp>
-#include "Internals.hpp"
+#include <Internals.hpp>
 
 using namespace BNM;
 
@@ -330,7 +330,7 @@ MonoType *Class::GetMonoType() const {
 BNM::CompileTimeClass Class::GetCompileTimeClass() const {
     BNM_LOG_ERR_IF(!_data, DBG_BNM_MSG_Class_Dead_Error);
     TryInit();
-    return {._autoFree = false, ._loadedClass = *this};
+    return {._loadedClass = *this, ._autoFree = false};
 }
 
 Class::operator BNM::CompileTimeClass() const { return GetCompileTimeClass(); }
@@ -463,7 +463,7 @@ namespace CompileTimeClassProcessors {
 Class CompileTimeClass::ToClass() {
     if (_isReferenced) {
         _isReferenced = false;
-        auto ref = *reference;
+        auto ref = reference ? *reference : nullptr;
         _loadedClass = ref;
     }
     if (_loadedClass) return _loadedClass;

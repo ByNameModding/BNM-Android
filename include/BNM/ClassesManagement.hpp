@@ -82,7 +82,7 @@ namespace BNM::MANAGEMENT_STRUCTURES {
     };
 
     // Add a new class to the list
-    void AddClass(CustomClass *klass);
+    void AddClass(CustomClass *_class);
 
     namespace _InvokerHelper {
         // Unpack argument

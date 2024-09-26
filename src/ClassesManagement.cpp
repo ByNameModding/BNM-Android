@@ -2,17 +2,17 @@
 
 #ifdef BNM_CLASSES_MANAGEMENT
 
-#include "Internals.hpp"
+#include <Internals.hpp>
 
 using namespace BNM;
 
-void BNM::MANAGEMENT_STRUCTURES::AddClass(CustomClass *klass) {
+void BNM::MANAGEMENT_STRUCTURES::AddClass(CustomClass *_class) {
     if (!BNM::Internal::ClassesManagement::classesManagementVector) {
         Internal::ClassesManagement::classesManagementVector = (std::vector<MANAGEMENT_STRUCTURES::CustomClass *> *) BNM_malloc(sizeof(std::vector<MANAGEMENT_STRUCTURES::CustomClass *>));
         memset((void *) Internal::ClassesManagement::classesManagementVector, 0, sizeof(std::vector<MANAGEMENT_STRUCTURES::CustomClass *>));
     }
 
-    Internal::ClassesManagement::classesManagementVector->push_back(klass);
+    Internal::ClassesManagement::classesManagementVector->push_back(_class);
 }
 
 

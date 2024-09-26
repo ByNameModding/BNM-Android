@@ -4,7 +4,7 @@
 
 #include <BNM/BasicMonoStructures.hpp>
 #include <BNM/Class.hpp>
-#include "Internals.hpp"
+#include <Internals.hpp>
 
 typedef std::basic_string<BNM::IL2CPP::Il2CppChar> string16;
 std::string Utf16ToUtf8(BNM::IL2CPP::Il2CppChar *utf16String, size_t length) {

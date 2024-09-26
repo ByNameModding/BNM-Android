@@ -32,15 +32,14 @@ namespace BNM::Defaults {
     namespace Internal {
         typedef IL2CPP::Il2CppClass *ClassType;
         extern ClassType Void, Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, IntPtr, Int64, UInt64, Single, Double, String, Object;
-        extern ClassType Vector2, Vector3, Vector4, Color, Color32, Ray, RaycastHit, Quaternion, Matrix3x3, Matrix4x4;
+        extern ClassType Vector2, Vector3, Vector4, Color, Color32, Ray, Quaternion, Matrix3x3, Matrix4x4, RaycastHit;
         extern ClassType UnityObject, MonoBehaviour;
-        extern ClassType Null;
     }
 
     struct DefaultTypeRef {
         Internal::ClassType *reference{};
         constexpr inline bool Valid() const { return reference && *reference; }
-        constexpr inline operator Internal::ClassType() const { return *reference; }
+        constexpr inline operator Internal::ClassType() const { return reference ? *reference : nullptr; }
         operator CompileTimeClass() const;
         operator BNM::Class() const;
         BNM::Class ToClass() const;
@@ -91,20 +90,20 @@ namespace BNM::Defaults {
             return {&Internal::Color32};
         else if constexpr (std::is_same_v<T, Ray>)
             return {&Internal::Ray};
-        else if constexpr (std::is_same_v<T, RaycastHit>)
-            return {&Internal::RaycastHit};
         else if constexpr (std::is_same_v<T, Quaternion>)
             return {&Internal::Quaternion};
         else if constexpr (std::is_same_v<T, Matrix3x3>)
             return {&Internal::Matrix3x3};
         else if constexpr (std::is_same_v<T, Matrix4x4>)
             return {&Internal::Matrix4x4};
+        else if constexpr (std::is_same_v<T, RaycastHit>)
+            return {&Internal::RaycastHit};
         else if constexpr (std::is_same_v<T, BNM::UnityEngine::Object *>)
             return {&Internal::UnityObject};
         else if constexpr (std::is_same_v<T, BNM::UnityEngine::MonoBehaviour *>)
             return {&Internal::MonoBehaviour};
         else if constexpr (std::is_pointer_v<T>)
             return {&Internal::Object};
-        return {&Internal::Null};
+        return {};
     }
 }

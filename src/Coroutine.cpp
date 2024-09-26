@@ -3,7 +3,7 @@
 #ifdef BNM_CLASSES_MANAGEMENT
 #ifdef BNM_COROUTINE
 
-#include "Internals.hpp"
+#include <Internals.hpp>
 
 namespace Classes {
     BNM::Class AsyncOperation{}, WaitForEndOfFrame{}, WaitForFixedUpdate{}, WaitForSeconds{}, WaitForSecondsRealtime{};

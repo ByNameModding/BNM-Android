@@ -1,4 +1,4 @@
-#include "Internals.hpp"
+#include <Internals.hpp>
 #include <BNM/UserSettings/Il2CppMethodNames.hpp>
 
 using namespace BNM;
@@ -25,8 +25,8 @@ IL2CPP::Il2CppClass *Internal::BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppR
     }
 
     if (!Internal::il2cppMethods.il2cpp_domain_get) {
-        Internal::il2cppMethods.il2cpp_domain_get = (decltype(Internal::il2cppMethods.il2cpp_domain_get)) GetIl2CppMethod(BNM_IL2CPP_API_il2cpp_domain_get);
-        Internal::il2cppMethods.il2cpp_thread_current = (decltype(Internal::il2cppMethods.il2cpp_thread_current)) GetIl2CppMethod(BNM_IL2CPP_API_il2cpp_thread_current);
+        Internal::il2cppMethods.il2cpp_domain_get = (decltype(Internal::il2cppMethods.il2cpp_domain_get)) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_domain_get));
+        Internal::il2cppMethods.il2cpp_thread_current = (decltype(Internal::il2cppMethods.il2cpp_thread_current)) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_thread_current));
     }
 
     auto domain = Internal::il2cppMethods.il2cpp_domain_get();

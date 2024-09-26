@@ -1,5 +1,5 @@
 #include <BNM/Exceptions.hpp>
-#include "Internals.hpp"
+#include <Internals.hpp>
 
 BNM::Exception BNM::TryInvoke(const std::function<void()> &func) {
     BNM::IL2CPP::Il2CppType type;

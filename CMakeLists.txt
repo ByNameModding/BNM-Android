@@ -22,7 +22,7 @@ set(INCLUDE_DIRS
     external/include
     external
     external/utf8
-    src/BNM_data
+    src/private
 )
 
 add_library(

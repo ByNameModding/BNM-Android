@@ -1,20 +1,12 @@
 #include <BNM/Image.hpp>
 #include <BNM/Class.hpp>
-#include "Internals.hpp"
+#include <Internals.hpp>
 
 
 BNM::Image::Image(const std::string_view &name) {
-    auto &assemblies = *Internal::Assembly$$GetAllAssemblies();
+    _data = Internal::TryGetImage(name);
 
-    for (auto assembly : assemblies) {
-        auto currentImage = Internal::il2cppMethods.il2cpp_assembly_get_image(assembly);
-        if (!Internal::CompareImageName(currentImage, name)) continue;
-        _data = currentImage;
-        return;
-    }
-
-    BNM_LOG_WARN(DBG_BNM_MSG_Image_Constructor_NotFound, name.data());
-    _data = nullptr;
+    BNM_LOG_WARN_IF(!_data, DBG_BNM_MSG_Image_Constructor_NotFound, name.data());
 }
 
 BNM::Image::Image(const BNM::IL2CPP::Il2CppAssembly *assembly) {

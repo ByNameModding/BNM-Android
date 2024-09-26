@@ -3,7 +3,7 @@
 #include <BNM/Loading.hpp>
 #include <BNM/Field.hpp>
 
-#include "Internals.hpp"
+#include <Internals.hpp>
 
 using namespace BNM;
 
@@ -302,7 +302,7 @@ void Internal::SetupBNM() {
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Class_Init, OffsetInLib((void *)Class$$Init));
 
 
-#define INIT_IL2CPP_API(name) il2cppMethods.name = (decltype(il2cppMethods.name)) GetIl2CppMethod(BNM_IL2CPP_API_##name)
+#define INIT_IL2CPP_API(name) il2cppMethods.name = (decltype(il2cppMethods.name)) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_##name))
 
     INIT_IL2CPP_API(il2cpp_image_get_class);
     INIT_IL2CPP_API(il2cpp_get_corlib);

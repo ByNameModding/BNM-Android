@@ -241,12 +241,12 @@ namespace BNM {
 
     // Methods for checking object class
     template<typename T, typename = std::enable_if<std::is_pointer<T>::value>>
-    bool IsA(T object, IL2CPP::Il2CppClass *klass) { return IsA<BNM::IL2CPP::Il2CppObject *>((IL2CPP::Il2CppObject *)object, klass); }
-    template<> bool IsA<IL2CPP::Il2CppObject *>(IL2CPP::Il2CppObject *object, IL2CPP::Il2CppClass *klass);
+    bool IsA(T object, IL2CPP::Il2CppClass *_class) { return IsA<BNM::IL2CPP::Il2CppObject *>((IL2CPP::Il2CppObject *)object, _class); }
+    template<> bool IsA<IL2CPP::Il2CppObject *>(IL2CPP::Il2CppObject *object, IL2CPP::Il2CppClass *_class);
     template<typename T, typename = std::enable_if<std::is_pointer<T>::value>>
-    bool IsA(T object, Class klass) { return IsA(object, klass.GetClass()); }
+    bool IsA(T object, Class _class) { return IsA(object, _class.GetClass()); }
     template<typename T, typename = std::enable_if<std::is_pointer<T>::value>>
-    bool IsA(T object, IL2CPP::Il2CppObject *klass) { if (!klass) return false; return IsA(object, klass->klass); }
+    bool IsA(T object, IL2CPP::Il2CppObject *_class) { if (!_class) return false; return IsA(object, _class->klass); }
     template<typename T, typename = std::enable_if<std::is_pointer<T>::value>>
     bool IsA(T object, MonoType *type) { return IsA(object, Class(type)); }
 
