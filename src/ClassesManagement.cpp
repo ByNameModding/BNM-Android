@@ -150,6 +150,9 @@ void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Class tar
 
         klass->actualSize = currentAddress;
     }
+
+    customClass->myClass = klass;
+    customClass->type = Class(klass);
 }
 
 char forEmptyString = '\0';
@@ -211,7 +214,7 @@ void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const Cus
             auto count = vTable.method->parameters_count;
 
             if (!strcmp(vTable.method->name, method->myInfo->name) && count == method->myInfo->parameters_count && method->_parameterTypes.size() == count) {
-                for (uint8_t p = 0; p < count; ++p) {
+                if (!method->_skipTypeMatch) for (uint8_t p = 0; p < count; ++p) {
 #if UNITY_VER < 212
                     auto type = (vTable.method->parameters + p)->parameter_type;
 #else
@@ -738,7 +741,7 @@ void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *
 
     // Set the parent
 
-    if ((target->flags & 0x09000000) == 0x09000000) free(target->typeHierarchy);
+    if ((target->flags & 0x09000000) == 0x09000000) BNM_free(target->typeHierarchy);
     target->flags |= 0x09000000;
 
     target->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
@@ -764,7 +767,7 @@ void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *
     owner->nestedTypes = newInnerList;
 
     // Mark the class to use less memory
-    if ((owner->flags & 0x90000000) == 0x90000000) free(oldInnerList);
+    if ((owner->flags & 0x90000000) == 0x90000000) BNM_free(oldInnerList);
     owner->flags |= 0x90000000;
 
     // Remove a class from the old owner's list
@@ -780,7 +783,7 @@ void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *
         --oldOwner->nested_type_count;
 
         // Mark the class to use less memory
-        if ((oldOwner->flags & 0x90000000) == 0x90000000) free(oldInnerList);
+        if ((oldOwner->flags & 0x90000000) == 0x90000000) BNM_free(oldInnerList);
         oldOwner->flags |= 0x90000000;
     }
 }

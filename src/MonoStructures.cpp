@@ -13,6 +13,7 @@ std::string Utf16ToUtf8(BNM::IL2CPP::Il2CppChar *utf16String, size_t length) {
     utf8::unchecked::utf16to8(utf16String, utf16String + length, std::back_inserter(utf8String));
     return utf8String;
 }
+
 string16 Utf8ToUtf16(const char *utf8String, size_t length) {
     string16 utf16String;
     if (utf8::is_valid(utf8String, utf8String + length)) {

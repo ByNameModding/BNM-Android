@@ -5,7 +5,6 @@
 #include "BNM/Utils.hpp"
 #include <Internals.hpp>
 
-
 namespace BNM::Structures::Unity {
     void *RaycastHit::GetCollider() const {
         if (!m_Collider || (BNM_PTR) m_Collider < 0) return {};
@@ -108,8 +107,6 @@ namespace BNM::Structures::Unity {
         return success;
     }
 }
-
-
 
 namespace BNM::UnityEngine {
     BNM::Class UnityEventBase::GetArgumentType(PersistentCall *call) {

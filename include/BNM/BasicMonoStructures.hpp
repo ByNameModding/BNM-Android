@@ -116,7 +116,7 @@ namespace BNM::Structures::Mono {
             return monoArr;
         }
         // Only for arrays created via BNM!
-        inline void Destroy() { if (!klass) free(this); }
+        inline void Destroy() { if (!klass) BNM_free(this); }
 #ifdef BNM_ALLOW_SELF_CHECKS
         [[nodiscard]] bool SelfCheck() const {
             if (CheckForNull(this)) return true;

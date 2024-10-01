@@ -4,7 +4,6 @@
 
 using namespace BNM;
 
-
 MethodBase::MethodBase(const IL2CPP::MethodInfo *info)  {
     _init = (BNM::CheckObj(info) != nullptr);
     if (_init) {

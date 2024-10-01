@@ -3,7 +3,6 @@
 
 using namespace BNM;
 
-
 PropertyBase::PropertyBase(const IL2CPP::PropertyInfo *info) {
     if (!info) return;
     _hasGetter = _hasSetter = false;

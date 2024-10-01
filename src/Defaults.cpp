@@ -1,7 +1,6 @@
 #include <BNM/Defaults.hpp>
 #include <Internals.hpp>
 
-
 namespace BNM::Defaults::Internal {
     ClassType Void{}, Boolean{}, Byte{}, SByte{}, Int16{}, UInt16{}, Int32{}, UInt32{}, IntPtr{}, Int64{}, UInt64{}, Single{}, Double{}, String{}, Object{};
     ClassType Vector2{}, Vector3{}, Vector4{}, Color{}, Color32{}, Ray{}, Quaternion{}, Matrix3x3{}, Matrix4x4{}, RaycastHit{};

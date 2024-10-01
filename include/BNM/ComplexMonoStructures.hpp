@@ -87,6 +87,7 @@ namespace BNM::Structures::Mono {
         bool Remove(TKey key) { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("Remove"), 1).template cast<bool>()[(void *)this](key); }
         bool ContainsKey(TKey key) const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("ContainsKey"), 1).template cast<bool>()[(void *)this](key); }
         bool ContainsValue(TValue value) const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("ContainsValue"), 1).template cast<bool>()[(void *)this](value); }
+        void Clear() const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("Clear"), 0).template cast<void>()[(void *)this](); }
         TValue Get(TKey key) const {
             TValue ret;
             if (TryGet(key, &ret)) return ret;

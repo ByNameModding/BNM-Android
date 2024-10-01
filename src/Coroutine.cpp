@@ -1,7 +1,6 @@
 #include <BNM/Coroutine.hpp>
 
-#ifdef BNM_CLASSES_MANAGEMENT
-#ifdef BNM_COROUTINE
+#if defined(BNM_CLASSES_MANAGEMENT) && defined(BNM_COROUTINE)
 
 #include <Internals.hpp>
 
@@ -78,7 +77,6 @@ struct BNM::Coroutine::_IEnumeratorInit {
     }
 };
 
-
 void BNM::Internal::SetupCoroutine() {
     Coroutine::_IEnumeratorInit::_Init();
 
@@ -128,6 +126,7 @@ void BNM::Internal::SetupCoroutine() {
         customClass._methods.push_back(&customMethod_Current);
     }
 }
+
 void BNM::Internal::LoadCoroutine() {
     using namespace Classes;
 
@@ -171,7 +170,6 @@ BNM::Coroutine::IEnumerator *BNM::Coroutine::IEnumerator::get() {
 void BNM::Coroutine::IEnumerator::Reset() {}
 BNM::IL2CPP::Il2CppObject *BNM::Coroutine::IEnumerator::Current() { return _current; }
 
-
 BNM::Coroutine::AsyncOperation::AsyncOperation(intptr_t operation) { _object = Classes::AsyncOperation.CreateNewObjectParameters(operation); }
 BNM::Coroutine::WaitForEndOfFrame::WaitForEndOfFrame() { _object = Classes::WaitForEndOfFrame.CreateNewInstance(); }
 BNM::Coroutine::WaitForFixedUpdate::WaitForFixedUpdate() { _object = Classes::WaitForFixedUpdate.CreateNewInstance(); }
@@ -188,5 +186,4 @@ BNM::Coroutine::WaitWhile::WaitWhile(const std::function<bool()> &function) {
     obj->_func = function; obj->_isUntil = false; _object = obj;
 }
 
-#endif
 #endif

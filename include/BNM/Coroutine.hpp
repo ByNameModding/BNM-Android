@@ -2,8 +2,7 @@
 
 #include "UserSettings/GlobalSettings.hpp"
 
-#ifdef BNM_CLASSES_MANAGEMENT
-#ifdef BNM_COROUTINE
+#if defined(BNM_CLASSES_MANAGEMENT) && defined(BNM_COROUTINE)
 
 #include <functional>
 
@@ -84,5 +83,4 @@ namespace BNM::Coroutine {
     };
 }
 
-#endif
 #endif

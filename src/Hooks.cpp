@@ -3,7 +3,6 @@
 
 using namespace BNM;
 
-
 void Internal::BNM_il2cpp_init(const char *domain_name) {
     states.isInsideInit = true;
 

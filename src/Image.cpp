@@ -2,7 +2,6 @@
 #include <BNM/Class.hpp>
 #include <Internals.hpp>
 
-
 BNM::Image::Image(const std::string_view &name) {
     _data = Internal::TryGetImage(name);
 
