@@ -61,7 +61,7 @@ namespace BNM::Structures::Unity {
         inline static float SqrMagnitude(Vector3 vector) { return vector.x * vector.x + vector.y * vector.y + vector.z * vector.z; }
         inline static void ToSpherical(Vector3 vector, float &rad, float &theta, float &phi);
 
-        inline std::string str() { return std::to_string(x) + OBFUSCATE_BNM(", ") + std::to_string(y) + OBFUSCATE_BNM(", ") + std::to_string(z); }
+        inline std::string str() { return std::to_string(x) + std::string(BNM_OBFUSCATE(", ")) + std::to_string(y) + std::string(BNM_OBFUSCATE(", ")) + std::to_string(z); }
         inline Vector3 orthogonal() const { return Orthogonal(*this); }
         inline float magnitude() const { return Magnitude(*this); }
         inline Vector3 normalized() const { return Normalize(*this); }

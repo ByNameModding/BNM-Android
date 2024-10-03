@@ -8,6 +8,7 @@
 #define BNM_IL2CPP_API_il2cpp_class_from_type "il2cpp_class_from_type"
 #define BNM_IL2CPP_API_il2cpp_type_get_class_or_element_class "il2cpp_type_get_class_or_element_class"
 #define BNM_IL2CPP_API_il2cpp_domain_get_assemblies "il2cpp_domain_get_assemblies"
+#define BNM_IL2CPP_API_il2cpp_domain_assembly_open "il2cpp_domain_assembly_open"
 
 #define BNM_IL2CPP_API_il2cpp_image_get_class "il2cpp_image_get_class"
 #define BNM_IL2CPP_API_il2cpp_get_corlib "il2cpp_get_corlib"

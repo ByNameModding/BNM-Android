@@ -16,7 +16,7 @@ namespace BNM::Structures::Unity {
         inline constexpr Color(float r, float g, float b, float a) : r(r), g(g), b(b), a(a) {}
         inline Color(Vector4 v);
 
-        [[nodiscard]] inline std::string str() const { return OBFUSCATE_BNM("r: ") +  std::to_string(r) + OBFUSCATE_BNM(", g: ") + std::to_string(g) + OBFUSCATE_BNM(", b: ") + std::to_string(b) + OBFUSCATE_BNM(", a: ") + std::to_string(a); };
+        [[nodiscard]] inline std::string str() const { return std::string(BNM_OBFUSCATE("r: ")) + std::to_string(r) + std::string(BNM_OBFUSCATE(", g: ")) + std::to_string(g) + std::string(BNM_OBFUSCATE(", b: ")) + std::to_string(b) + std::string(BNM_OBFUSCATE(", a: ")) + std::to_string(a); };
 
         inline static Color HSVToRGB(float H, float S, float V, bool hdr = true) {
             if (S == 0) return {V, V, V};

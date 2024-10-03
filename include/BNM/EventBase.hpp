@@ -22,15 +22,15 @@ namespace BNM {
 #ifdef BNM_ALLOW_STR_METHODS
         // Get data
         [[nodiscard]] inline std::string str() const {
-            if (!_hasAdd && !_hasRemove && !_hasRaise) return OBFUSCATE_BNM(DBG_BNM_MSG_EventBase_str_nullptr);
+            if (!_hasAdd && !_hasRemove && !_hasRaise) return BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_nullptr);
             auto isStatic = _hasAdd ? _add._isStatic : _hasRemove ? _remove._isStatic : _raise._isStatic;
-            return Class(_data->parent).str() + OBFUSCATE_BNM(" ") +
-                   Class(_data->parent).str() + OBFUSCATE_BNM(".(") +
+            return Class(_data->parent).str() + BNM_OBFUSCATE(" ") +
+                   Class(_data->parent).str() + BNM_OBFUSCATE(".(") +
                    ((Structures::Mono::String *)_data->name)->str() +
-                   OBFUSCATE_BNM("){" DBG_BNM_MSG_EventBase_str_add ": ") + (_hasAdd ? OBFUSCATE_BNM(DBG_BNM_MSG_EventBase_str_exists) : OBFUSCATE_BNM(DBG_BNM_MSG_EventBase_str_not_exists)) +
-                   OBFUSCATE_BNM(", " DBG_BNM_MSG_EventBase_str_remove ": ") + (_hasRemove ? OBFUSCATE_BNM(DBG_BNM_MSG_EventBase_str_exists) : OBFUSCATE_BNM(DBG_BNM_MSG_EventBase_str_not_exists)) +
-                   OBFUSCATE_BNM(", " DBG_BNM_MSG_EventBase_str_raise ": ") + (_hasRaise ? OBFUSCATE_BNM(DBG_BNM_MSG_EventBase_str_exists) : OBFUSCATE_BNM(DBG_BNM_MSG_EventBase_str_not_exists)) +
-                   OBFUSCATE_BNM("}") + (isStatic ? OBFUSCATE_BNM("(" DBG_BNM_MSG_EventBase_str_static ")") : OBFUSCATE_BNM(""));
+                   BNM_OBFUSCATE("){" DBG_BNM_MSG_EventBase_str_add ": ") + (_hasAdd ? BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_exists) : BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_not_exists)) +
+                   BNM_OBFUSCATE(", " DBG_BNM_MSG_EventBase_str_remove ": ") + (_hasRemove ? BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_exists) : BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_not_exists)) +
+                   BNM_OBFUSCATE(", " DBG_BNM_MSG_EventBase_str_raise ": ") + (_hasRaise ? BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_exists) : BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_not_exists)) +
+                   BNM_OBFUSCATE("}") + (isStatic ? BNM_OBFUSCATE("(" DBG_BNM_MSG_EventBase_str_static ")") : BNM_OBFUSCATE(""));
         }
 #endif
 

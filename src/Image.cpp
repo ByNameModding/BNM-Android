@@ -23,7 +23,7 @@ std::vector<BNM::Class> BNM::Image::GetClasses(bool includeInner) const {
 
         for (size_t i = 0; i < typeCount; ++i) {
             auto cls = Internal::il2cppMethods.il2cpp_image_get_class(_data, i);
-            if (strcmp(OBFUSCATE_BNM("<Module>"), cls->name) == 0 || !includeInner && cls->declaringType) continue;
+            if (strcmp(BNM_OBFUSCATE("<Module>"), cls->name) == 0 || !includeInner && cls->declaringType) continue;
             classes.push_back(cls);
         }
 

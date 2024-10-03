@@ -81,13 +81,13 @@ namespace BNM::Structures::Mono {
 #endif
         int GetSize() const { return count; }
         int GetVersion() const { return version; }
-        bool TryGet(TKey key, TValue *value) const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("TryGetValue"), 2).template cast<bool>()[(void *)this](key, value); }
-        void Add(TKey key, TValue value) { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("Add"), 2).template cast<void>()[(void *)this](key, value); }
-        void Insert(TKey key, TValue value) { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("set_Item"), 2).template cast<void>()[(void *)this](key, value); }
-        bool Remove(TKey key) { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("Remove"), 1).template cast<bool>()[(void *)this](key); }
-        bool ContainsKey(TKey key) const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("ContainsKey"), 1).template cast<bool>()[(void *)this](key); }
-        bool ContainsValue(TValue value) const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("ContainsValue"), 1).template cast<bool>()[(void *)this](value); }
-        void Clear() const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(OBFUSCATE_BNM("Clear"), 0).template cast<void>()[(void *)this](); }
+        bool TryGet(TKey key, TValue *value) const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(BNM_OBFUSCATE("TryGetValue"), 2).template cast<bool>()[(void *)this](key, value); }
+        void Add(TKey key, TValue value) { return Class((IL2CPP::Il2CppObject *)this).GetMethod(BNM_OBFUSCATE("Add"), 2).template cast<void>()[(void *)this](key, value); }
+        void Insert(TKey key, TValue value) { return Class((IL2CPP::Il2CppObject *)this).GetMethod(BNM_OBFUSCATE("set_Item"), 2).template cast<void>()[(void *)this](key, value); }
+        bool Remove(TKey key) { return Class((IL2CPP::Il2CppObject *)this).GetMethod(BNM_OBFUSCATE("Remove"), 1).template cast<bool>()[(void *)this](key); }
+        bool ContainsKey(TKey key) const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(BNM_OBFUSCATE("ContainsKey"), 1).template cast<bool>()[(void *)this](key); }
+        bool ContainsValue(TValue value) const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(BNM_OBFUSCATE("ContainsValue"), 1).template cast<bool>()[(void *)this](value); }
+        void Clear() const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(BNM_OBFUSCATE("Clear"), 0).template cast<void>()[(void *)this](); }
         TValue Get(TKey key) const {
             TValue ret;
             if (TryGet(key, &ret)) return ret;

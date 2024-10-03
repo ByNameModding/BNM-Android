@@ -21,13 +21,13 @@ void OnLoaded_Example_04() {
      */
     // And you need an array class ExampleInnerGenericClass<int, float, ExampleClass>[]
 
-    auto targetClass = CompileTimeClassBuilder(OBFUSCATE_BNM("ExampleNamespace"), OBFUSCATE_BNM("ExampleClass")) // ExampleNamespace.ExampleClass
-            .Class(OBFUSCATE_BNM("ExampleInnerClass")) // ExampleNamespace.ExampleClass.ExampleInnerClass
-            .Class(OBFUSCATE_BNM("ExampleInnerGenericClass`3")) // ExampleNamespace.ExampleClass.ExampleInnerClass.ExampleInnerGenericClass<T1, T2, T3>
+    auto targetClass = CompileTimeClassBuilder(BNM_OBFUSCATE("ExampleNamespace"), BNM_OBFUSCATE("ExampleClass")) // ExampleNamespace.ExampleClass
+            .Class(BNM_OBFUSCATE("ExampleInnerClass")) // ExampleNamespace.ExampleClass.ExampleInnerClass
+            .Class(BNM_OBFUSCATE("ExampleInnerGenericClass`3")) // ExampleNamespace.ExampleClass.ExampleInnerClass.ExampleInnerGenericClass<T1, T2, T3>
             .Generic({
                 BNM::Defaults::Get<int>(),
                 BNM::Defaults::Get<float>(),
-                CompileTimeClassBuilder(OBFUSCATE_BNM("ExampleNamespace"), OBFUSCATE_BNM("ExampleClass")).Build()
+                CompileTimeClassBuilder(BNM_OBFUSCATE("ExampleNamespace"), BNM_OBFUSCATE("ExampleClass")).Build()
             }) // ExampleNamespace.ExampleClass.ExampleInnerClass.ExampleInnerGenericClass<int, float, ExampleNamespace.ExampleClass>
             .Modifier(CompileTimeClass::ModifierType::Array) // ExampleNamespace.ExampleClass.ExampleInnerClass.ExampleInnerGenericClass<int, float, ExampleNamespace.ExampleClass>[]
             .Build();

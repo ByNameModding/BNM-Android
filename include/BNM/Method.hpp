@@ -70,7 +70,7 @@ namespace BNM {
     BNM::IL2CPP::Il2CppObject *Class::CreateNewObjectParameters(Parameters ...parameters) const {
         if (!_data) return nullptr;
         TryInit();
-        auto name = OBFUSCATE_BNM(".ctor");
+        auto name = BNM_OBFUSCATE(".ctor");
         auto method = GetMethod(name, sizeof...(Parameters));
         auto instance = CreateNewInstance();
         method.template cast<void>()[instance](parameters...);
@@ -81,7 +81,7 @@ namespace BNM {
     BNM::IL2CPP::Il2CppObject *Class::CreateNewObjectTypes(const std::initializer_list<std::string_view> &parameterNames, Parameters ...parameters) const {
         if (!_data) return nullptr;
         TryInit();
-        auto name = OBFUSCATE_BNM(".ctor");
+        auto name = BNM_OBFUSCATE(".ctor");
         auto method = GetMethod(name, parameterNames);
         auto instance = CreateNewInstance();
         method.template cast<void>()[instance](parameters...);

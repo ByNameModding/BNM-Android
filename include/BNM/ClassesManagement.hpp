@@ -104,7 +104,7 @@ namespace BNM::MANAGEMENT_STRUCTURES {
         }
 #else
 #define ARG_4_PACK (const IL2CPP::Il2CppType *) data
-#define ARG_4_INVOKE (void *) method
+#define ARG_4_INVOKE (void *) method->return_type
         template<typename T>
         inline void *PackReturnArg(T arg, const IL2CPP::Il2CppType *type) {
             if constexpr (std::is_pointer<T>::value) return arg;
@@ -126,7 +126,7 @@ namespace BNM::MANAGEMENT_STRUCTURES {
             } else return _InvokerHelper::PackReturnArg(func(instance, _InvokerHelper::UnpackArg<ArgsT>(args[As])...), ARG_4_PACK);
         }
 #if UNITY_VER < 171
-        static void *invoke(IL2CPP::MethodInfo *method, void *obj, void **args) {
+        static void *Invoke(IL2CPP::MethodInfo *method, void *obj, void **args) {
             IL2CPP::Il2CppMethodPointer ptr = method->methodPointer;
 #else
         static void *Invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *method, void *obj, void **args, void *returnValue) {
@@ -156,7 +156,7 @@ namespace BNM::MANAGEMENT_STRUCTURES {
         }
 #undef Args
 #if UNITY_VER < 171
-        static void *invoke(IL2CPP::MethodInfo *method, void *, void **args) {
+        static void *Invoke(IL2CPP::MethodInfo *method, void *, void **args) {
             IL2CPP::Il2CppMethodPointer ptr = method->methodPointer;
 #else
         static void *Invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *method, void *, void **args, void *returnValue) {
@@ -179,7 +179,7 @@ struct _BNMCustomClass : BNM::MANAGEMENT_STRUCTURES::CustomClass { \
         _targetType = _targetType_; \
         _baseType = _baseType_; \
         _owner = _owner_; \
-        _interfaces = {__VA_ARGS__}; \
+        _interfaces = std::vector<BNM::CompileTimeClass>{{__VA_ARGS__}}; \
         BNM::MANAGEMENT_STRUCTURES::AddClass(this); \
     } \
 }; \
@@ -190,7 +190,7 @@ using _BNMCustomClassType = _class_
 #define BNM_CustomField(_field_, _type_, _name_) \
 struct _BNMCustomField_##_field_ : BNM::MANAGEMENT_STRUCTURES::CustomField { \
     inline _BNMCustomField_##_field_() : BNM::MANAGEMENT_STRUCTURES::CustomField() { \
-        _name = OBFUSCATE_BNM(_name_); \
+        _name = BNM_OBFUSCATE_TMP(_name_); \
         _size = sizeof(_field_); \
         _type = _type_; \
         offset = offsetof(_BNMCustomClassType, _field_); \
@@ -204,10 +204,10 @@ struct _BNMCustomMethod_##_method_ : BNM::MANAGEMENT_STRUCTURES::CustomMethod { 
     inline _BNMCustomMethod_##_method_() : BNM::MANAGEMENT_STRUCTURES::CustomMethod() { \
         constexpr auto p = &_BNMCustomClassType::_method_; _address = *(void **)&p; \
         _invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<_isStatic_, decltype(&_BNMCustomClassType::_method_)>::Invoke; \
-        _name = OBFUSCATE_BNM(_name_); \
+        _name = BNM_OBFUSCATE_TMP(_name_); \
         _returnType = _type_; \
         _isStatic = _isStatic_; \
-        _parameterTypes = {__VA_ARGS__}; \
+        _parameterTypes = std::vector<BNM::CompileTimeClass>{{__VA_ARGS__}}; \
         BNMCustomClass._methods.push_back(this); \
     } \
 }; \

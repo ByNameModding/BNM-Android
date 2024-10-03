@@ -77,7 +77,7 @@ void PlayerStart(BNM::UnityEngine::Object *instance) {
 
     //! Changing the player's name
 
-    *playerName = BNM::CreateMonoString(OBFUSCATE_BNM("BNM_Player"));
+    *playerName = BNM::CreateMonoString(BNM_OBFUSCATE("BNM_Player"));
 }
 
 void (*old_PlayerUpdate)(BNM::UnityEngine::Object *);
@@ -102,13 +102,13 @@ void OnLoaded_Example_01() {
     using namespace BNM; // To avoid writing BNM:: in this method
 
     // Get the UnityEngine class.Object
-    ObjectClass = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object"));
+    ObjectClass = Class(BNM_OBFUSCATE("UnityEngine"), BNM_OBFUSCATE("Object"));
 
     // Get UnityEngine.Object::ToString method with 0 parameters
-    ObjectToString = ObjectClass.GetMethod(OBFUSCATE_BNM("ToString"), 0);
+    ObjectToString = ObjectClass.GetMethod(BNM_OBFUSCATE("ToString"), 0);
 
     // Get UnityEngine.Object::name property
-    ObjectName = ObjectClass.GetProperty(OBFUSCATE_BNM("name"));
+    ObjectName = ObjectClass.GetProperty(BNM_OBFUSCATE("name"));
 
 
     /* Let's imagine that there is a class in the game:
@@ -125,22 +125,22 @@ void OnLoaded_Example_01() {
         }
     */
     // Get the Player class
-    auto PlayerClass = Class(OBFUSCATE_BNM(""), OBFUSCATE_BNM("Player"));
+    auto PlayerClass = Class(BNM_OBFUSCATE(""), BNM_OBFUSCATE("Player"));
 
     // Get the Player::Config class
-    auto PlayerConfigClass = PlayerClass.GetInnerClass(OBFUSCATE_BNM("Config"));
+    auto PlayerConfigClass = PlayerClass.GetInnerClass(BNM_OBFUSCATE("Config"));
 
     // Get the Update and Start methods of the Player class
-    auto Update = PlayerClass.GetMethod(OBFUSCATE_BNM("Update"));
-    auto Start = PlayerClass.GetMethod(OBFUSCATE_BNM("Start"));
+    auto Update = PlayerClass.GetMethod(BNM_OBFUSCATE("Update"));
+    auto Start = PlayerClass.GetMethod(BNM_OBFUSCATE("Start"));
 
     // Get the Player.m_Config field
-    PlayerConfig = PlayerClass.GetField(OBFUSCATE_BNM("m_Config"));
+    PlayerConfig = PlayerClass.GetField(BNM_OBFUSCATE("m_Config"));
 
     // Get Player::Config's fields
-    ConfigName = PlayerConfigClass.GetField(OBFUSCATE_BNM("Name"));
-    ConfigHealth = PlayerConfigClass.GetField(OBFUSCATE_BNM("Health"));
-    ConfigCoins = PlayerConfigClass.GetField(OBFUSCATE_BNM("Coins"));
+    ConfigName = PlayerConfigClass.GetField(BNM_OBFUSCATE("Name"));
+    ConfigHealth = PlayerConfigClass.GetField(BNM_OBFUSCATE("Health"));
+    ConfigCoins = PlayerConfigClass.GetField(BNM_OBFUSCATE("Coins"));
 
     // Hook Update and Start methods
 

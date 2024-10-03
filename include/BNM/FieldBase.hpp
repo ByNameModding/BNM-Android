@@ -26,8 +26,8 @@ namespace BNM {
 #ifdef BNM_ALLOW_STR_METHODS
         // Get data
         inline std::string str() const {
-            if (_init) return Class(_data->parent).str() + OBFUSCATE_BNM(".(") + _data->name + OBFUSCATE_BNM(")");
-            return OBFUSCATE_BNM(DBG_BNM_MSG_FieldBase_str_nullptr);
+            if (_init) return Class(_data->parent).str() + BNM_OBFUSCATE(".(") + _data->name + BNM_OBFUSCATE(")");
+            return BNM_OBFUSCATE(DBG_BNM_MSG_FieldBase_str_nullptr);
         }
 #endif
 

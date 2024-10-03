@@ -49,7 +49,7 @@ namespace BNM::Structures::Unity {
         inline float magnitude() { return Magnitude(*this); }
         inline float sqrMagnitude() { return SqrMagnitude(*this); }
         inline Vector2 normalized() { return Normalize(*this); }
-        inline std::string str() const { return std::to_string(x) + OBFUSCATE_BNM(", ") + std::to_string(y); }
+        inline std::string str() const { return std::to_string(x) + std::string(BNM_OBFUSCATE(", ")) + std::to_string(y); }
 
         inline bool operator==(const Vector2 v) { return x == v.x && y == v.y; }
         inline bool operator!=(const Vector2 v) { return x != v.x || y != v.y; }

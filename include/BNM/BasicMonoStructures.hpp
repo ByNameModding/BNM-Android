@@ -288,14 +288,14 @@ namespace BNM::Structures::Mono {
             constexpr auto Contains = &List<Type>::Contains; constexpr auto CopyTo = &List<Type>::CopyTo; constexpr auto Remove = &List<Type>::Remove;
             constexpr auto GetEnumerator = &List<Type>::GetEnumerator; constexpr auto get_SyncRoot = &List<Type>::get_SyncRoot;
             static std::array<MethodData, 16> namesMap = {
-                    MethodData{OBFUSCATE_BNM("RemoveAt"), *(void **)&RemoveAt}, MethodData{OBFUSCATE_BNM("get_Count"), *(void **)&GetSize},
-                    MethodData{OBFUSCATE_BNM("Clear"), *(void **)&Clear}, MethodData{OBFUSCATE_BNM("get_Item"), *(void **)&get_Item},
-                    MethodData{OBFUSCATE_BNM("set_Item"), *(void **)&set_Item}, MethodData{OBFUSCATE_BNM("IndexOf"), *(void **)&IndexOf},
-                    MethodData{OBFUSCATE_BNM("Insert"), *(void **)&Insert}, MethodData{OBFUSCATE_BNM("get_IsReadOnly"), *(void **)&get_false},
-                    MethodData{OBFUSCATE_BNM("get_IsFixedSize"), *(void **)&get_false}, MethodData{OBFUSCATE_BNM("get_IsSynchronized"), *(void **)&get_false},
-                    MethodData{OBFUSCATE_BNM("Add"), *(void **)&Add}, MethodData{OBFUSCATE_BNM("Contains"), *(void **)&Contains},
-                    MethodData{OBFUSCATE_BNM("CopyTo"), *(void **)&CopyTo}, MethodData{OBFUSCATE_BNM("Remove"), *(void **)&Remove},
-                    MethodData{OBFUSCATE_BNM("GetEnumerator"), *(void **)&GetEnumerator}, MethodData{OBFUSCATE_BNM("get_SyncRoot"), *(void **)&get_SyncRoot}
+                    MethodData{BNM_OBFUSCATE("RemoveAt"), *(void **)&RemoveAt}, MethodData{BNM_OBFUSCATE("get_Count"), *(void **)&GetSize},
+                    MethodData{BNM_OBFUSCATE("Clear"), *(void **)&Clear}, MethodData{BNM_OBFUSCATE("get_Item"), *(void **)&get_Item},
+                    MethodData{BNM_OBFUSCATE("set_Item"), *(void **)&set_Item}, MethodData{BNM_OBFUSCATE("IndexOf"), *(void **)&IndexOf},
+                    MethodData{BNM_OBFUSCATE("Insert"), *(void **)&Insert}, MethodData{BNM_OBFUSCATE("get_IsReadOnly"), *(void **)&get_false},
+                    MethodData{BNM_OBFUSCATE("get_IsFixedSize"), *(void **)&get_false}, MethodData{BNM_OBFUSCATE("get_IsSynchronized"), *(void **)&get_false},
+                    MethodData{BNM_OBFUSCATE("Add"), *(void **)&Add}, MethodData{BNM_OBFUSCATE("Contains"), *(void **)&Contains},
+                    MethodData{BNM_OBFUSCATE("CopyTo"), *(void **)&CopyTo}, MethodData{BNM_OBFUSCATE("Remove"), *(void **)&Remove},
+                    MethodData{BNM_OBFUSCATE("GetEnumerator"), *(void **)&GetEnumerator}, MethodData{BNM_OBFUSCATE("get_SyncRoot"), *(void **)&get_SyncRoot}
             };
             list->klass = TryGetMonoListClass(HashedTypeName<Type>(), namesMap);
         }

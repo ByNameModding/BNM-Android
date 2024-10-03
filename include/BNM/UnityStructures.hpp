@@ -118,8 +118,8 @@ namespace BNM::UnityEngine {
     struct UnityEvent : public UnityEventBase {
         Structures::Mono::Array<IL2CPP::Il2CppObject *> *m_InvokeArray{};
 
-        inline void AddListener(UnityAction<Params...> *action) { BNM::Class(klass).GetMethod(OBFUSCATE_BNM("AddListener")).template cast<void>().Call(action); }
-        inline void RemoveListener(UnityAction<Params...> *action) { BNM::Class(klass).GetMethod(OBFUSCATE_BNM("RemoveListener")).template cast<void>().Call(action); }
+        inline void AddListener(UnityAction<Params...> *action) { BNM::Class(klass).GetMethod(BNM_OBFUSCATE("AddListener")).template cast<void>().Call(action); }
+        inline void RemoveListener(UnityAction<Params...> *action) { BNM::Class(klass).GetMethod(BNM_OBFUSCATE("RemoveListener")).template cast<void>().Call(action); }
 
         inline void Invoke(Params ...params) {
             InvokePersistent(params...);

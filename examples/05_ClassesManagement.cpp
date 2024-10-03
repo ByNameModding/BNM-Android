@@ -27,11 +27,11 @@ using namespace BNM::Structures::Mono;
 struct BNM_ExampleObject : public BNM::UnityEngine::MonoBehaviour {
 
     BNM_CustomClass(BNM_ExampleObject,
-                    BNM::CompileTimeClassBuilder(OBFUSCATE_BNM("BNM_Example_05"), OBFUSCATE_BNM("BNM_ExampleObject")).Build(),
-                    BNM::CompileTimeClassBuilder(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("MonoBehaviour"), OBFUSCATE_BNM("UnityEngine.CoreModule")).Build(),
+                    BNM::CompileTimeClassBuilder(BNM_OBFUSCATE("BNM_Example_05"), BNM_OBFUSCATE("BNM_ExampleObject")).Build(),
+                    BNM::CompileTimeClassBuilder(BNM_OBFUSCATE("UnityEngine"), BNM_OBFUSCATE("MonoBehaviour"), BNM_OBFUSCATE("UnityEngine.CoreModule")).Build(),
                     // Here need specify base class, if you need to create inner class
                     {},
-                    BNM::CompileTimeClassBuilder(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("IExposedPropertyTable")).Build(),
+                    BNM::CompileTimeClassBuilder(BNM_OBFUSCATE("UnityEngine"), BNM_OBFUSCATE("IExposedPropertyTable")).Build(),
                     );
 
     // To set fields, for example `veryImportantValue`
@@ -56,7 +56,7 @@ struct BNM_ExampleObject : public BNM::UnityEngine::MonoBehaviour {
 
     // To override virtual methods or replace methods, the types must be exactly the same
     BNM_CustomMethod(GetReferenceValue, false, BNM::Defaults::Get<BNM::IL2CPP::Il2CppObject *>(), "GetReferenceValue",
-                 BNM::CompileTimeClassBuilder(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("IExposedPropertyTable")).Build(),
+                 BNM::CompileTimeClassBuilder(BNM_OBFUSCATE("UnityEngine"), BNM_OBFUSCATE("IExposedPropertyTable")).Build(),
                  BNM::Defaults::Get<bool>());
 
     BNM_CustomMethod(Start, false, BNM::Defaults::Get<void>(), "Start");
@@ -80,7 +80,7 @@ struct Delegates :
     // If the field is not needed and you do not create this class in C++ using new or any other methods, you can omit all fields that come after the necessary ones.
     void *logClass;
 
-    BNM_CustomClass(Delegates, BNM::CompileTimeClassBuilder(nullptr, OBFUSCATE_BNM("Delegates")).Build(), {}, {});
+    BNM_CustomClass(Delegates, BNM::CompileTimeClassBuilder(nullptr, BNM_OBFUSCATE("Delegates")).Build(), {}, {});
     void Start() {
         BNM_CallCustomMethodOrigin(Start, this);
 
@@ -94,7 +94,7 @@ struct Delegates :
         if (JustEvent) JustEvent->Invoke(7, 234);
     }
     // We specify all information about method
-    BNM_CustomMethod(Start, false, BNM::Defaults::Get<void>(), OBFUSCATE_BNM("Start"));
+    BNM_CustomMethod(Start, false, BNM::Defaults::Get<void>(), BNM_OBFUSCATE("Start"));
     // Used to speed up the search for methods. Tells BNM not to compare the types of fields, but simply check their number.
     BNM_CustomMethodSkipTypeMatch(Start);
 
@@ -109,7 +109,7 @@ struct Delegates :
 void OnLoaded_Example_05() {
     using namespace BNM;
 
-    //! auto BNM_ExampleObjectClass = LoadClass(OBFUSCATE_BNM("BNM_Example_03"), OBFUSCATE_BNM("BNM_ExampleObject"))
+    //! auto BNM_ExampleObjectClass = LoadClass(BNM_OBFUSCATE("BNM_Example_03"), BNM_OBFUSCATE("BNM_ExampleObject"))
     // or
     Class BNM_ExampleObjectClass = BNM_ExampleObject::BNMCustomClass.myClass;
 }

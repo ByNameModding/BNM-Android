@@ -17,7 +17,7 @@ namespace BNM::Internal {
 
     std::list<void(*)()> onIl2CppLoaded{};
 
-    std::string_view constructorName = OBFUSCATE_BNM(".ctor");
+    std::string_view constructorName = BNM_OBFUSCATE(".ctor");
     BNM::Class customListTemplateClass{};
     std::map<uint32_t, BNM::Class> customListsMap{};
     int32_t finalizerSlot = -1;
@@ -87,7 +87,7 @@ IL2CPP::Il2CppClass *Internal::TryGetClassInImage(const IL2CPP::Il2CppImage *ima
 
         for (size_t i = 0; i < typeCount; ++i) {
             auto cls = il2cppMethods.il2cpp_image_get_class(image, i);
-            if (strcmp(OBFUSCATE_BNM("<Module>"), cls->name) == 0 || cls->declaringType) continue;
+            if (strcmp(BNM_OBFUSCATE("<Module>"), cls->name) == 0 || cls->declaringType) continue;
             if (_namespace == cls->namespaze && _name == cls->name) return cls;
         }
     } else {

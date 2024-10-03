@@ -16,6 +16,6 @@ namespace BNM::Structures::Unity {
 #endif
         void *GetCollider() const;
 
-        inline std::string str() { return OBFUSCATE_BNM("Point: ") + point.str() + OBFUSCATE_BNM(", Normal: ") + normal.str() + OBFUSCATE_BNM(", FaceID: ") + std::to_string(faceID) + OBFUSCATE_BNM(", Distance: ") + std::to_string(distance) + OBFUSCATE_BNM(", UV: ") + UV.str() + OBFUSCATE_BNM(", m_Collider: ") + std::to_string((BNM::BNM_PTR)m_Collider); }
+        inline std::string str() { return std::string(BNM_OBFUSCATE("Point: ")) + point.str() + std::string(BNM_OBFUSCATE(", Normal: ")) + normal.str() + std::string(BNM_OBFUSCATE(", FaceID: ")) + std::to_string(faceID) + std::string(BNM_OBFUSCATE(", Distance: ")) + std::to_string(distance) + std::string(BNM_OBFUSCATE(", UV: ")) + UV.str() + std::string(BNM_OBFUSCATE(", m_Collider: ")) + std::to_string((BNM::BNM_PTR)m_Collider); }
     };
 }

@@ -83,13 +83,16 @@
 #define DBG_BNM_MSG_Event_Raise_Error "An attempt to call event's (%s) raise method that does not exist"
 
 
+#define DBG_BNM_MSG_ClassesManagement_Method_Static "static "
 #define DBG_BNM_MSG_ClassesManagement_MakeImage_Added_Image "Added new image: [%s]."
 #define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Target "[ModifyClasses] Target: %s"
 #define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Added_Method "\tAdded %smethod %s %lu."
 #define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Hooked_Method "\tHooked %smethod %s %lu."
-#define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Method_Static "static "
+#define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Overridden_Method "\t\tOverridden method - %s."
 #define DBG_BNM_MSG_ClassesManagement_ModifyClasses_Added_Field "\tAdded field %s."
-#define DBG_BNM_MSG_ClassesManagement_CreateClass_Added "[CreateClass] Added new class (%p) [%s]::[%s], parent - [%s]::[%s], в [%s]."
+#define DBG_BNM_MSG_ClassesManagement_CreateClass_Target "[CreateClass] Target: [%s]::[%s]::[%s]"
+#define DBG_BNM_MSG_ClassesManagement_CreateClass_Added_Method "\tAdded %smethod %s %lu."
+#define DBG_BNM_MSG_ClassesManagement_CreateClass_Overridden_Method "\t\tOverridden method - %s."
 #define DBG_BNM_MSG_ClassesManagement_ProcessCustomClasses_Error "Failed find class by CompileTimeClass:"
 #define DBG_BNM_MSG_ClassesManagement_LogCompileTimeClass_None "None"
 

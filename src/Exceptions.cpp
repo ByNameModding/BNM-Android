@@ -12,12 +12,17 @@ BNM::Exception BNM::TryInvoke(const std::function<void()> &func) {
     for (size_t i = 0; i < sizeof(info); ++i) *(char *)&info = 0;
     info.return_type = &type;
 #if UNITY_VER <= 174
-    info.declaring_type = &type;
+    info.declaring_type = &klass;
 #else
     info.klass = &klass;
 #endif
+
     info.methodPointer = (decltype(info.methodPointer)) &func;
+#if UNITY_VER < 171
+    info.invoker_method = (BNM::IL2CPP::InvokerMethod) +[](BNM::IL2CPP::MethodInfo *info) -> void { ((*(std::function<void()>*)info->methodPointer))(); };
+#else
     info.invoker_method = (BNM::IL2CPP::InvokerMethod) +[](std::function<void()> *func) -> void { (*func)(); };
+#endif
     BNM::IL2CPP::Il2CppException *exception = nullptr;
     Internal::il2cppMethods.il2cpp_runtime_invoke(&info, nullptr, nullptr, &exception);
     return exception;

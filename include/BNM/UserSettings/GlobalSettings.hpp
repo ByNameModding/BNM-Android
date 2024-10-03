@@ -86,7 +86,10 @@ static_assert(false, "ByNameModding requires C++20 and above!");
 
 //! Добавьте ваш шифровщик строк
 //! Add your string encryptor
-#define OBFUSCATE_BNM(str) str // const char *
+#define BNM_OBFUSCATE(str) str // const char *
+//! Data obfuscated using this macro, can be freed, after BNM loaded. Only for advanced users! If you don't know what and how, just use your basic macro here.
+//! Данные, защифрованне этим define, могут быть удалены после загрузки BNM. Только для опытных пользователей! Если вы не знаете, что и как, просто используйте свой базовый define.
+#define BNM_OBFUSCATE_TMP(str) str // const char *
 
 // Shadowhook
 /*
@@ -221,4 +224,4 @@ namespace BNM {
 #endif
 }
 
-#define BNM_VER "2.1.4"
+#define BNM_VER "2.2.0"

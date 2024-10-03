@@ -10,8 +10,8 @@ BNM::UnityEngine::Object *thing{};
 
 // An example of custom instructions for IEnumerator. For example, let's make an analog of WaitForSecondsRealtime, but using std::chrono
 struct CustomYieldInstruction : BNM::IL2CPP::Il2CppObject {
-    BNM_CustomClass(CustomYieldInstruction, BNM::CompileTimeClassBuilder(OBFUSCATE_BNM(""), OBFUSCATE_BNM("CustomYieldInstruction")).Build(), {}, {},
-                    BNM::CompileTimeClassBuilder(OBFUSCATE_BNM("System.Collections"), OBFUSCATE_BNM("IEnumerator"), OBFUSCATE_BNM("mscorlib.dll")).Build());
+    BNM_CustomClass(CustomYieldInstruction, BNM::CompileTimeClassBuilder(BNM_OBFUSCATE(""), BNM_OBFUSCATE("CustomYieldInstruction")).Build(), {}, {},
+                    BNM::CompileTimeClassBuilder(BNM_OBFUSCATE("System.Collections"), BNM_OBFUSCATE("IEnumerator"), BNM_OBFUSCATE("mscorlib.dll")).Build());
     std::chrono::time_point<std::chrono::system_clock> waitUntilTime;
     void Finalize() { this->~CustomYieldInstruction(); }
     bool MoveNext() { return waitUntilTime > std::chrono::system_clock::now(); }
@@ -71,7 +71,7 @@ BNM::Field<void *> f;
 
 // Suppose there is such a class in the game
 struct EnumeratorTests : public BNM::UnityEngine::MonoBehaviour {
-    BNM_CustomClass(EnumeratorTests, BNM::CompileTimeClassBuilder(nullptr, OBFUSCATE_BNM("EnumeratorTests")).Build(), {}, {});
+    BNM_CustomClass(EnumeratorTests, BNM::CompileTimeClassBuilder(nullptr, BNM_OBFUSCATE("EnumeratorTests")).Build(), {}, {});
     void Start() {
         BNM_CallCustomMethodOrigin(Start, this);
 
@@ -102,11 +102,11 @@ struct EnumeratorTests : public BNM::UnityEngine::MonoBehaviour {
 void OnLoaded_Example_06() {
     using namespace BNM;
 
-    auto coreModule = BNM::Image(OBFUSCATE_BNM("UnityEngine.CoreModule.dll"));
+    auto coreModule = BNM::Image(BNM_OBFUSCATE("UnityEngine.CoreModule.dll"));
 
-    GameObject = BNM::Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("GameObject"), coreModule);
-    Destory = GameObject.GetParent().GetMethod(OBFUSCATE_BNM("Destroy"), 1);
-    StartCoroutine = BNM::Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("MonoBehaviour"), coreModule).GetMethod(OBFUSCATE_BNM("StartCoroutine"), {OBFUSCATE_BNM("routine")});
+    GameObject = BNM::Class(BNM_OBFUSCATE("UnityEngine"), BNM_OBFUSCATE("GameObject"), coreModule);
+    Destory = GameObject.GetParent().GetMethod(BNM_OBFUSCATE("Destroy"), 1);
+    StartCoroutine = BNM::Class(BNM_OBFUSCATE("UnityEngine"), BNM_OBFUSCATE("MonoBehaviour"), coreModule).GetMethod(BNM_OBFUSCATE("StartCoroutine"), {BNM_OBFUSCATE("routine")});
 }
 
 

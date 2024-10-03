@@ -37,8 +37,8 @@ void Start(void *instance) {
 }
 
 void OnLoaded_Example_08() {
-    auto cls = BNM::Class(OBFUSCATE_BNM("Example"), OBFUSCATE_BNM("Example"));
-    DangerMethod = cls.GetMethod(OBFUSCATE_BNM("DangerMethod"));
+    auto cls = BNM::Class(BNM_OBFUSCATE("Example"), BNM_OBFUSCATE("Example"));
+    DangerMethod = cls.GetMethod(BNM_OBFUSCATE("DangerMethod"));
 
-    BNM::InvokeHook(cls.GetMethod(OBFUSCATE_BNM("Start")), Start, old_Start);
+    BNM::InvokeHook(cls.GetMethod(BNM_OBFUSCATE("Start")), Start, old_Start);
 }

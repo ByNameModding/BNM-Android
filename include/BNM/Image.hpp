@@ -29,7 +29,7 @@ namespace BNM {
 
 #ifdef BNM_ALLOW_STR_METHODS
         inline std::string_view str() const {
-            return _data ? _data->name : OBFUSCATE_BNM(DBG_BNM_MSG_Image_str_nullptr);
+            return _data ? _data->name : BNM_OBFUSCATE(DBG_BNM_MSG_Image_str_nullptr);
         }
 #endif
 

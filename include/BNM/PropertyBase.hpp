@@ -22,12 +22,12 @@ namespace BNM {
 #ifdef BNM_ALLOW_STR_METHODS
         // Get data
         [[nodiscard]] inline std::string str() const {
-            if (!_hasGetter && !_hasSetter) return OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_nullptr);
+            if (!_hasGetter && !_hasSetter) return BNM_OBFUSCATE(DBG_BNM_MSG_PropertyBase_str_nullptr);
             auto isStatic = _hasGetter ? _getter._isStatic : _setter._isStatic;
-            return Class(_data->parent).str() + OBFUSCATE_BNM(" ") +
-                Class(_data->parent).str() + OBFUSCATE_BNM(".(") +
-                ((Structures::Mono::String *)_data->name)->str() + OBFUSCATE_BNM("){" DBG_BNM_MSG_PropertyBase_str_getter ": ") + (_hasGetter ? OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_exists) : OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_not_exists)) + OBFUSCATE_BNM(", " DBG_BNM_MSG_PropertyBase_str_setter ": ") + (_hasSetter ? OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_exists) : OBFUSCATE_BNM(DBG_BNM_MSG_PropertyBase_str_not_exists)) + OBFUSCATE_BNM("}") +
-                (isStatic ? OBFUSCATE_BNM("(" DBG_BNM_MSG_PropertyBase_str_static ")") : OBFUSCATE_BNM(""));
+            return Class(_data->parent).str() + BNM_OBFUSCATE(" ") +
+                Class(_data->parent).str() + BNM_OBFUSCATE(".(") +
+                ((Structures::Mono::String *)_data->name)->str() + BNM_OBFUSCATE("){" DBG_BNM_MSG_PropertyBase_str_getter ": ") + (_hasGetter ? BNM_OBFUSCATE(DBG_BNM_MSG_PropertyBase_str_exists) : BNM_OBFUSCATE(DBG_BNM_MSG_PropertyBase_str_not_exists)) + BNM_OBFUSCATE(", " DBG_BNM_MSG_PropertyBase_str_setter ": ") + (_hasSetter ? BNM_OBFUSCATE(DBG_BNM_MSG_PropertyBase_str_exists) : BNM_OBFUSCATE(DBG_BNM_MSG_PropertyBase_str_not_exists)) + BNM_OBFUSCATE("}") +
+                (isStatic ? BNM_OBFUSCATE("(" DBG_BNM_MSG_PropertyBase_str_static ")") : BNM_OBFUSCATE(""));
         }
 #endif
 

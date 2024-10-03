@@ -45,13 +45,13 @@ void Loading::AllowedLateInitHook() {
     Internal::states.lateInitAllowed = true;
 }
 
-bool CheckHandle(void *handle) {
-    void *init = BNM_dlsym(handle, OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_init));
+static bool CheckHandle(void *handle) {
+    void *init = BNM_dlsym(handle, BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_init));
     if (!init) return false;
 
     Internal::BNM_il2cpp_init_origin = ::HOOK(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
 
-    if (Internal::states.lateInitAllowed) Internal::LateInit(BNM_dlsym(handle, OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type)));
+    if (Internal::states.lateInitAllowed) Internal::LateInit(BNM_dlsym(handle, BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type)));
 
     Internal::il2cppLibraryHandle = handle;
     return true;
@@ -75,19 +75,19 @@ bool Loading::TryLoadByJNI(JNIEnv *env, jobject context) {
     if (!env || Internal::il2cppLibraryHandle || Internal::states.state) return result;
 
     if (context == nullptr) {
-        jclass activityThread = env->FindClass(OBFUSCATE_BNM("android/app/ActivityThread"));
-        auto currentActivityThread = env->CallStaticObjectMethod(activityThread, env->GetStaticMethodID(activityThread, OBFUSCATE_BNM("currentActivityThread"), OBFUSCATE_BNM("()Landroid/app/ActivityThread;")));
-        context = env->CallObjectMethod(currentActivityThread, env->GetMethodID(activityThread, OBFUSCATE_BNM("getApplication"), OBFUSCATE_BNM("()Landroid/app/Application;")));
+        jclass activityThread = env->FindClass(BNM_OBFUSCATE_TMP("android/app/ActivityThread"));
+        auto currentActivityThread = env->CallStaticObjectMethod(activityThread, env->GetStaticMethodID(activityThread, BNM_OBFUSCATE_TMP("currentActivityThread"), BNM_OBFUSCATE_TMP("()Landroid/app/ActivityThread;")));
+        context = env->CallObjectMethod(currentActivityThread, env->GetMethodID(activityThread, BNM_OBFUSCATE_TMP("getApplication"), BNM_OBFUSCATE_TMP("()Landroid/app/Application;")));
         env->DeleteLocalRef(currentActivityThread);
     }
 
-    auto applicationInfo = env->CallObjectMethod(context, env->GetMethodID(env->GetObjectClass(context), OBFUSCATE_BNM("getApplicationInfo"), OBFUSCATE_BNM("()Landroid/content/pm/ApplicationInfo;")));
+    auto applicationInfo = env->CallObjectMethod(context, env->GetMethodID(env->GetObjectClass(context), BNM_OBFUSCATE_TMP("getApplicationInfo"), BNM_OBFUSCATE_TMP("()Landroid/content/pm/ApplicationInfo;")));
     auto applicationInfoClass = env->GetObjectClass(applicationInfo);
 
-    auto flags = env->GetIntField(applicationInfo, env->GetFieldID(applicationInfoClass, OBFUSCATE_BNM("flags"), OBFUSCATE_BNM("I")));
+    auto flags = env->GetIntField(applicationInfo, env->GetFieldID(applicationInfoClass, BNM_OBFUSCATE_TMP("flags"), BNM_OBFUSCATE_TMP("I")));
     bool isLibrariesExtracted = (flags & 0x10000000) == 0x10000000; // ApplicationInfo.FLAG_EXTRACT_NATIVE_LIBS
 
-    auto jDir = (jstring) env->GetObjectField(applicationInfo, env->GetFieldID(applicationInfoClass, isLibrariesExtracted ? OBFUSCATE_BNM("nativeLibraryDir") : OBFUSCATE_BNM("sourceDir"), OBFUSCATE_BNM("Ljava/lang/String;")));
+    auto jDir = (jstring) env->GetObjectField(applicationInfo, env->GetFieldID(applicationInfoClass, isLibrariesExtracted ? BNM_OBFUSCATE_TMP("nativeLibraryDir") : BNM_OBFUSCATE_TMP("sourceDir"), BNM_OBFUSCATE_TMP("Ljava/lang/String;")));
 
     std::string file;
     auto cDir = std::string_view(env->GetStringUTFChars(jDir, nullptr));
@@ -95,10 +95,10 @@ bool Loading::TryLoadByJNI(JNIEnv *env, jobject context) {
 
     if (isLibrariesExtracted)
         // Path to the library /data/app/.../package name-.../lib/architecture/libil2cpp.so
-        file = std::string(cDir) + OBFUSCATE_BNM("/libil2cpp.so");
+        file = std::string(cDir) + BNM_OBFUSCATE_TMP("/libil2cpp.so");
     else
         // From base.apk /data/app/.../package name-.../base.apk!/lib/architecture/libil2cpp.so
-        file = std::string(cDir) + OBFUSCATE_BNM("!/lib/" CURRENT_ARCH "/libil2cpp.so");
+        file = std::string(cDir) + BNM_OBFUSCATE_TMP("!/lib/" CURRENT_ARCH "/libil2cpp.so");
 
     // Try to download il2cpp using this path
     auto handle = BNM_dlopen(file.c_str(), RTLD_LAZY);
@@ -109,7 +109,7 @@ bool Loading::TryLoadByJNI(JNIEnv *env, jobject context) {
     file.clear();
 
     // From split_config.architecture.apk /data/app/.../package name-.../split_config.architecture.apk!/lib/architecture/libil2cpp.so
-    file = std::string(cDir).substr(0, cDir.length() - 8) + OBFUSCATE_BNM("split_config." CURRENT_ARCH ".apk!/lib/" CURRENT_ARCH "/libil2cpp.so");
+    file = std::string(cDir).substr(0, cDir.length() - 8) + BNM_OBFUSCATE_TMP("split_config." CURRENT_ARCH ".apk!/lib/" CURRENT_ARCH "/libil2cpp.so");
     handle = BNM_dlopen(file.c_str(), RTLD_LAZY);
     if (!(result = CheckHandle(handle))) BNM_LOG_ERR(DBG_BNM_MSG_TryLoadByJNI_Fail);
 
@@ -129,12 +129,12 @@ void Loading::SetMethodFinder(BNM::Loading::MethodFinder finderMethod, void *use
 
 bool Loading::TryLoadByUsersFinder() {
 
-    auto init = Internal::currentFinderMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_init), Internal::currentFinderData);
+    auto init = Internal::currentFinderMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_init), Internal::currentFinderData);
     if (!init) return false;
 
     Internal::BNM_il2cpp_init_origin = ::HOOK(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
 
-    if (Internal::states.lateInitAllowed) Internal::LateInit(Internal::currentFinderMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type), Internal::currentFinderData));
+    if (Internal::states.lateInitAllowed) Internal::LateInit(Internal::currentFinderMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type), Internal::currentFinderData));
 
     return true;
 }
@@ -145,19 +145,19 @@ void Loading::TrySetupByUsersFinder() {
 
 namespace AssemblerUtils {
     // Reverse hexadecimal string (from 001122 to 221100)
-    std::string ReverseHexString(const std::string &hex) {
+    static std::string ReverseHexString(const std::string &hex) {
         std::string out{};
         for (size_t i = 0; i < hex.length(); i += 2) out.insert(0, hex.substr(i, 2));
         return out;
     }
 
     // Convert hexadecimal string to a value
-    BNM_PTR HexStr2Value(const std::string &hex) { return strtoull(hex.c_str(), nullptr, 16); }
+    static BNM_PTR HexStr2Value(const std::string &hex) { return strtoull(hex.c_str(), nullptr, 16); }
 
 #if defined(__ARM_ARCH_7A__)
 
     // Check if the assembly is `bl ...`or `b ...`
-    bool IsBranchHex(const std::string &hex) {
+    static bool IsBranchHex(const std::string &hex) {
         BNM_PTR hexW = HexStr2Value(ReverseHexString(hex));
         return (hexW & 0x0A000000) == 0x0A000000;
     }
@@ -165,7 +165,7 @@ namespace AssemblerUtils {
 #elif defined(__aarch64__)
 
     // Check if the assembly is `bl ...`or `b ...`
-    bool IsBranchHex(const std::string &hex) {
+    static bool IsBranchHex(const std::string &hex) {
         BNM_PTR hexW = HexStr2Value(ReverseHexString(hex));
         return (hexW & 0xFC000000) == 0x14000000 || (hexW & 0xFC000000) == 0x94000000;
     }
@@ -173,17 +173,17 @@ namespace AssemblerUtils {
 #elif defined(__i386__) || defined(__x86_64__)
 
     // Check if the assembly is `call ...`
-    bool IsCallHex(const std::string &hex) { return hex[0] == 'E' && hex[1] == '8'; }
+    static bool IsCallHex(const std::string &hex) { return hex[0] == 'E' && hex[1] == '8'; }
 #elif defined(__riscv)
 #error "Is it released for Android?"
 #else
 #error "BNM only supports arm64, arm, x86 and x86_64"
 #endif
-    const char *hexChars = OBFUSCATE_BNM("0123456789ABCDEF");
+    static const char *hexChars = BNM_OBFUSCATE_TMP("0123456789ABCDEF");
     // Прочитать память, как шестнадцатеричную строку
     // Read the memory as a hexadecimal string
     template<size_t len>
-    std::string ReadMemory(BNM_PTR address) {
+    static std::string ReadMemory(BNM_PTR address) {
         char temp[len]; memset(temp, 0, len);
         std::string ret{};
         if (memcpy(temp, (void *)address, len) == nullptr) return std::move(ret);
@@ -197,7 +197,7 @@ namespace AssemblerUtils {
     }
 
     // Decode b or bl and get the address it goes to
-    bool DecodeBranchOrCall(const std::string &hex, BNM_PTR offset, BNM_PTR &outOffset) {
+    static bool DecodeBranchOrCall(const std::string &hex, BNM_PTR offset, BNM_PTR &outOffset) {
 #if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
         if (!IsBranchHex(hex)) return false;
 #if defined(__aarch64__)
@@ -221,7 +221,7 @@ namespace AssemblerUtils {
     // Goes through memory and tries to find b-, bl- or call instructions
     // Then gets the address they go to
     // index: 1 is the first, 2 is the second, etc.
-    BNM_PTR FindNextJump(BNM_PTR start, uint8_t index) {
+    static BNM_PTR FindNextJump(BNM_PTR start, uint8_t index) {
 #if defined(__ARM_ARCH_7A__) || defined(__aarch64__)
         BNM_PTR offset = 0;
         std::string curHex = ReadMemory<4>(start);
@@ -271,10 +271,10 @@ void Internal::LateInit(void *il2cpp_class_from_il2cpp_type_addr) {
     Internal::BNM_il2cpp_class_from_system_type_origin = ::HOOK(from_il2cpp_type, Internal::BNM_il2cpp_class_from_system_type, Internal::old_BNM_il2cpp_class_from_system_type);
 }
 
-void EmptyMethod() {}
+static void EmptyMethod() {}
 
 #ifdef BNM_DEBUG
-void *OffsetInLib(void *offsetInMemory) {
+static void *OffsetInLib(void *offsetInMemory) {
     if (offsetInMemory == nullptr) return nullptr;
     Dl_info info; BNM_dladdr(offsetInMemory, &info);
     return (void *) ((BNM_PTR) offsetInMemory - (BNM_PTR) info.dli_fbase);
@@ -298,11 +298,11 @@ void Internal::SetupBNM() {
     // il2cpp_array_new_specific ->
     // il2cpp::vm::Array::NewSpecific ->
     // il2cpp::vm::Class::Init
-    Class$$Init = (decltype(Class$$Init)) AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_array_new_specific)), count), count);
+    Class$$Init = (decltype(Class$$Init)) AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_array_new_specific)), count), count);
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Class_Init, OffsetInLib((void *)Class$$Init));
 
 
-#define INIT_IL2CPP_API(name) il2cppMethods.name = (decltype(il2cppMethods.name)) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_##name))
+#define INIT_IL2CPP_API(name) il2cppMethods.name = (decltype(il2cppMethods.name)) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_##name))
 
     INIT_IL2CPP_API(il2cpp_image_get_class);
     INIT_IL2CPP_API(il2cpp_get_corlib);
@@ -326,11 +326,11 @@ void Internal::SetupBNM() {
     INIT_IL2CPP_API(il2cpp_thread_detach);
 
 #undef INIT_IL2CPP_API
-    
+
     //! il2cpp::vm::Image::GetTypes
     if (il2cppMethods.il2cpp_image_get_class == nullptr) {
-        auto assemblyClass = il2cppMethods.il2cpp_class_from_name(il2cppMethods.il2cpp_get_corlib(), OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("Assembly"));
-        BNM_PTR GetTypesAdr = Class(assemblyClass).GetMethod(OBFUSCATE_BNM("GetTypes"), 1).GetOffset();
+        auto assemblyClass = il2cppMethods.il2cpp_class_from_name(il2cppMethods.il2cpp_get_corlib(), BNM_OBFUSCATE_TMP("System.Reflection"), BNM_OBFUSCATE_TMP("Assembly"));
+        BNM_PTR GetTypesAdr = Class(assemblyClass).GetMethod(BNM_OBFUSCATE_TMP("GetTypes"), 1).GetOffset();
 
 #if UNITY_VER >= 211
         const int sCount = count;
@@ -355,7 +355,7 @@ void Internal::SetupBNM() {
     // Path:
     // il2cpp_class_from_type ->
     // il2cpp::vm::Class::FromIl2CppType
-    auto from_type_adr = AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_class_from_type)), count);
+    auto from_type_adr = AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_class_from_type)), count);
     ::HOOK(from_type_adr, ClassesManagement::Class$$FromIl2CppType, ClassesManagement::old_Class$$FromIl2CppType);
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Class_FromIl2CppType, OffsetInLib((void *)from_type_adr));
 
@@ -364,7 +364,7 @@ void Internal::SetupBNM() {
     // Path:
     // il2cpp_type_get_class_or_element_class ->
     // il2cpp::vm::Type::GetClassOrElementClass
-    auto type_get_class_adr = AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_type_get_class_or_element_class)), count);
+    auto type_get_class_adr = AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_type_get_class_or_element_class)), count);
     ::HOOK(type_get_class_adr, ClassesManagement::Type$$GetClassOrElementClass, ClassesManagement::old_Type$$GetClassOrElementClass);
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Type_GetClassOrElementClass, OffsetInLib((void *)type_get_class_adr));
 
@@ -391,7 +391,7 @@ void Internal::SetupBNM() {
     // Path:
     // il2cpp_domain_assembly_open ->
     // il2cpp::vm::Assembly::Load
-    BNM_PTR AssemblyLoadOffset = AssemblerUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, OBFUSCATE_BNM("il2cpp_domain_assembly_open")), count);
+    BNM_PTR AssemblyLoadOffset = AssemblerUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_domain_assembly_open)), count);
     ::HOOK(AssemblyLoadOffset, ClassesManagement::Assembly$$Load, nullptr);
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Assembly_Load, OffsetInLib((void *)AssemblyLoadOffset));
 
@@ -402,46 +402,46 @@ void Internal::SetupBNM() {
     // Path:
     // il2cpp_domain_get_assemblies ->
     // il2cpp::vm::Assembly::GetAllAssemblies
-    auto adr = (BNM_PTR) GetIl2CppMethod(OBFUSCATE_BNM(BNM_IL2CPP_API_il2cpp_domain_get_assemblies));
+    auto adr = (BNM_PTR) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_domain_get_assemblies));
     Assembly$$GetAllAssemblies = (std::vector<IL2CPP::Il2CppAssembly *> *(*)())(AssemblerUtils::FindNextJump(adr, count));
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Assembly_GetAllAssemblies, OffsetInLib((void *)Assembly$$GetAllAssemblies));
 
     auto mscorlib = il2cppMethods.il2cpp_get_corlib();
 
     // Get MakeGenericMethod_impl. Depending on the version of Unity, it may be in different classes.
-    auto runtimeMethodInfoClassPtr = TryGetClassInImage(mscorlib, OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("RuntimeMethodInfo"));
+    auto runtimeMethodInfoClassPtr = TryGetClassInImage(mscorlib, BNM_OBFUSCATE_TMP("System.Reflection"), BNM_OBFUSCATE_TMP("RuntimeMethodInfo"));
     if (runtimeMethodInfoClassPtr) {
         Internal::Class$$Init(runtimeMethodInfoClassPtr);
-        vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = BNM::MethodBase(IterateMethods(runtimeMethodInfoClassPtr, [](const MethodBase &methodBase) {
-            return !strcmp(methodBase._data->name, OBFUSCATE_BNM("MakeGenericMethod_impl"));
+        vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = BNM::MethodBase(IterateMethods(runtimeMethodInfoClassPtr, [methodName = BNM_OBFUSCATE_TMP("MakeGenericMethod_impl")](const MethodBase &methodBase) {
+            return !strcmp(methodBase._data->name, methodName);
         }));
     }
     if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl.Initialized())
-        vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = Class(OBFUSCATE_BNM("System.Reflection"), OBFUSCATE_BNM("MonoMethod"), mscorlib).GetMethod(OBFUSCATE_BNM("MakeGenericMethod_impl"));
+        vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = Class(BNM_OBFUSCATE_TMP("System.Reflection"), BNM_OBFUSCATE_TMP("MonoMethod"), mscorlib).GetMethod(BNM_OBFUSCATE_TMP("MakeGenericMethod_impl"));
 
-    auto runtimeTypeClass = Class(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("RuntimeType"), mscorlib);
-    auto stringClass = Class(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("String"), mscorlib);
-    auto interlockedClass = Class(OBFUSCATE_BNM("System.Threading"), OBFUSCATE_BNM("Interlocked"), mscorlib);
-    auto objectClass = Class(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("Object"), mscorlib);
+    auto runtimeTypeClass = Class(BNM_OBFUSCATE_TMP("System"), BNM_OBFUSCATE_TMP("RuntimeType"), mscorlib);
+    auto stringClass = Class(BNM_OBFUSCATE_TMP("System"), BNM_OBFUSCATE_TMP("String"), mscorlib);
+    auto interlockedClass = Class(BNM_OBFUSCATE_TMP("System.Threading"), BNM_OBFUSCATE_TMP("Interlocked"), mscorlib);
+    auto objectClass = Class(BNM_OBFUSCATE_TMP("System"), BNM_OBFUSCATE_TMP("Object"), mscorlib);
     for (uint16_t slot = 0; slot < objectClass._data->vtable_count; slot++) {
         const BNM::IL2CPP::MethodInfo* vMethod = objectClass._data->vtable[slot].method;
-        if (strcmp(vMethod->name, OBFUSCATE_BNM("Finalize")) != 0) continue;
+        if (strcmp(vMethod->name, BNM_OBFUSCATE_TMP("Finalize")) != 0) continue;
         finalizerSlot = slot;
         break;
     }
 
-    auto UnityEngineCoreModule = Image(OBFUSCATE_BNM("UnityEngine.CoreModule.dll"));
+    auto UnityEngineCoreModule = Image(BNM_OBFUSCATE_TMP("UnityEngine.CoreModule.dll"));
 
     vmData.Object = objectClass;
-    vmData.UnityEngine$$Object = Class(OBFUSCATE_BNM("UnityEngine"), OBFUSCATE_BNM("Object"), UnityEngineCoreModule);
-    vmData.Type$$GetType = Class(OBFUSCATE_BNM("System"), OBFUSCATE_BNM("Type"), mscorlib).GetMethod(OBFUSCATE_BNM("GetType"), 1);
-    vmData.Interlocked$$CompareExchange = interlockedClass.GetMethod(OBFUSCATE_BNM("CompareExchange"), {objectClass, objectClass, objectClass});
-    vmData.RuntimeType$$MakeGenericType = runtimeTypeClass.GetMethod(OBFUSCATE_BNM("MakeGenericType"), 2);
-    vmData.RuntimeType$$MakePointerType = runtimeTypeClass.GetMethod(OBFUSCATE_BNM("MakePointerType"), 1);
-    vmData.RuntimeType$$make_byref_type = runtimeTypeClass.GetMethod(OBFUSCATE_BNM("make_byref_type"), 0);
-    vmData.String$$Empty = stringClass.GetField(OBFUSCATE_BNM("Empty")).cast<Structures::Mono::String *>().GetPointer();
+    vmData.UnityEngine$$Object = Class(BNM_OBFUSCATE_TMP("UnityEngine"), BNM_OBFUSCATE_TMP("Object"), UnityEngineCoreModule);
+    vmData.Type$$GetType = Class(BNM_OBFUSCATE_TMP("System"), BNM_OBFUSCATE_TMP("Type"), mscorlib).GetMethod(BNM_OBFUSCATE_TMP("GetType"), 1);
+    vmData.Interlocked$$CompareExchange = interlockedClass.GetMethod(BNM_OBFUSCATE_TMP("CompareExchange"), {objectClass, objectClass, objectClass});
+    vmData.RuntimeType$$MakeGenericType = runtimeTypeClass.GetMethod(BNM_OBFUSCATE_TMP("MakeGenericType"), 2);
+    vmData.RuntimeType$$MakePointerType = runtimeTypeClass.GetMethod(BNM_OBFUSCATE_TMP("MakePointerType"), 1);
+    vmData.RuntimeType$$make_byref_type = runtimeTypeClass.GetMethod(BNM_OBFUSCATE_TMP("make_byref_type"), 0);
+    vmData.String$$Empty = stringClass.GetField(BNM_OBFUSCATE_TMP("Empty")).cast<Structures::Mono::String *>().GetPointer();
 
-    auto listClass = vmData.System$$List = Class(OBFUSCATE_BNM("System.Collections.Generic"), OBFUSCATE_BNM("List`1"));
+    auto listClass = vmData.System$$List = Class(BNM_OBFUSCATE_TMP("System.Collections.Generic"), BNM_OBFUSCATE_TMP("List`1"));
     auto cls = listClass._data;
     auto size = sizeof(IL2CPP::Il2CppClass) + cls->vtable_count * sizeof(IL2CPP::VirtualInvokeData);
     listClass._data = (IL2CPP::Il2CppClass *) BNM_malloc(size);

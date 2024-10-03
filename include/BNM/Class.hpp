@@ -116,18 +116,18 @@ namespace BNM {
 #ifdef BNM_ALLOW_STR_METHODS
         // Get information about the class
         [[nodiscard]] inline std::string str() const {
-            if (!_data) return OBFUSCATE_BNM(DBG_BNM_MSG_Class_str_nullptr);
+            if (!_data) return BNM_OBFUSCATE(DBG_BNM_MSG_Class_str_nullptr);
             TryInit();
             std::string data{};
             if (_data->declaringType) {
-                data += Class(_data->declaringType).str() + OBFUSCATE_BNM("<-");
+                data += Class(_data->declaringType).str() + BNM_OBFUSCATE("<-");
                 data += '[';
                 data += _data->name;
                 data += ']';
             } else {
-                data += OBFUSCATE_BNM("[");
-                data += _data->image->name + std::string(OBFUSCATE_BNM("]::["));
-                data += _data->namespaze + std::string(OBFUSCATE_BNM("]::[")) + _data->name + OBFUSCATE_BNM("]");
+                data += BNM_OBFUSCATE("[");
+                data += _data->image->name + std::string(BNM_OBFUSCATE("]::["));
+                data += _data->namespaze + std::string(BNM_OBFUSCATE("]::[")) + _data->name + BNM_OBFUSCATE("]");
             }
 
             return data;
@@ -191,7 +191,7 @@ namespace BNM {
             ModifierType _modifierType{ModifierType::None};
         };
         struct _GenericInfo : _BaseInfo {
-            _GenericInfo(const std::vector<CompileTimeClass> &_types) : _BaseInfo(_BaseType::Generic), _types(_types) {}
+            _GenericInfo(const std::initializer_list<CompileTimeClass> &_types) : _BaseInfo(_BaseType::Generic), _types(_types) {}
             std::vector<CompileTimeClass> _types{};
         };
     };
@@ -218,6 +218,7 @@ namespace BNM {
         }
         inline CompileTimeClassBuilder &Generic(const std::initializer_list<CompileTimeClass> &genericTypes) {
             auto generic = (CompileTimeClass::_GenericInfo *) BNM_malloc(sizeof(CompileTimeClass::_GenericInfo));
+            memset(generic, 0, sizeof(CompileTimeClass::_GenericInfo));
             *generic = CompileTimeClass::_GenericInfo{genericTypes};
             _data._stack.push_back(generic);
             return *this;

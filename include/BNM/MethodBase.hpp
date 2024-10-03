@@ -44,12 +44,12 @@ namespace BNM {
 #else
 #define kls declaring_type
 #endif
-            if (!_init) return OBFUSCATE_BNM(DBG_BNM_MSG_MethodBase_str_nullptr);
-            return Class(_data->return_type).str() + OBFUSCATE_BNM(" ") +
-                Class(_data->kls).str() + OBFUSCATE_BNM(".(") +
-                    _data->name + OBFUSCATE_BNM("){" DBG_BNM_MSG_MethodBase_str_args_count ": ") +
-                std::to_string(_data->parameters_count) + OBFUSCATE_BNM("}") +
-                (_isStatic ? OBFUSCATE_BNM("(" DBG_BNM_MSG_MethodBase_str_static ")") : OBFUSCATE_BNM(""));
+            if (!_init) return BNM_OBFUSCATE(DBG_BNM_MSG_MethodBase_str_nullptr);
+            return Class(_data->return_type).str() + BNM_OBFUSCATE(" ") +
+                Class(_data->kls).str() + BNM_OBFUSCATE(".(") +
+                    _data->name + BNM_OBFUSCATE("){" DBG_BNM_MSG_MethodBase_str_args_count ": ") +
+                std::to_string(_data->parameters_count) + BNM_OBFUSCATE("}") +
+                (_isStatic ? BNM_OBFUSCATE("(" DBG_BNM_MSG_MethodBase_str_static ")") : BNM_OBFUSCATE(""));
 #undef kls
         }
 #endif

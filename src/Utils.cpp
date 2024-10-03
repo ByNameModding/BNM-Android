@@ -69,14 +69,14 @@ template<> bool BNM::IsA<IL2CPP::Il2CppObject *>(IL2CPP::Il2CppObject *object, I
 
 #ifdef BNM_DEBUG
 
-const char *CompileTimeClassModifiers[] = {
+static const char *CompileTimeClassModifiers[] = {
         "None",
         "Array",
         "Pointer",
         "Reference"
 };
 
-void LogCompileTimeClassInfo(BNM::CompileTimeClass::_BaseInfo *info, const BNM::CompileTimeClass &tmp) {
+static void LogCompileTimeClassInfo(BNM::CompileTimeClass::_BaseInfo *info, const BNM::CompileTimeClass &tmp) {
     switch (info->_baseType) {
         case BNM::CompileTimeClass::_BaseType::None:
             BNM_LOG_ERR("\tNone");

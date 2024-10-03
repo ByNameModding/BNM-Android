@@ -47,7 +47,7 @@ namespace BNM::Structures::Unity {
         inline Vector3 euler() { return ToEuler(*this); }
         inline Quaternion normalized() { return Normalize(*this); }
 
-        inline std::string str() const {return std::to_string(x) + OBFUSCATE_BNM(", ") + std::to_string(y) + OBFUSCATE_BNM(", ") + std::to_string(z) + OBFUSCATE_BNM(", ") + std::to_string(w); }
+        inline std::string str() const {return std::to_string(x) + std::string(BNM_OBFUSCATE(", ")) + std::to_string(y) + std::string(BNM_OBFUSCATE(", ")) + std::to_string(z) + std::string(BNM_OBFUSCATE(", ")) + std::to_string(w); }
 
         inline Quaternion& operator+=(Quaternion q) { x += q.x; y += q.y; z += q.z; w += q.w; return *this; }
         inline Quaternion& operator-=(Quaternion q) { x -= q.x; y -= q.y; z -= q.z; w -= q.w; return *this; }

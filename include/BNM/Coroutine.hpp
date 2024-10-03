@@ -22,7 +22,7 @@ namespace std {
 #include "Il2CppHeaders.hpp"
 
 namespace BNM::Coroutine {
-    // Similar To #UnityEngine.YieldInstruction, but for BNM
+    // Similar to UnityEngine.YieldInstruction, but for BNM
     struct YieldInstruction {
         inline YieldInstruction(BNM::IL2CPP::Il2CppObject *object) : _object(object) {};
         BNM::IL2CPP::Il2CppObject *_object{};
