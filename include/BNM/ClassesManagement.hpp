@@ -179,7 +179,7 @@ struct _BNMCustomClass : BNM::MANAGEMENT_STRUCTURES::CustomClass { \
         _targetType = _targetType_; \
         _baseType = _baseType_; \
         _owner = _owner_; \
-        _interfaces = std::vector<BNM::CompileTimeClass>{{__VA_ARGS__}}; \
+        _interfaces = {__VA_ARGS__}; \
         BNM::MANAGEMENT_STRUCTURES::AddClass(this); \
     } \
 }; \
@@ -207,7 +207,7 @@ struct _BNMCustomMethod_##_method_ : BNM::MANAGEMENT_STRUCTURES::CustomMethod { 
         _name = BNM_OBFUSCATE_TMP(_name_); \
         _returnType = _type_; \
         _isStatic = _isStatic_; \
-        _parameterTypes = std::vector<BNM::CompileTimeClass>{{__VA_ARGS__}}; \
+        _parameterTypes = {__VA_ARGS__}; \
         BNMCustomClass._methods.push_back(this); \
     } \
 }; \
