@@ -12,7 +12,7 @@ namespace BNM::PRIVATE_FieldUtils {
 }
 
 static bool CheckIsFieldStatic(IL2CPP::FieldInfo *field) {
-    if (!field || !field->type) return false;
+    if (!field->type) return false;
     return (field->type->attrs & 0x0010) != 0 && field->offset != -1 && (field->type->attrs & 0x0040) == 0;
 }
 

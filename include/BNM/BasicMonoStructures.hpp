@@ -70,9 +70,9 @@ namespace BNM::Structures::Mono {
 #ifdef BNM_ALLOW_SELF_CHECKS
         [[nodiscard]] bool SelfCheck() const;
 #endif
-        inline bool IsNullOrEmpty() {
-            return !BNM::CheckForNull(this) || !length;
-        }
+        inline bool IsNullOrEmpty() { return !BNM::CheckForNull(this) || !length; }
+    private:
+        inline constexpr String() : BNM::IL2CPP::Il2CppObject() {}
     };
     namespace __Internal_Array {
         void *ArrayFromClass(IL2CPP::Il2CppClass *, IL2CPP::il2cpp_array_size_t);
@@ -83,8 +83,8 @@ namespace BNM::Structures::Mono {
         IL2CPP::il2cpp_array_size_t capacity{};
         T m_Items[0];
         [[nodiscard]] inline IL2CPP::il2cpp_array_size_t GetCapacity() const { BNM_CHECK_SELF(0); return capacity; }
-        inline T *GetData() const { BNM_CHECK_SELF(nullptr); return (T * const) &m_Items[0]; }
-        std::vector<T> ToVector() const {
+        [[nodiscard]] inline T *GetData() const { BNM_CHECK_SELF(nullptr); return (T * const) &m_Items[0]; }
+        [[nodiscard]] std::vector<T> ToVector() const {
             std::vector<T> ret;
             BNM_CHECK_SELF(ret);
             for (IL2CPP::il2cpp_array_size_t i = 0; i < capacity; i++) ret.push_back(m_Items[i]);
@@ -123,6 +123,10 @@ namespace BNM::Structures::Mono {
             BNM_LOG_ERR(DBG_BNM_MSG_Array_SelfCheck_Error);
             return false;
         }
+        inline constexpr Array() : BNM::IL2CPP::Il2CppObject() {
+            klass = nullptr;
+            monitor = nullptr;
+        }
 #endif
     };
     template<typename T>
@@ -133,22 +137,21 @@ namespace BNM::Structures::Mono {
             int version{};
             T current{};
             constexpr Enumerator() = default;
-            Enumerator(List<T> *list) : Enumerator() { this->list = list; }
+            explicit Enumerator(List<T> *list) : Enumerator() { this->list = list; }
 
-            // Поэтому тут просто код для поддержки C++ foreach
             inline T* begin() { return &list->items[0]; }
             inline T* end() { return &list->items->m_Items[list->size]; }
-            inline T* begin() const { return &list->items[0]; }
-            inline T* end() const { return &list->items->m_Items[list->size]; }
+            [[nodiscard]] inline T* begin() const { return &list->items[0]; }
+            [[nodiscard]] inline T* end() const { return &list->items->m_Items[list->size]; }
         };
         Array<T> *items{};
         int size{};
         int version{};
         void *syncRoot{};
-        inline T *GetData() const { return items->GetData(); }
-        inline int GetSize() const { return size; }
-        inline int GetVersion() const { return version; }
-        std::vector<T> ToVector() const {
+        [[nodiscard]] inline T *GetData() const { return items->GetData(); }
+        [[nodiscard]] inline int GetSize() const { return size; }
+        [[nodiscard]] inline int GetVersion() const { return version; }
+        [[nodiscard]] std::vector<T> ToVector() const {
             std::vector<T> ret{};
             BNM_CHECK_SELF(ret);
             for (int i = 0; i < size; i++) ret.push_back(GetData()[i]);
@@ -160,7 +163,7 @@ namespace BNM::Structures::Mono {
             size++;
             version++;
         }
-        int IndexOf(T val) const {
+        [[nodiscard]] int IndexOf(T val) const {
             for (int i = 0; i < size; i++) if (items->m_Items[i] == val) return i;
             return -1;
         }
@@ -191,7 +194,7 @@ namespace BNM::Structures::Mono {
             return true;
         }
         Utils::DataIterator<T> operator[] (int index) const { if (index >= size) return {}; return &items->m_Items[index]; }
-        Utils::DataIterator<T> At(int index) const { if (index >= size) return {}; return &items->m_Items[index]; }
+        [[nodiscard]] Utils::DataIterator<T> At(int index) const { if (index >= size) return {}; return &items->m_Items[index]; }
         inline bool CopyFrom(const std::vector<T> &vec) { return CopyFrom((T *)vec.data(), (int)vec.size()); }
         bool CopyFrom(T *arr, int arrSize) {
             BNM_CHECK_SELF(false);
@@ -204,12 +207,12 @@ namespace BNM::Structures::Mono {
             ++version; size = 0;
         }
         // Not quite like in C# because of its features
-        bool Contains(T item) const {
+        [[nodiscard]] bool Contains(T item) const {
             for (int i = 0; i < size; i++) if (items->m_Items[i] == item) return true;
             return false;
         }
         Enumerator GetEnumerator() { return this; }
-        T get_Item(int index) const {
+        [[nodiscard]] T get_Item(int index) const {
             if (index >= size) return {};
             return items->m_Items[index];
         }
@@ -251,6 +254,10 @@ namespace BNM::Structures::Mono {
             return false;
         }
 #endif
+        inline constexpr List() : BNM::IL2CPP::Il2CppObject() {
+            klass = nullptr;
+            monitor = nullptr;
+        }
     };
 
     // Based on https://github.com/royvandam/rtti/tree/cf0dee6fb3999573f45b0726a8d5739022e3dacf

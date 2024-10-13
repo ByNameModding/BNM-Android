@@ -138,6 +138,28 @@ namespace BNM::MANAGEMENT_STRUCTURES {
         }
     };
 
+    template<typename RetT, typename T, typename ...ArgsT>
+    struct GetMethodInvoker<false, RetT(T:: *)(ArgsT...) const> {
+        template<std::size_t ...As>
+        inline static void *InvokeMethod(RetT(*func)(T*, ArgsT...), T *instance, void **args, void *data, std::index_sequence<As...>) {
+            if constexpr (std::is_same_v<RetT, void>) {
+                func(instance, _InvokerHelper::UnpackArg<ArgsT>(args[As])...);
+                return nullptr;
+            } else return _InvokerHelper::PackReturnArg(func(instance, _InvokerHelper::UnpackArg<ArgsT>(args[As])...), ARG_4_PACK);
+        }
+#if UNITY_VER < 171
+        static void *Invoke(IL2CPP::MethodInfo *method, void *obj, void **args) {
+            IL2CPP::Il2CppMethodPointer ptr = method->methodPointer;
+#else
+        static void *Invoke(IL2CPP::Il2CppMethodPointer ptr, IL2CPP::MethodInfo *method, void *obj, void **args, void *returnValue) {
+#endif
+            auto func = (RetT(*)(T*, ArgsT...))(ptr);
+            auto instance = (T *)(obj);
+            auto seq = std::make_index_sequence<sizeof...(ArgsT)>();
+            return InvokeMethod(func, instance, args, ARG_4_INVOKE, seq);
+        }
+    };
+
     template<typename RetT, typename ...ArgsT>
     struct GetMethodInvoker<true, RetT(*)(ArgsT...)> {
 #if UNITY_VER > 174

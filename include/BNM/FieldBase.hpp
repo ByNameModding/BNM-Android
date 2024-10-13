@@ -17,15 +17,15 @@ namespace BNM {
         // Set object
         FieldBase &SetInstance(IL2CPP::Il2CppObject *val);
 
-        inline IL2CPP::FieldInfo *GetInfo() const { return _data; }
-        inline BNM_PTR GetOffset() const { return _data ? (BNM_PTR) _data->offset - (_isInStruct && !_isStatic && !_isThreadStatic ? sizeof(IL2CPP::Il2CppObject) : 0x0) : 0; }
+        [[nodiscard]] inline IL2CPP::FieldInfo *GetInfo() const { return _data; }
+        [[nodiscard]] inline BNM_PTR GetOffset() const { return _data ? (BNM_PTR) _data->offset - (_isInStruct && !_isStatic && !_isThreadStatic ? sizeof(IL2CPP::Il2CppObject) : 0x0) : 0; }
 
         // Get pointer to field
-        void *GetFieldPointer() const;
+        [[nodiscard]] void *GetFieldPointer() const;
 
 #ifdef BNM_ALLOW_STR_METHODS
         // Get data
-        inline std::string str() const {
+        [[nodiscard]] inline std::string str() const {
             if (_init) return Class(_data->parent).str() + BNM_OBFUSCATE(".(") + _data->name + BNM_OBFUSCATE(")");
             return BNM_OBFUSCATE(DBG_BNM_MSG_FieldBase_str_nullptr);
         }
@@ -37,7 +37,7 @@ namespace BNM {
         inline FieldBase &operator[](UnityEngine::Object *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
 
         // Check is field alive
-        inline bool Initialized() const noexcept { return _init; }
+        [[nodiscard]] inline bool Initialized() const noexcept { return _init; }
 
         // Cast field
         template<typename NewType> inline Field<NewType> &cast() const { return (Field<NewType> &)*this; }

@@ -6,21 +6,11 @@
 #include <BNM/Class.hpp>
 #include <Internals.hpp>
 
-typedef std::basic_string<BNM::IL2CPP::Il2CppChar> string16;
 static std::string Utf16ToUtf8(BNM::IL2CPP::Il2CppChar *utf16String, size_t length) {
-    std::string utf8String;
+    std::string utf8String{};
     utf8String.reserve(length);
     utf8::unchecked::utf16to8(utf16String, utf16String + length, std::back_inserter(utf8String));
     return utf8String;
-}
-
-static string16 Utf8ToUtf16(const char *utf8String, size_t length) {
-    string16 utf16String;
-    if (utf8::is_valid(utf8String, utf8String + length)) {
-        utf16String.reserve(length);
-        utf8::unchecked::utf8to16(utf8String, utf8String + length, std::back_inserter(utf16String));
-    }
-    return utf16String;
 }
 
 using namespace BNM::Structures::Mono;

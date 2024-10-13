@@ -47,7 +47,7 @@ void Internal::Image$$GetTypes(const IL2CPP::Il2CppImage *image, bool, std::vect
 
 #ifdef BNM_CLASSES_MANAGEMENT
     // Get BNM classes
-    ClassesManagement::BNMClassesMap.ForEachByImage(image, [&target](IL2CPP::Il2CppClass *BNM_class) -> bool {
+    ClassesManagement::bnmClassesMap.ForEachByImage(image, [&target](IL2CPP::Il2CppClass *BNM_class) -> bool {
         target->push_back(BNM_class);
         return false;
     });
@@ -87,7 +87,7 @@ IL2CPP::Il2CppClass *Internal::ClassesManagement::Class$$FromName(IL2CPP::Il2Cpp
         ret = old_Class$$FromName(image, namespaze, name);
 
     // If through BNM, we are looking for a class
-    if (!ret) BNMClassesMap.ForEachByImage(image, [namespaze, name, &ret](IL2CPP::Il2CppClass *BNM_class) -> bool {
+    if (!ret) bnmClassesMap.ForEachByImage(image, [namespaze, name, &ret](IL2CPP::Il2CppClass *BNM_class) -> bool {
             if (!strcmp(namespaze, BNM_class->namespaze) && !strcmp(name, BNM_class->name)) {
                 ret = BNM_class;
                 // Found, stop for
@@ -107,7 +107,7 @@ IL2CPP::Il2CppImage *Internal::ClassesManagement::new_GetImageFromIndex(IL2CPP::
         IL2CPP::Il2CppImage *ret = nullptr;
 
         // Go through all the images and check if the number matches
-        BNMClassesMap.ForEach([index, &ret](IL2CPP::Il2CppImage *img, const std::vector<IL2CPP::Il2CppClass *> &classes) -> bool {
+        bnmClassesMap.ForEach([index, &ret](IL2CPP::Il2CppImage *img, const std::vector<IL2CPP::Il2CppClass *> &classes) -> bool {
             if (img->assemblyIndex == index) {
                 ret = img;
                 return true;

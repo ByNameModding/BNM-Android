@@ -79,8 +79,8 @@ namespace BNM::Structures::Mono {
             return ret;
         }
 #endif
-        int GetSize() const { return count; }
-        int GetVersion() const { return version; }
+        [[nodiscard]] int GetSize() const { return count; }
+        [[nodiscard]] int GetVersion() const { return version; }
         bool TryGet(TKey key, TValue *value) const { return Class((IL2CPP::Il2CppObject *)this).GetMethod(BNM_OBFUSCATE("TryGetValue"), 2).template cast<bool>()[(void *)this](key, value); }
         void Add(TKey key, TValue value) { return Class((IL2CPP::Il2CppObject *)this).GetMethod(BNM_OBFUSCATE("Add"), 2).template cast<void>()[(void *)this](key, value); }
         void Insert(TKey key, TValue value) { return Class((IL2CPP::Il2CppObject *)this).GetMethod(BNM_OBFUSCATE("set_Item"), 2).template cast<void>()[(void *)this](key, value); }

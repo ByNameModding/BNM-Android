@@ -48,7 +48,7 @@ std::vector<BNM::Class> BNM::Image::GetClasses(bool includeInner) const {
     NEW_CLASSES:
 
 #ifdef BNM_CLASSES_MANAGEMENT
-    Internal::ClassesManagement::BNMClassesMap.ForEachByImage(_data, [&classes, includeInner](IL2CPP::Il2CppClass *BNMClass) -> bool {
+    Internal::ClassesManagement::bnmClassesMap.ForEachByImage(_data, [&classes, includeInner](IL2CPP::Il2CppClass *BNMClass) -> bool {
         if (!includeInner && BNMClass->declaringType) return false;
 
         classes.push_back(BNMClass);

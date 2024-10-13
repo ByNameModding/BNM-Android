@@ -22,13 +22,13 @@ struct CustomWait : BNM::IL2CPP::Il2CppObject {
     std::function<bool()> _func{};
     bool _isUntil = false;
     void Finalize() { this->~CustomWait(); }
-    bool MoveNext() { return _isUntil == !_func(); }
+    [[nodiscard]] bool MoveNext() const { return _isUntil == !_func(); }
     void Reset() {}
-    Il2CppObject *Current() { return nullptr; }
+    [[nodiscard]] static Il2CppObject *Current() { return nullptr; }
 };
 
 struct BNM::Coroutine::_IEnumeratorInit {
-    inline static void _Init() {
+    inline static void Init() {
         using namespace IEnumeratorData;
         customClass._size = sizeof(IEnumerator);
         customClass._targetType = BNM::CompileTimeClassBuilder(BNM_OBFUSCATE_TMP("BNM.Coroutine"), BNM_OBFUSCATE_TMP("IEnumerator")).Build();
@@ -72,13 +72,15 @@ struct BNM::Coroutine::_IEnumeratorInit {
             customMethod_Current._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<false, decltype(&IEnumerator::Current)>::Invoke;
             customMethod_Current._name = BNM_OBFUSCATE_TMP("get_Current");
             customMethod_Current._returnType = BNM::Defaults::Get<BNM::IL2CPP::Il2CppObject *>();
+            customMethod_Current._isStatic = false;
+            customMethod_Current._parameterTypes = {};
             customClass._methods.push_back(&customMethod_Current);
         }
     }
 };
 
 void BNM::Internal::SetupCoroutine() {
-    Coroutine::_IEnumeratorInit::_Init();
+    Coroutine::_IEnumeratorInit::Init();
 
     using namespace CustomWaitData;
     customClass._size = sizeof(CustomWait);
@@ -120,9 +122,11 @@ void BNM::Internal::SetupCoroutine() {
     {
         constexpr auto p = &CustomWait::Current;
         customMethod_Current._address = *(void **) &p;
-        customMethod_Current._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<false, decltype(&CustomWait::Current)>::Invoke;
+        customMethod_Current._invoker = (void *) &BNM::MANAGEMENT_STRUCTURES::GetMethodInvoker<true, decltype(&CustomWait::Current)>::Invoke;
         customMethod_Current._name = BNM_OBFUSCATE_TMP("get_Current");
         customMethod_Current._returnType = BNM::Defaults::Get<BNM::IL2CPP::Il2CppObject *>();
+        customMethod_Current._isStatic = false;
+        customMethod_Current._parameterTypes = {};
         customClass._methods.push_back(&customMethod_Current);
     }
 }

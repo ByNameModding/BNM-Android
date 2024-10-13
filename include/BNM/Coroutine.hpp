@@ -31,7 +31,7 @@ namespace BNM::Coroutine {
         friend struct IEnumerator;
     };
     struct AsyncOperation : YieldInstruction {
-        AsyncOperation(intptr_t operation);
+        explicit AsyncOperation(intptr_t operation);
     };
     struct WaitForEndOfFrame : YieldInstruction {
         WaitForEndOfFrame();
@@ -40,16 +40,16 @@ namespace BNM::Coroutine {
         WaitForFixedUpdate();
     };
     struct WaitForSeconds : YieldInstruction {
-        WaitForSeconds(float seconds);
+        explicit WaitForSeconds(float seconds);
     };
     struct WaitForSecondsRealtime : YieldInstruction {
-        WaitForSecondsRealtime(float seconds);
+        explicit WaitForSecondsRealtime(float seconds);
     };
     struct WaitUntil : YieldInstruction {
-        WaitUntil(const std::function<bool()> &function) ;
+        explicit WaitUntil(const std::function<bool()> &function) ;
     };
     struct WaitWhile : YieldInstruction {
-        WaitWhile(const std::function<bool()> &function);
+        explicit WaitWhile(const std::function<bool()> &function);
     };
 
     struct _IEnumeratorInit;
@@ -61,7 +61,7 @@ namespace BNM::Coroutine {
             inline std::suspend_always final_suspend() noexcept { return {}; }
             inline void unhandled_exception() {}
             inline std::suspend_always await_transform() = delete;
-            inline Coroutine::YieldInstruction value() const noexcept { return _currentValue; }
+            [[nodiscard]] inline Coroutine::YieldInstruction value() const noexcept { return _currentValue; }
             inline std::suspend_always yield_value(const Coroutine::YieldInstruction &val) { _currentValue = val; return {}; }
             inline void return_void() {}
         };
@@ -76,8 +76,8 @@ namespace BNM::Coroutine {
         void Reset();
         Il2CppObject *Current();
         friend struct IEnumerator;
-        IEnumerator() = default;
-        explicit IEnumerator(std::coroutine_handle<promise_type> handle) : _coroutine(handle) {}
+        explicit IEnumerator(std::coroutine_handle<promise_type> handle) : BNM::IL2CPP::Il2CppObject(), _coroutine(handle) {}
+        inline constexpr IEnumerator() : BNM::IL2CPP::Il2CppObject() {}
         Il2CppObject *_current{};
         std::coroutine_handle<promise_type> _coroutine{};
     };

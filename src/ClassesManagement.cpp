@@ -426,7 +426,7 @@ static void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, co
     klass->cctor_thread = 0;
 
     // Add a class to the list of created classes
-    Internal::ClassesManagement::BNMClassesMap.AddClass(image.GetInfo(), klass);
+    Internal::ClassesManagement::bnmClassesMap.AddClass(image.GetInfo(), klass);
 
     // Get the C# type
     customClass->type = Class(klass);

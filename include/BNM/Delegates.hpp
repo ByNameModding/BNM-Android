@@ -23,12 +23,10 @@ namespace BNM {
             auto method = MethodBase(this->method);
             auto instance = GetInstance();
             if (instance) method.SetInstance(instance);
-            return std::move(method);
+            return method;
         }
 
-        inline bool Initialized() const noexcept {
-            return CheckForNull(this);
-        }
+        [[nodiscard]] inline bool Initialized() const noexcept { return CheckForNull(this); }
         inline operator bool() noexcept { return Initialized(); }
         inline operator bool() const noexcept { return Initialized(); }
         template<typename NewRet>
@@ -45,6 +43,7 @@ namespace BNM {
             if (!delegates) return {((DelegateBase *)this)->GetMethod()};
 
             std::vector<MethodBase> ret{};
+            ret.reserve(delegates->capacity);
             for (IL2CPP::il2cpp_array_size_t i = 0; i < delegates->capacity; ++i) ret.push_back(delegates->At(i)->GetMethod());
             return std::move(ret);
         }

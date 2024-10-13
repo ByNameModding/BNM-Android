@@ -108,8 +108,8 @@ namespace BNM::UnityEngine {
         InvokableCallList *m_Calls{};
         PersistentCallGroup *m_PersistentCalls{};
         bool m_CallsDirty = true;
-        BNM::Class GetArgumentType(PersistentCall *call);
-        BNM::Class GetTargetType(PersistentCall *call);
+        static BNM::Class GetArgumentType(PersistentCall *call);
+        static BNM::Class GetTargetType(PersistentCall *call);
     };
     enum class PersistentListenerMode {
         EventDefined = 0, Void = 1, Object = 2, Int = 3, Float = 4, String = 5, Bool = 6
