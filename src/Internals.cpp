@@ -29,7 +29,7 @@ namespace BNM::Internal {
     void (*Class$$Init)(IL2CPP::Il2CppClass *klass){};
 
     void *BNM_il2cpp_init_origin{};
-    void (*old_BNM_il2cpp_init)(const char *){};
+    int (*old_BNM_il2cpp_init)(const char *){};
 
     void *BNM_il2cpp_class_from_system_type_origin{};
     IL2CPP::Il2CppClass *(*old_BNM_il2cpp_class_from_system_type)(IL2CPP::Il2CppReflectionType*){};

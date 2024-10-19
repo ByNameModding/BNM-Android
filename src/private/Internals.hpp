@@ -26,7 +26,6 @@ namespace BNM::Internal {
     struct States {
         uint8_t state : 1{};
         uint8_t lateInitAllowed : 1{};
-        uint8_t isInsideInit : 1{};
     } extern states;
     extern void *il2cppLibraryHandle;
     extern Loading::MethodFinder currentFinderMethod;
@@ -91,8 +90,8 @@ namespace BNM::Internal {
     void *GetIl2CppMethod(const char *methodName);
 
     extern void *BNM_il2cpp_init_origin;
-    extern void (*old_BNM_il2cpp_init)(const char *);
-    void BNM_il2cpp_init(const char *domain_name);
+    extern int (*old_BNM_il2cpp_init)(const char *);
+    int BNM_il2cpp_init(const char *domain_name);
 
     extern void *BNM_il2cpp_class_from_system_type_origin;
     extern IL2CPP::Il2CppClass *(*old_BNM_il2cpp_class_from_system_type)(IL2CPP::Il2CppReflectionType*);

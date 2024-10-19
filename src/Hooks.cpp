@@ -3,25 +3,20 @@
 
 using namespace BNM;
 
-void Internal::BNM_il2cpp_init(const char *domain_name) {
-    states.isInsideInit = true;
+int Internal::BNM_il2cpp_init(const char *domain_name) {
+    if (states.lateInitAllowed) UNHOOK(BNM_il2cpp_class_from_system_type_origin);
 
-    old_BNM_il2cpp_init(domain_name);
+    auto ret = old_BNM_il2cpp_init(domain_name);
 
     UNHOOK(BNM_il2cpp_init_origin);
 
     Load();
 
-    states.isInsideInit = false;
+    return ret;
 }
 
 IL2CPP::Il2CppClass *Internal::BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppReflectionType *type) {
     auto klass = old_BNM_il2cpp_class_from_system_type(type);
-
-    if (states.isInsideInit) {
-        UNHOOK(BNM_il2cpp_class_from_system_type_origin);
-        return klass;
-    }
 
     if (!Internal::il2cppMethods.il2cpp_domain_get) {
         Internal::il2cppMethods.il2cpp_domain_get = (decltype(Internal::il2cppMethods.il2cpp_domain_get)) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_domain_get));
@@ -34,9 +29,11 @@ IL2CPP::Il2CppClass *Internal::BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppR
     // Will be true after il2cpp_init
     if (!thread || !thread->internal_thread || (void *) domain->default_context != (void *) thread->internal_thread->current_appcontext) return klass;
 
+    UNHOOK(BNM_il2cpp_init_origin);
+    UNHOOK(BNM_il2cpp_class_from_system_type_origin);
+
     Load();
 
-    UNHOOK(BNM_il2cpp_class_from_system_type_origin);
     return klass;
 }
 
