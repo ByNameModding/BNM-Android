@@ -4,6 +4,11 @@
 
 #include <Internals.hpp>
 
+#define BNM_CLASS_ALLOCATED_METHODS_FLAG 0x01000000
+#define BNM_CLASS_ALLOCATED_FIELDS_FLAG 0x02000000
+#define BNM_CLASS_ALLOCATED_INNER_FLAG 0x04000000
+#define BNM_CLASS_ALLOCATED_HIERARCHY_FLAG 0x08000000
+
 using namespace BNM;
 
 void BNM::MANAGEMENT_STRUCTURES::AddClass(CustomClass *_class) {
@@ -119,6 +124,9 @@ static void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Cl
 
             memcpy(newMethods + oldCount, methodsToAdd.data(), methodsToAdd.size() * sizeof(IL2CPP::MethodInfo *));
 
+            if ((klass->flags & BNM_CLASS_ALLOCATED_METHODS_FLAG) == BNM_CLASS_ALLOCATED_METHODS_FLAG) BNM_free(klass->methods);
+            klass->flags |= BNM_CLASS_ALLOCATED_METHODS_FLAG;
+
             klass->methods = (const IL2CPP::MethodInfo **)newMethods;
             klass->method_count += methodsToAdd.size();
         }
@@ -149,7 +157,11 @@ static void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Cl
             BNM_LOG_DEBUG(DBG_BNM_MSG_ClassesManagement_ModifyClasses_Added_Field, field->_name.data());
         }
 
+        if ((klass->flags & BNM_CLASS_ALLOCATED_FIELDS_FLAG) == BNM_CLASS_ALLOCATED_FIELDS_FLAG) BNM_free(klass->fields);
+        klass->flags |= BNM_CLASS_ALLOCATED_FIELDS_FLAG;
+
         klass->actualSize = currentAddress;
+        klass->fields = newField;
     }
 
     customClass->myClass = klass;
@@ -242,7 +254,7 @@ static void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, co
 
             }
             NEXT:
-            [[maybe_unused]] uint8_t thisGotoRequiresCpp23Min;
+            continue;
         }
 
         methods[i] = method->myInfo;
@@ -749,8 +761,8 @@ static void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2Cpp
 
     // Set the parent
 
-    if ((target->flags & 0x09000000) == 0x09000000) BNM_free(target->typeHierarchy);
-    target->flags |= 0x09000000;
+    if ((target->flags & BNM_CLASS_ALLOCATED_HIERARCHY_FLAG) == BNM_CLASS_ALLOCATED_HIERARCHY_FLAG) BNM_free(target->typeHierarchy);
+    target->flags |= BNM_CLASS_ALLOCATED_HIERARCHY_FLAG;
 
     target->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
     target->typeHierarchy = (IL2CPP::Il2CppClass **) BNM_malloc(target->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
@@ -775,8 +787,8 @@ static void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2Cpp
     owner->nestedTypes = newInnerList;
 
     // Mark the class to use less memory
-    if ((owner->flags & 0x90000000) == 0x90000000) BNM_free(oldInnerList);
-    owner->flags |= 0x90000000;
+    if ((owner->flags & BNM_CLASS_ALLOCATED_INNER_FLAG) == BNM_CLASS_ALLOCATED_INNER_FLAG) BNM_free(oldInnerList);
+    owner->flags |= BNM_CLASS_ALLOCATED_INNER_FLAG;
 
     // Remove a class from the old owner's list
     if (oldOwner) {
@@ -791,8 +803,8 @@ static void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2Cpp
         --oldOwner->nested_type_count;
 
         // Mark the class to use less memory
-        if ((oldOwner->flags & 0x90000000) == 0x90000000) BNM_free(oldInnerList);
-        oldOwner->flags |= 0x90000000;
+        if ((oldOwner->flags & BNM_CLASS_ALLOCATED_INNER_FLAG) == BNM_CLASS_ALLOCATED_INNER_FLAG) BNM_free(oldInnerList);
+        oldOwner->flags |= BNM_CLASS_ALLOCATED_INNER_FLAG;
     }
 }
 

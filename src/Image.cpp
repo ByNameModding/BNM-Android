@@ -30,7 +30,7 @@ std::vector<BNM::Class> BNM::Image::GetClasses(bool includeInner) const {
     } else {
         Internal::Image$$GetTypes(_data, false, &classes);
 
-        if (includeInner) goto SKIP_INNER_REMOVING;
+        if (includeInner) goto NEW_CLASSES;
 
         for (auto it = classes.begin(); it != classes.end();) {
             if ((*it)->declaringType) {
@@ -39,11 +39,7 @@ std::vector<BNM::Class> BNM::Image::GetClasses(bool includeInner) const {
             }
             ++it;
         }
-
-        SKIP_INNER_REMOVING:
-        [[maybe_unused]] uint8_t thisGotoRequiresCpp23Min;
     }
-
 
     NEW_CLASSES:
 
