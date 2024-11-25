@@ -18,6 +18,7 @@ namespace BNM {
     }
     namespace Structures::Mono {
         struct String;
+        struct decimal;
     }
     namespace UnityEngine {
         struct Object;
@@ -27,11 +28,21 @@ namespace BNM {
     struct Class;
 }
 
+namespace BNM::Types {
+    typedef uint8_t byte;
+    typedef int8_t sbyte;
+    typedef unsigned short ushort;
+    typedef unsigned int uint;
+    typedef unsigned long ulong;
+    enum nint : intptr_t {};
+    enum nuint : uintptr_t {};
+}
+
 namespace BNM::Defaults {
 
     namespace Internal {
         typedef IL2CPP::Il2CppClass *ClassType;
-        extern ClassType Void, Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, IntPtr, Int64, UInt64, Single, Double, String, Object;
+        extern ClassType Void, Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, IntPtr, UIntPtr, Int64, UInt64, Single, Double, Decimal, String, Object;
         extern ClassType Vector2, Vector3, Vector4, Color, Color32, Ray, Quaternion, Matrix3x3, Matrix4x4, RaycastHit;
         extern ClassType UnityObject, MonoBehaviour;
     }
@@ -49,33 +60,38 @@ namespace BNM::Defaults {
     constexpr DefaultTypeRef Get() {
         using namespace Structures::Unity;
         using namespace Structures::Mono;
+        using namespace BNM::Types;
 
         if constexpr (std::is_same_v<T, void>)
             return {&Internal::Void};
         else if constexpr (std::is_same_v<T, bool>)
             return {&Internal::Boolean};
-        else if constexpr (std::is_same_v<T, uint8_t>)
+        else if constexpr (std::is_same_v<T, byte>)
             return {&Internal::Byte};
-        else if constexpr (std::is_same_v<T, int8_t>)
+        else if constexpr (std::is_same_v<T, sbyte>)
             return {&Internal::SByte};
-        else if constexpr (std::is_same_v<T, int16_t>)
+        else if constexpr (std::is_same_v<T, short>)
             return {&Internal::Int16};
-        else if constexpr (std::is_same_v<T, uint16_t>)
+        else if constexpr (std::is_same_v<T, ushort>)
             return {&Internal::UInt16};
-        else if constexpr (std::is_same_v<T, int32_t>)
+        else if constexpr (std::is_same_v<T, int>)
             return {&Internal::Int32};
-        else if constexpr (std::is_same_v<T, uint32_t>)
+        else if constexpr (std::is_same_v<T, uint>)
             return {&Internal::UInt32};
-        else if constexpr (std::is_same_v<T, intptr_t>)
+        else if constexpr (std::is_same_v<T, nint>)
             return {&Internal::IntPtr};
-        else if constexpr (std::is_same_v<T, int64_t>)
+        else if constexpr (std::is_same_v<T, nuint>)
+            return {&Internal::UIntPtr};
+        else if constexpr (std::is_same_v<T, long>)
             return {&Internal::Int64};
-        else if constexpr (std::is_same_v<T, uint64_t>)
+        else if constexpr (std::is_same_v<T, unsigned long>)
             return {&Internal::UInt64};
         else if constexpr (std::is_same_v<T, float>)
             return {&Internal::Single};
         else if constexpr (std::is_same_v<T, double>)
             return {&Internal::Double};
+        else if constexpr (std::is_same_v<T, decimal>)
+            return {&Internal::Decimal};
         else if constexpr (std::is_same_v<T, BNM::IL2CPP::Il2CppString *> || std::is_same_v<T, Structures::Mono::String *>)
             return {&Internal::String};
         else if constexpr (std::is_same_v<T, Vector2>)

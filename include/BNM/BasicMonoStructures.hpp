@@ -55,6 +55,13 @@ namespace BNM::Utils {
 // Common C# classes (string, array, list) (string, [], List)
 namespace BNM::Structures::Mono {
 
+    struct decimal {
+        int flags{};
+        int hi{};
+        int lo{};
+        int mid{};
+    };
+
     template<typename T> struct List;
     namespace PRIVATE_MonoListData {
         void *CompareExchange4List(void *syncRoot);

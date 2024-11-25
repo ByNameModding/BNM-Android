@@ -132,7 +132,7 @@ namespace DelegatesAndActions {
         BNM::UnityEngine::UnityEvent<int, int> *JustEvent;
         void *logClass;
 
-        BNM_CustomClass(Delegates, BNM::CompileTimeClassBuilder(nullptr, BNM_OBFUSCATE("Delegates")).Build(), {}, {});
+        BNM_CustomClass(Delegates, BNM::CompileTimeClassBuilder(nullptr, BNM_OBFUSCATE_TMP("Delegates")).Build(), {}, {});
         void Start() {
             BNM_CallCustomMethodOrigin(Start, this);
 
@@ -145,7 +145,7 @@ namespace DelegatesAndActions {
             if (JustAction) JustAction->Invoke(30, 42);
             if (JustEvent) JustEvent->Invoke(7, 234);
         }
-        BNM_CustomMethod(Start, false, BNM::Defaults::Get<void>(), BNM_OBFUSCATE("Start"));
+        BNM_CustomMethod(Start, false, BNM::Defaults::Get<void>(), "Start");
         BNM_CustomMethodSkipTypeMatch(Start);
         BNM_CustomMethodMarkAsInvokeHook(Start);
     };

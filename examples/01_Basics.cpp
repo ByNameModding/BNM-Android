@@ -4,6 +4,7 @@
 #include <BNM/Field.hpp>
 #include <BNM/Method.hpp>
 #include <BNM/Property.hpp>
+#include <BNM/Defaults.hpp>
 #include <BNM/Operators.hpp>
 #include <BNM/BasicMonoStructures.hpp>
 
@@ -152,4 +153,53 @@ void OnLoaded_Example_01() {
     // To replace Start and Update for this class, the best option is InvokeHook
     InvokeHook(Update, PlayerUpdate, old_PlayerUpdate);
     InvokeHook(Start, PlayerStart, old_PlayerStart);
+
+    // BNM::Defaults:
+
+    // BNM::Defaults::Get<type>() - fast API that allow get all basic C# types and some basic Unity's types
+    // Supported types list:
+    /*
+     C++, C# keyword, .NET type
+
+     void, void, System.Void
+     bool, bool, System.Boolean
+
+     BNM::Types::byte (uint8_t), byte, System.Byte
+     BNM::Types::sbyte (int8_t), sbyte, System.SByte
+
+     short (int16_t), short, System.Int16
+     BNM::Types::ushort (uint16_t), ushort, System.UInt16
+
+     int (int32_t), int, System.Int32
+     BNM::Types::uint (unsigned int), uint, System.UInt32
+
+     BNM::Types::nint (intptr_t), nint, System.IntPtr
+     BNM::Types::nuint (uintptr_t), nuint, System.UIntPtr
+
+     long, long, System.Int64
+     BNM::Types::ulong (unsigned long), ulong, System.UInt64
+
+     float, float, System.Single
+     double, double, System.Double
+     BNM::Types::decimal, decimal, System.Double
+
+     BNM::IL2CPP::Il2CppString *, BNM::Structures::Mono::String *, string, System.String
+     BNM::Structures::Unity::Vector2, Vector2, UnityEngine.Vector2
+     BNM::Structures::Unity::Vector3, Vector3, UnityEngine.Vector3
+     BNM::Structures::Unity::Vector4, Vector4, UnityEngine.Vector4
+     BNM::Structures::Unity::Color, Color, UnityEngine.Color
+     BNM::Structures::Unity::Color32, Color32, UnityEngine.Color32
+     BNM::Structures::Unity::Ray, Ray, UnityEngine.Ray
+     BNM::Structures::Unity::Quaternion, Quaternion, UnityEngine.Quaternion
+     BNM::Structures::Unity::Matrix3x3, Matrix3x3, UnityEngine.Matrix3x3
+     BNM::Structures::Unity::Matrix4x4, Matrix4x4, UnityEngine.Matrix4x4
+     BNM::Structures::Unity::RaycastHit, RaycastHit, UnityEngine.RaycastHit
+     BNM::UnityEngine::Object *, Object, UnityEngine.Object
+     BNM::UnityEngine::MonoBehaviour *, MonoBehaviour, UnityEngine.MonoBehaviour
+
+     Any other pointer, object, System.Object
+    */
+
+    // Get int.Parse method
+    BNM::Method<int> Parse = BNM::Defaults::Get<int>().ToClass().GetMethod(BNM_OBFUSCATE("Parse"), 1);
 }

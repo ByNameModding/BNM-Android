@@ -2,7 +2,7 @@
 #include <Internals.hpp>
 
 namespace BNM::Defaults::Internal {
-    ClassType Void{}, Boolean{}, Byte{}, SByte{}, Int16{}, UInt16{}, Int32{}, UInt32{}, IntPtr{}, Int64{}, UInt64{}, Single{}, Double{}, String{}, Object{};
+    ClassType Void{}, Boolean{}, Byte{}, SByte{}, Int16{}, UInt16{}, Int32{}, UInt32{}, IntPtr{}, UIntPtr{}, Int64{}, UInt64{}, Single{}, Double{}, Decimal{}, String{}, Object{};
     ClassType Vector2{}, Vector3{}, Vector4{}, Color{}, Color32{}, Ray{}, Quaternion{}, Matrix3x3{}, Matrix4x4{}, RaycastHit{};
     ClassType UnityObject{}, MonoBehaviour{};
 }
@@ -23,10 +23,12 @@ void BNM::Internal::LoadDefaults() {
     Int32 = TryGetClassInImage(image, SystemStr, BNM_OBFUSCATE_TMP("Int32"));
     UInt32 = TryGetClassInImage(image, SystemStr, BNM_OBFUSCATE_TMP("UInt32"));
     IntPtr = TryGetClassInImage(image, SystemStr, BNM_OBFUSCATE_TMP("IntPtr"));
+    UIntPtr = TryGetClassInImage(image, SystemStr, BNM_OBFUSCATE_TMP("UIntPtr"));
     Int64 = TryGetClassInImage(image, SystemStr, BNM_OBFUSCATE_TMP("Int64"));
     UInt64 = TryGetClassInImage(image, SystemStr, BNM_OBFUSCATE_TMP("UInt64"));
     Single = TryGetClassInImage(image, SystemStr, BNM_OBFUSCATE_TMP("Single"));
     Double = TryGetClassInImage(image, SystemStr, BNM_OBFUSCATE_TMP("Double"));
+    Decimal = TryGetClassInImage(image, SystemStr, BNM_OBFUSCATE_TMP("Decimal"));
     String = TryGetClassInImage(image, SystemStr, BNM_OBFUSCATE_TMP("String"));
     Object = TryGetClassInImage(image, SystemStr, ObjectStr);
 

@@ -10,8 +10,8 @@ BNM::UnityEngine::Object *thing{};
 
 // An example of custom instructions for IEnumerator. For example, let's make an analog of WaitForSecondsRealtime, but using std::chrono
 struct CustomYieldInstruction : BNM::IL2CPP::Il2CppObject {
-    BNM_CustomClass(CustomYieldInstruction, BNM::CompileTimeClassBuilder(BNM_OBFUSCATE(""), BNM_OBFUSCATE("CustomYieldInstruction")).Build(), {}, {},
-                    BNM::CompileTimeClassBuilder(BNM_OBFUSCATE("System.Collections"), BNM_OBFUSCATE("IEnumerator"), BNM_OBFUSCATE("mscorlib.dll")).Build());
+    BNM_CustomClass(CustomYieldInstruction, BNM::CompileTimeClassBuilder(nullptr, BNM_OBFUSCATE_TMP("CustomYieldInstruction")).Build(), {}, {},
+                    BNM::CompileTimeClassBuilder(BNM_OBFUSCATE_TMP("System.Collections"), BNM_OBFUSCATE_TMP("IEnumerator"), BNM_OBFUSCATE_TMP("mscorlib.dll")).Build());
     std::chrono::time_point<std::chrono::system_clock> waitUntilTime;
     void Finalize() { this->~CustomYieldInstruction(); }
     bool MoveNext() { return waitUntilTime > std::chrono::system_clock::now(); }
@@ -67,11 +67,10 @@ BNM::Coroutine::IEnumerator IEnumeratorExample() {
 BNM::Class GameObject;
 BNM::Method<void> Destory;
 BNM::Method<void *> StartCoroutine;
-BNM::Field<void *> f;
 
 // Suppose there is such a class in the game
 struct EnumeratorTests : public BNM::UnityEngine::MonoBehaviour {
-    BNM_CustomClass(EnumeratorTests, BNM::CompileTimeClassBuilder(nullptr, BNM_OBFUSCATE("EnumeratorTests")).Build(), {}, {});
+    BNM_CustomClass(EnumeratorTests, BNM::CompileTimeClassBuilder(nullptr, BNM_OBFUSCATE_TMP("EnumeratorTests")).Build(), {}, {});
     void Start() {
         BNM_CallCustomMethodOrigin(Start, this);
 
