@@ -81,7 +81,6 @@ static void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Cl
     auto klass = target._data;
 
     auto baseType = customClass->_baseType.ToClass();
-    if (baseType) klass->parent = baseType._data;
 
     IL2CPP::Il2CppClass *owner = customClass->_owner;
 

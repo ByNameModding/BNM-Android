@@ -74,6 +74,10 @@ static_assert(false, "ByNameModding requires C++20 and above!");
 //! Check mono's objects in their methods
 #define BNM_ALLOW_SELF_CHECKS
 
+//! Проверять классы при установке объекта полям и методам
+//! Check classes when setting an instance to fields and methods
+#define BNM_CHECK_INSTANCE_TYPE
+
 #define BNM_DEBUG
 
 #define BNM_INFO
@@ -224,4 +228,4 @@ namespace BNM {
 #endif
 }
 
-#define BNM_VER "2.2.5"
+#define BNM_VER "2.2.6"

@@ -38,17 +38,19 @@
 
 #define DBG_BNM_MSG_FieldBase_str_nullptr "Dead field"
 #define DBG_BNM_MSG_FieldBase_SetInstance_Warn "An attempt to set an object to the static field %s. Please remove the SetInstance call in the code."
+#define DBG_BNM_MSG_FieldBase_SetInstance_Wrong_Instance_Error "An attempt to set an object of type %s to field %s!"
 #define DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_instance_dead_instance "Can't get instance %s field pointer without instance! Please set instance before trying to get the pointer."
 #define DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_static_dead_parent "Something went wrong, the static field %s does not have a class."
 #define DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_thread_static_unsupported "Getting a pointer to thread static fields is not supported, field: %s."
 
 #define DBG_BNM_MSG_Field_GetPointer_Dead "Dead"
-#define DBG_BNM_MSG_Field_GetPointer_Error "Null pointer to the field [%s]"
+#define DBG_BNM_MSG_Field_GetPointer_Error "Null pointer in the field %s!"
 #define DBG_BNM_MSG_Field_GetSet_Error "An attempt to use dead field!"
 
 
 #define DBG_BNM_MSG_MethodBase_str_nullptr "Dead method"
 #define DBG_BNM_MSG_MethodBase_SetInstance_Warn "An attempt to set an object to the static method %s. Please remove the SetInstance call in the code."
+#define DBG_BNM_MSG_MethodBase_SetInstance_Wrong_Instance_Error "An attempt to set an object of type %s to method %s!"
 #define DBG_BNM_MSG_MethodBase_str_args_count "arguments count"
 #define DBG_BNM_MSG_MethodBase_str_static "static"
 #define DBG_BNM_MSG_MethodBase_GetGeneric_Warn "Method %s is not generic!"

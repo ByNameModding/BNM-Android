@@ -54,7 +54,7 @@ If you want to use your own dll with bundles, add it to this file, but this will
     )
     ```
 + Change `UNITY_VER`, include your string obfuscator and hooking software, uncomment `BNM_DOTNET35` if the game uses .NET 3.5 in [GlobalSettings.hpp](include/BNM/UserSettings/GlobalSettings.hpp)
-+ Done! See [examples](Examples) or add it to your project to understand how to work with BNM.
++ Done! See [examples](examples) or add it to your project to understand how to work with BNM.
 
 ## Supported Unity versions: 5.6.4f1, 2017.x - 6000.0.x
 

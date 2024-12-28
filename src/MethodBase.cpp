@@ -29,7 +29,18 @@ MethodBase &MethodBase::SetInstance(IL2CPP::Il2CppObject *val)  {
         BNM_LOG_WARN(DBG_BNM_MSG_MethodBase_SetInstance_Warn, str().c_str());
         return *this;
     }
+#ifdef BNM_CHECK_INSTANCE_TYPE
+#if UNITY_VER > 174
+#define kls klass
+#else
+#define kls declaring_type
+#endif
+    if (BNM::IsA(val, _data->kls)) _instance = val;
+    else BNM_LOG_ERR(DBG_BNM_MSG_MethodBase_SetInstance_Wrong_Instance_Error, BNM::Class(val).str().c_str(), str().c_str());
+#undef kls
+#else
     _instance = val;
+#endif
     return *this;
 }
 
