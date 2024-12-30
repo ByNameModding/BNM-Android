@@ -72,6 +72,9 @@ namespace BNM {
     IL2CPP::Il2CppThread *CurrentIl2CppThread();
     void DetachIl2Cpp();
 
+    void *Allocate(size_t size);
+    void Free(void *);
+
 #if UNITY_VER >= 232
     inline BNM_INT_PTR UnmarshalUnityObject(BNM_INT_PTR gcHandlePtr) {
         auto gcHandle = *(BNM_INT_PTR *)gcHandlePtr;

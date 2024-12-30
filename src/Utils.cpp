@@ -143,3 +143,12 @@ void BNM::DetachIl2Cpp() {
     if (!thread) return;
     Internal::il2cppMethods.il2cpp_thread_detach(thread);
 }
+
+void *BNM::Allocate(size_t size) {
+    return Internal::il2cppMethods.il2cpp_alloc(size);
+}
+
+void BNM::Free(void *ptr) {
+    return Internal::il2cppMethods.il2cpp_free(ptr);
+
+}

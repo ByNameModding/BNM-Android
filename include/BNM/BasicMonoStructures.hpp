@@ -108,22 +108,32 @@ namespace BNM::Structures::Mono {
         inline Utils::DataIterator<T> operator[] (IL2CPP::il2cpp_array_size_t index) const { BNM_CHECK_SELF({}); if (GetCapacity() < index) return {}; return &m_Items[index]; }
         inline Utils::DataIterator<T> At(IL2CPP::il2cpp_array_size_t index) const { BNM_CHECK_SELF({}); if (GetCapacity() < index) return {}; return &m_Items[index]; }
         [[nodiscard]] inline bool Empty() const { BNM_CHECK_SELF(false); return GetCapacity() <= 0;}
-        static Array<T> *Create(size_t capacity, bool _forceNonGC = false) {
-            auto cls = _forceNonGC ? BNM::Defaults::DefaultTypeRef{} : BNM::Defaults::Get<T>();
+        static Array<T> *Create(size_t capacity, bool _forceUseAlloc = false) {
+            auto cls = _forceUseAlloc ? BNM::Defaults::DefaultTypeRef{} : BNM::Defaults::Get<T>();
+#ifndef  BNM_USE_IL2CPP_ALLOCATOR
             auto monoArr = (Array<T> *) (cls.Valid() ? __Internal_Array::ArrayFromClass(cls, capacity) : BNM_malloc(sizeof(Array) + sizeof(T) * capacity));
+#else
+            auto monoArr = (Array<T> *) (cls.Valid() ? __Internal_Array::ArrayFromClass(cls, capacity) : BNM::Allocate(sizeof(Array) + sizeof(T) * capacity));
+#endif
             memset(monoArr, 0, sizeof(Array) + sizeof(T) * capacity);
             if (!cls.Valid()) monoArr->klass = nullptr;
             monoArr->capacity = capacity;
             return monoArr;
         }
-        static Array<T> *Create(const std::vector<T> &vec, bool _forceNonGC = false) { return Create((T *)vec.data(), vec.size(), _forceNonGC); }
-        static Array<T> *Create(T *arr, size_t size, bool _forceNonGC = false) {
-            Array<T> *monoArr = Create(size, _forceNonGC);
+        static Array<T> *Create(const std::vector<T> &vec, bool _forceUseAlloc = false) { return Create((T *)vec.data(), vec.size(), _forceUseAlloc); }
+        static Array<T> *Create(T *arr, size_t size, bool _forceUseAlloc = false) {
+            Array<T> *monoArr = Create(size, _forceUseAlloc);
             monoArr->CopyFrom(arr, size);
             return monoArr;
         }
         // Only for arrays created via BNM!
-        inline void Destroy() { if (!klass) BNM_free(this); }
+        inline void Destroy() {
+#ifndef  BNM_USE_IL2CPP_ALLOCATOR
+            if (!klass) BNM_free(this);
+#else
+            if (!klass) BNM::Free(this);
+#endif
+        }
 #ifdef BNM_ALLOW_SELF_CHECKS
         [[nodiscard]] bool SelfCheck() const {
             if (CheckForNull(this)) return true;

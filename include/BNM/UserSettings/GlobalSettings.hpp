@@ -60,6 +60,10 @@ static_assert(false, "ByNameModding requires C++20 and above!");
 //! The good old days...
 // #define BNM_OLD_GOOD_DAYS
 
+//! Использовать аллокатор il2cpp для Mono массивов вместо базового
+//! Use il2cpp's allocator for Mono arrays instead of basic
+#define BNM_USE_IL2CPP_ALLOCATOR
+
 #ifndef NDEBUG
 
 //! Методы str() в структурах
@@ -228,4 +232,4 @@ namespace BNM {
 #endif
 }
 
-#define BNM_VER "2.2.6"
+#define BNM_VER "2.2.7"
