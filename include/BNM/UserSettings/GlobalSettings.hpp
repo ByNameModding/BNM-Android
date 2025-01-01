@@ -232,4 +232,4 @@ namespace BNM {
 #endif
 }
 
-#define BNM_VER "2.2.7"
+#define BNM_VER "2.2.8"
