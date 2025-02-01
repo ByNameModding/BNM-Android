@@ -1,5 +1,7 @@
 #pragma once
 
+#include "type_traits"
+
 #include "UserSettings/GlobalSettings.hpp"
 #include "Il2CppHeaders.hpp"
 
