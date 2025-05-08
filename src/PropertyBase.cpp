@@ -16,18 +16,6 @@ PropertyBase::PropertyBase(const IL2CPP::PropertyInfo *info) {
     }
 }
 
-PropertyBase::PropertyBase(const MethodBase &newGetter, const MethodBase &newSetter)  {
-    _hasGetter = _hasSetter = false;
-    if (newGetter.Initialized()) {
-        _hasGetter = true;
-        _getter = newGetter;
-    }
-    if (newSetter.Initialized()) {
-        _hasSetter = true;
-        _setter = newSetter;
-    }
-}
-
 PropertyBase &PropertyBase::SetInstance(IL2CPP::Il2CppObject *val) {
     if (_hasGetter) _getter.SetInstance(val);
     if (_hasSetter) _setter.SetInstance(val);

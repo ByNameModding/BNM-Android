@@ -22,7 +22,12 @@
 #include <shared_mutex>
 #endif
 
+
+/// @cond
 namespace BNM::Internal {
+
+#pragma pack(push, 1)
+
     struct States {
         uint8_t state : 1{};
         uint8_t lateInitAllowed : 1{};
@@ -31,7 +36,7 @@ namespace BNM::Internal {
     extern Loading::MethodFinder currentFinderMethod;
     extern void *currentFinderData;
 
-#pragma pack(push, 1)
+    //! \internal
     // A list with variables from the il2cpp VM
     extern struct VMData {
         BNM::Class Object{}, UnityEngine$$Object{}, System$$List{};
@@ -44,7 +49,8 @@ namespace BNM::Internal {
         BNM::Structures::Mono::String **String$$Empty{};
     } vmData;
 
-    // il2cpp methods to avoid searching for them every BNM call
+    //! \internal
+    // All il2cpp methods that can be used by BNM stored here to avoid searching for them every BNM call
     extern struct Il2CppMethods {
         BNM::IL2CPP::Il2CppImage *(*il2cpp_get_corlib)(){};
         BNM::IL2CPP::Il2CppClass *(*il2cpp_class_from_name)(const BNM::IL2CPP::Il2CppImage *, const char *, const char *){};
@@ -95,9 +101,9 @@ namespace BNM::Internal {
     extern int (*old_BNM_il2cpp_init)(const char *);
     int BNM_il2cpp_init(const char *domain_name);
 
-    extern void *BNM_il2cpp_class_from_system_type_origin;
-    extern IL2CPP::Il2CppClass *(*old_BNM_il2cpp_class_from_system_type)(IL2CPP::Il2CppReflectionType*);
-    IL2CPP::Il2CppClass *BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppReflectionType *type);
+    extern void *BNM_Class$$FromIl2CppType_origin;
+    extern IL2CPP::Il2CppClass *(*old_BNM_Class$$FromIl2CppType)(IL2CPP::Il2CppReflectionType*);
+    IL2CPP::Il2CppClass *BNM_Class$$FromIl2CppType(IL2CPP::Il2CppReflectionType *type);
 
     void SetupBNM();
 
@@ -133,6 +139,7 @@ namespace BNM::Internal {
 #endif
 
 #ifdef BNM_CLASSES_MANAGEMENT
+    //! \internal
     namespace ClassesManagement {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
         extern std::shared_mutex classesFindAccessMutex;
@@ -160,6 +167,7 @@ namespace BNM::Internal {
 
         void ProcessCustomClasses();
 
+        //! \internal
         // Structure for quick search classes by their images
         extern struct BNMClassesMap {
             inline void AddClass(const IL2CPP::Il2CppImage *image, IL2CPP::Il2CppClass *cls) {
@@ -194,9 +202,7 @@ namespace BNM::Internal {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
                 std::shared_lock lock(classesFindAccessMutex);
 #endif
-                for (auto &[img, classes] : _map)
-                    if (func((IL2CPP::Il2CppImage *)img, classes))
-                        break;
+                for (auto &[img, classes] : _map) if (func((IL2CPP::Il2CppImage *)img, classes)) break;
             }
         private:
             std::map<BNM_PTR, std::vector<IL2CPP::Il2CppClass *>> _map{};
@@ -219,3 +225,4 @@ namespace BNM::Internal {
         return value;
     }
 }
+/// @endcond

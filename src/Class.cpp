@@ -151,16 +151,16 @@ MethodBase Class::GetMethod(const std::string_view &name, int parameters) const 
     return {};
 }
 
-MethodBase Class::GetMethod(const std::string_view &name, const std::initializer_list<std::string_view> &parametersName) const {
+MethodBase Class::GetMethod(const std::string_view &name, const std::initializer_list<std::string_view> &parameterNames) const {
     BNM_LOG_ERR_IF(!_data, DBG_BNM_MSG_Class_Dead_Error);
     if (!_data) return {};
     TryInit();
 
-    auto parameters = (uint8_t) parametersName.size();
+    auto parameters = (uint8_t) parameterNames.size();
 
-    auto method = Internal::IterateMethods(*this, [&name, &parameters, &parametersName](IL2CPP::MethodInfo *method) {
+    auto method = Internal::IterateMethods(*this, [&name, &parameters, &parameterNames](IL2CPP::MethodInfo *method) {
         if (name != method->name || method->parameters_count != parameters) return false;
-        for (uint8_t i = 0; i < parameters; ++i) if (Internal::il2cppMethods.il2cpp_method_get_param_name(method, i) != parametersName.begin()[i]) return false;
+        for (uint8_t i = 0; i < parameters; ++i) if (Internal::il2cppMethods.il2cpp_method_get_param_name(method, i) != parameterNames.begin()[i]) return false;
         return true;
     });
 
@@ -170,13 +170,13 @@ MethodBase Class::GetMethod(const std::string_view &name, const std::initializer
     return {};
 }
 
-MethodBase Class::GetMethod(const std::string_view &name, const std::initializer_list<BNM::CompileTimeClass> &parametersType) const {
+MethodBase Class::GetMethod(const std::string_view &name, const std::initializer_list<BNM::CompileTimeClass> &parameterTypes) const {
     BNM_LOG_ERR_IF(!_data, DBG_BNM_MSG_Class_Dead_Error);
     if (!_data) return {};
     TryInit();
-    auto parameters = (uint8_t) parametersType.size();
+    auto parameters = (uint8_t) parameterTypes.size();
 
-    auto method = Internal::IterateMethods(*this, [&name, parameters, &parametersType](IL2CPP::MethodInfo *method) {
+    auto method = Internal::IterateMethods(*this, [&name, parameters, &parameterTypes](IL2CPP::MethodInfo *method) {
         if (name != method->name || method->parameters_count != parameters) return false;
         for (uint8_t i = 0; i < parameters; ++i) {
 #if UNITY_VER < 212
@@ -185,7 +185,7 @@ MethodBase Class::GetMethod(const std::string_view &name, const std::initializer
             auto param = method->parameters[i];
 #endif
 
-            if (Class(param).GetClass() != parametersType.begin()[i].ToIl2CppClass()) return false;
+            if (Class(param).GetClass() != parameterTypes.begin()[i].ToIl2CppClass()) return false;
         }
         return true;
     });
@@ -316,7 +316,7 @@ IL2CPP::Il2CppType *Class::GetIl2CppType() const {
 
 MonoType *Class::GetMonoType() const {
     BNM_LOG_ERR_IF(!_data, DBG_BNM_MSG_Class_Dead_Error);
-    if (!_data) return nullptr;
+    if (!_data) return {};
     TryInit();
     return (MonoType *) Internal::il2cppMethods.il2cpp_type_get_object(GetIl2CppType());
 }
@@ -327,11 +327,18 @@ BNM::CompileTimeClass Class::GetCompileTimeClass() const {
     return {._loadedClass = *this, ._autoFree = false};
 }
 
+BNM::Image Class::GetImage() const {
+    BNM_LOG_ERR_IF(!_data, DBG_BNM_MSG_Class_Dead_Error);
+    if (!_data) return {};
+    TryInit();
+    return {_data->image};
+}
+
 Class::operator BNM::CompileTimeClass() const { return GetCompileTimeClass(); }
 
 BNM::IL2CPP::Il2CppObject *Class::CreateNewInstance() const {
     BNM_LOG_ERR_IF(!_data, DBG_BNM_MSG_Class_Dead_Error);
-    if (!_data) return nullptr;
+    if (!_data) return {};
     TryInit();
 
     if ((_data->flags & (0x00000080 | 0x00000020))) // TYPE_ATTRIBUTE_ABSTRACT | TYPE_ATTRIBUTE_INTERFACE
@@ -456,7 +463,7 @@ namespace CompileTimeClassProcessors {
 Class CompileTimeClass::ToClass() {
     if (_isReferenced) {
         _isReferenced = false;
-        auto ref = reference ? *reference : nullptr;
+        auto ref = _reference ? *_reference : nullptr;
         _loadedClass = ref;
     }
     if (_loadedClass) return _loadedClass;
@@ -479,20 +486,13 @@ Class CompileTimeClass::ToClass() {
     _loadedClass.TryInit();
     return _loadedClass;
 }
-Class CompileTimeClass::ToClass() const {
-    return ((CompileTimeClass *)this)->ToClass();
-}
-CompileTimeClass::operator Class() { return ToClass(); }
+Class CompileTimeClass::ToClass() const { return ((CompileTimeClass *)this)->ToClass(); }
 CompileTimeClass::operator Class() const { return ToClass(); }
 
-IL2CPP::Il2CppType *CompileTimeClass::ToIl2CppType() { return ToClass().GetIl2CppType(); }
 IL2CPP::Il2CppType *CompileTimeClass::ToIl2CppType() const { return ToClass().GetIl2CppType(); }
-CompileTimeClass::operator IL2CPP::Il2CppType*() { return ToIl2CppType(); }
 CompileTimeClass::operator IL2CPP::Il2CppType*() const { return ToIl2CppType(); }
 
-IL2CPP::Il2CppClass *CompileTimeClass::ToIl2CppClass() { return ToClass().GetClass(); }
 IL2CPP::Il2CppClass *CompileTimeClass::ToIl2CppClass() const { return ToClass().GetClass(); }
-CompileTimeClass::operator IL2CPP::Il2CppClass*() { return ToIl2CppClass(); }
 CompileTimeClass::operator IL2CPP::Il2CppClass*() const { return ToIl2CppClass(); }
 void CompileTimeClass::Free() {
     if (_autoFree) return;

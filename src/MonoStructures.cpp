@@ -47,7 +47,7 @@ bool String::SelfCheck() const {
 
 // The only normal way to call CompareExchange for SyncRoot is for List
 void *PRIVATE_MonoListData::CompareExchange4List(void *syncRoot) {
-    if (Internal::vmData.Interlocked$$CompareExchange.Initialized()) Internal::vmData.Interlocked$$CompareExchange((void **)&syncRoot, (void *)Internal::vmData.Object.CreateNewInstance(), (void *)nullptr);
+    if (Internal::vmData.Interlocked$$CompareExchange.IsValid()) Internal::vmData.Interlocked$$CompareExchange((void **)&syncRoot, (void *)Internal::vmData.Object.CreateNewInstance(), (void *)nullptr);
     return syncRoot;
 }
 

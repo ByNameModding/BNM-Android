@@ -43,10 +43,12 @@ static IL2CPP::MethodInfo *ProcessCustomMethod(MANAGEMENT_STRUCTURES::CustomMeth
 // The code for setting data in fields
 static void SetupField(IL2CPP::FieldInfo *newField, MANAGEMENT_STRUCTURES::CustomField *field);
 
-
-static void ProcessInterface(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface, std::vector<IL2CPP::Il2CppClass *> &interfaces);
-// The code for changing the parent of the class and the owner of the nested class
-static void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *owner, IL2CPP::Il2CppClass *parent);
+// Code for getting all interfaces of class parent and interfaces
+static void GetAllInterfaces(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface, std::vector<IL2CPP::Il2CppClass *> &outInterfaces);
+// The code for changing the owner of the nested class
+static void SetupClassOwner(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *owner);
+// The code for changing the parent of the class
+static void SetupClassParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *parent);
 // Code for checking whether a class and its parents have an interface
 static bool HasInterface(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface);
 // Class type setup code
@@ -68,6 +70,12 @@ void Internal::ClassesManagement::ProcessCustomClasses() {
 #endif
         }
         type.Free();
+        customClass->_interfaces.clear();
+        customClass->_interfaces.shrink_to_fit();
+        customClass->_fields.clear();
+        customClass->_fields.shrink_to_fit();
+        customClass->_methods.clear();
+        customClass->_methods.shrink_to_fit();
     }
 
     classesManagementVector->clear(); classesManagementVector->shrink_to_fit();
@@ -84,7 +92,8 @@ static void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Cl
 
     IL2CPP::Il2CppClass *owner = customClass->_owner;
 
-    SetupClassOwnerAndParent(klass, owner, baseType._data);
+    SetupClassParent(klass, baseType._data);
+    SetupClassOwner(klass, owner);
 
     auto newMethodsCount = customClass->_methods.size();
     auto newFieldsCount = customClass->_fields.size();
@@ -199,7 +208,7 @@ static void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, co
     std::vector<IL2CPP::Il2CppClass *> interfaces{};
     for (auto &interface : allInterfaces)
         if (auto cls = interface.ToClass(); cls)
-            ProcessInterface(parent, cls, interfaces);
+            GetAllInterfaces(parent, cls, interfaces);
 
     // Required to override virtual methods
     auto newVtableSize = parent->vtable_count;
@@ -297,7 +306,8 @@ static void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, co
     klass->element_class = klass;
     klass->castClass = klass;
 
-    SetupClassOwnerAndParent(klass, owner, parent);
+    SetupClassParent(klass, parent);
+    SetupClassOwner(klass, owner);
 
     // BNM does not support the creation of generic classes
     klass->generic_class = nullptr;
@@ -594,6 +604,15 @@ static IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *met
 static IL2CPP::MethodInfo *ProcessCustomMethod(MANAGEMENT_STRUCTURES::CustomMethod *method, Class target, bool *hooked) {
     if (!target) return CreateMethod(method);
 
+    // Free _parameterTypes in any case
+    struct _ClearMethod { // NOLINT
+        MANAGEMENT_STRUCTURES::CustomMethod *method;
+        ~_ClearMethod() {
+            method->_parameterTypes.clear();
+            method->_parameterTypes.shrink_to_fit();
+        }
+    } _ClearMethod{method}; // NOLINT
+
     auto parameters = (uint8_t) method->_parameterTypes.size();
 
     auto originalMethod = Internal::IterateMethods(target, [method, parameters](IL2CPP::MethodInfo *klassMethod) {
@@ -622,7 +641,7 @@ static IL2CPP::MethodInfo *ProcessCustomMethod(MANAGEMENT_STRUCTURES::CustomMeth
         bool isVirtual = originalMethod != nullptr && (originalMethod->flags & 0x0040) == 0x0040;
         auto parent = originalMethod;
         originalMethod = CreateMethod(method);
-        if (!hooked || !isVirtual) return originalMethod;
+        if (!hooked || !isVirtual || !parent) return originalMethod;
         if (auto vTable = TryFindVirtualMethod(target, parent); vTable != nullptr) {
             method->_origin = parent;
             method->_originalAddress = (void *) parent->methodPointer;
@@ -659,7 +678,7 @@ static IL2CPP::MethodInfo *ProcessCustomMethod(MANAGEMENT_STRUCTURES::CustomMeth
     SKIP_NON_VIRTUAL:
 
     method->_origin = originalMethod;
-    ::HOOK((void *)originalMethod->methodPointer, method->_address, method->_originalAddress);
+    ::BasicHook((void *)originalMethod->methodPointer, method->_address, method->_originalAddress);
 
     if (hooked) *hooked = true;
 
@@ -734,6 +753,10 @@ static IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *met
     }
     myInfo->rgctx_data = nullptr;
     myInfo->genericMethod = nullptr;
+
+    method->_parameterTypes.clear();
+    method->_parameterTypes.shrink_to_fit();
+
     return myInfo;
 }
 
@@ -754,25 +777,8 @@ static void SetupField(IL2CPP::FieldInfo *newField, MANAGEMENT_STRUCTURES::Custo
     newField->token = newField->type->attrs;
 }
 
-
-static void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *owner, IL2CPP::Il2CppClass *parent) {
-    if (!parent) goto SETUP_OWNER;
-
-    // Set the parent
-
-    if ((target->flags & BNM_CLASS_ALLOCATED_HIERARCHY_FLAG) == BNM_CLASS_ALLOCATED_HIERARCHY_FLAG) BNM_free(target->typeHierarchy);
-    target->flags |= BNM_CLASS_ALLOCATED_HIERARCHY_FLAG;
-
-    target->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
-    target->typeHierarchy = (IL2CPP::Il2CppClass **) BNM_malloc(target->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
-    memcpy(target->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
-    target->typeHierarchy[parent->typeHierarchyDepth] = target;
-    target->parent = parent;
-
-    SETUP_OWNER:
+static void SetupClassOwner(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *owner) {
     if (!owner) return;
-
-    // Set the owner
 
     auto oldOwner = target->declaringType;
     auto oldInnerList = owner->nestedTypes;
@@ -807,15 +813,29 @@ static void SetupClassOwnerAndParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2Cpp
     }
 }
 
-static void ProcessInterface(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface, std::vector<IL2CPP::Il2CppClass *> &interfaces) {
-    Internal::Class$$Init(interface);
-    if (!HasInterface(parent, interface)) interfaces.push_back(interface);
-    if (!interface->interfaces_count || interface->interfaces_count == (uint16_t) -1) return;
+static void SetupClassParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *parent) {
+    // All C# classes should have parent. Only structs don't have it, but BNM don't allow to define valid structs
+    if (!parent) [[unlikely]] return;
 
-    for (uint16_t i = 0; i < interface->interfaces_count; ++i) ProcessInterface(parent, interface->implementedInterfaces[i], interfaces);
+    if ((target->flags & BNM_CLASS_ALLOCATED_HIERARCHY_FLAG) == BNM_CLASS_ALLOCATED_HIERARCHY_FLAG) BNM_free(target->typeHierarchy);
+    target->flags |= BNM_CLASS_ALLOCATED_HIERARCHY_FLAG;
+
+    target->typeHierarchyDepth = parent->typeHierarchyDepth + 1;
+    target->typeHierarchy = (IL2CPP::Il2CppClass **) BNM_malloc(target->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
+    memcpy(target->typeHierarchy, parent->typeHierarchy, parent->typeHierarchyDepth * sizeof(IL2CPP::Il2CppClass *));
+    target->typeHierarchy[parent->typeHierarchyDepth] = target;
+    target->parent = parent;
 }
 
-static bool HasInterface(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface) {
+static void GetAllInterfaces(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface, std::vector<IL2CPP::Il2CppClass *> &outInterfaces) { // NOLINT
+    Internal::Class$$Init(interface);
+    if (!HasInterface(parent, interface)) outInterfaces.push_back(interface);
+    if (!interface->interfaces_count || interface->interfaces_count == (uint16_t) -1) return;
+
+    for (uint16_t i = 0; i < interface->interfaces_count; ++i) GetAllInterfaces(parent, interface->implementedInterfaces[i], outInterfaces);
+}
+
+static bool HasInterface(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface) { // NOLINT
     if (!parent || !interface) return false;
     for (uint16_t i = 0; i < parent->interfaces_count; ++i) if (parent->implementedInterfaces[i] == interface) return true;
     if (parent->parent) return HasInterface(parent->parent, interface);

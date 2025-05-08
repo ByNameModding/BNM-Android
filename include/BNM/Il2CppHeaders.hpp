@@ -1,6 +1,7 @@
 #pragma once
 
 namespace BNM {
+    /// @cond
     namespace IL2CPP {
 #if UNITY_VER == 56
 #include "Il2CppHeaders/5.6.4f1.h"
@@ -27,7 +28,7 @@ namespace BNM {
 #elif UNITY_VER == 203
 #include "Il2CppHeaders/2020.3.h"
 #elif UNITY_VER == 211
-        #include "Il2CppHeaders/2021.1.h"
+#include "Il2CppHeaders/2021.1.h"
 #elif UNITY_VER == 212
 #include "Il2CppHeaders/2021.2.h"
 #elif UNITY_VER == 213
@@ -42,6 +43,10 @@ namespace BNM {
 #include "Il2CppHeaders/2023.1.h"
 #endif
     }
+    /// @endcond
 
+    /**
+        @brief Redefinition of Il2CppReflectionType for shorter code
+    */
     typedef IL2CPP::Il2CppReflectionType MonoType;
 }

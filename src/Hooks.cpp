@@ -4,19 +4,21 @@
 using namespace BNM;
 
 int Internal::BNM_il2cpp_init(const char *domain_name) {
-    if (states.lateInitAllowed) UNHOOK(BNM_il2cpp_class_from_system_type_origin);
+    if (states.lateInitAllowed) Unhook(BNM_Class$$FromIl2CppType_origin);
 
     auto ret = old_BNM_il2cpp_init(domain_name);
 
-    UNHOOK(BNM_il2cpp_init_origin);
+    Unhook(BNM_il2cpp_init_origin);
 
     Load();
 
     return ret;
 }
 
-IL2CPP::Il2CppClass *Internal::BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppReflectionType *type) {
-    auto klass = old_BNM_il2cpp_class_from_system_type(type);
+IL2CPP::Il2CppClass *Internal::BNM_Class$$FromIl2CppType(IL2CPP::Il2CppReflectionType *type) {
+    auto klass = old_BNM_Class$$FromIl2CppType(type);
+
+    if (states.state) return klass;
 
     if (!Internal::il2cppMethods.il2cpp_domain_get) {
         Internal::il2cppMethods.il2cpp_domain_get = (decltype(Internal::il2cppMethods.il2cpp_domain_get)) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_domain_get));
@@ -29,8 +31,8 @@ IL2CPP::Il2CppClass *Internal::BNM_il2cpp_class_from_system_type(IL2CPP::Il2CppR
     // Will be true after il2cpp_init
     if (!thread || !thread->internal_thread || (void *) domain->default_context != (void *) thread->internal_thread->current_appcontext) return klass;
 
-    UNHOOK(BNM_il2cpp_init_origin);
-    UNHOOK(BNM_il2cpp_class_from_system_type_origin);
+    Unhook(BNM_il2cpp_init_origin);
+    Unhook(BNM_Class$$FromIl2CppType_origin);
 
     Load();
 
@@ -74,18 +76,18 @@ IL2CPP::Il2CppClass *Internal::ClassesManagement::Type$$GetClassOrElementClass(I
 }
 
 // Hook `FromName` to prevent il2cpp from crashing when trying to find a class created by BNM
-IL2CPP::Il2CppClass *Internal::ClassesManagement::Class$$FromName(IL2CPP::Il2CppImage *image, const char *namespaze, const char *name) {
+IL2CPP::Il2CppClass *Internal::ClassesManagement::Class$$FromName(IL2CPP::Il2CppImage *image, const char *namespace_, const char *name) {
     if (!image) return nullptr;
 
     IL2CPP::Il2CppClass *ret = nullptr;
 
     // Check if image is BNM created
     if (image->nameToClassHashTable != (decltype(image->nameToClassHashTable)) -0x424e4d)
-        ret = old_Class$$FromName(image, namespaze, name);
+        ret = old_Class$$FromName(image, namespace_, name);
 
     // If through BNM, we are looking for a class
-    if (!ret) bnmClassesMap.ForEachByImage(image, [namespaze, name, &ret](IL2CPP::Il2CppClass *BNM_class) -> bool {
-            if (!strcmp(namespaze, BNM_class->namespaze) && !strcmp(name, BNM_class->name)) {
+    if (!ret) bnmClassesMap.ForEachByImage(image, [namespace_, name, &ret](IL2CPP::Il2CppClass *BNM_class) -> bool {
+            if (!strcmp(namespace_, BNM_class->namespaze) && !strcmp(name, BNM_class->name)) {
                 ret = BNM_class;
                 // Found, stop for
                 return true;

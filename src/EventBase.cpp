@@ -20,25 +20,9 @@ EventBase::EventBase(const IL2CPP::EventInfo *info) {
     }
 }
 
-EventBase::EventBase(const BNM::MethodBase &newAdd, const BNM::MethodBase &newRemove, const BNM::MethodBase &newRaise) {
-    _hasAdd = _hasRemove = _hasRaise = false;
-    if (newAdd.Initialized()) {
-        _hasAdd = true;
-        _add = newAdd;
-    }
-    if (newRemove.Initialized()) {
-        _hasRemove = true;
-        _remove = newRemove;
-    }
-    if (newRaise.Initialized()) {
-        _hasRaise = true;
-        _raise = newRaise;
-    }
-}
-
-EventBase &EventBase::SetInstance(IL2CPP::Il2CppObject *val) {
-    if (_hasAdd) _add.SetInstance(val);
-    if (_hasRemove) _remove.SetInstance(val);
-    if (_hasRaise) _raise.SetInstance(val);
+EventBase &EventBase::SetInstance(IL2CPP::Il2CppObject *instance) {
+    if (_hasAdd) _add.SetInstance(instance);
+    if (_hasRemove) _remove.SetInstance(instance);
+    if (_hasRaise) _raise.SetInstance(instance);
     return *this;
 }

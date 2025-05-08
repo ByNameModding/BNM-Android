@@ -18,19 +18,19 @@
 #define DBG_BNM_MSG_Class_GetInnerClass_NotFound "Inner class: [%s]::[%s]::[%s] - not found."
 #define DBG_BNM_MSG_Class_GetField_NotFound "Field: [%s]::[%s].(%s) - not found."
 #define DBG_BNM_MSG_Class_GetEvent_NotFound "Event: [%s]::[%s].(%s) - not found."
-#define DBG_BNM_MSG_Class_CreateNewInstance_Abstract_Warn "You trying to create an object of an abstract class or interface %s?\nThis is not possible in C#."
+#define DBG_BNM_MSG_Class_CreateNewInstance_Abstract_Warn "You are trying to create an object of an abstract class or interface %s?\nThis is not possible in C#."
 #define DBG_BNM_MSG_Class_Dead_Error "An attempt to use dead class!"
 
 
 #define DBG_BNM_MSG_CompileTimeClass_ToClass_default_Warn "[CompileTimeClassProcessors::Warn] No type of information or unknown type!"
-#define DBG_BNM_MSG_CompileTimeClass_ToClass_Inner_Warn "[CompileTimeClassProcessors::ProcessModifierInfo] Getting an inner class before getting the main class is not possible!"
+#define DBG_BNM_MSG_CompileTimeClass_ToClass_Inner_Warn "[CompileTimeClassProcessors::ProcessModifierInfo] Getting an inner class before getting the main class is impossible!"
 #define DBG_BNM_MSG_CompileTimeClass_ToClass_Modifier_Warn "[CompileTimeClassProcessors::ProcessModifierInfo] Getting the class modifier before getting the class itself is impossible!"
 #define DBG_BNM_MSG_CompileTimeClass_ToClass_Generic_Warn "[CompileTimeClassProcessors::ProcessGenericInfo] Getting a generic class before getting the class itself is impossible!"
 #define DBG_BNM_MSG_CompileTimeClass_ToClass_OoB_Warn "[CompileTimeClass::ToClass] Type %lu, greater than or equal to the number of possible handlers!"
 
 
 
-#define DBG_BNM_MSG_String_str_Error "ERROR: monoString dead"
+#define DBG_BNM_MSG_String_str_Error "ERROR: Mono::String dead"
 #define DBG_BNM_MSG_String_SelfCheck_Error "[String::SelfCheck] Trying to use a dead string!"
 #define DBG_BNM_MSG_Array_SelfCheck_Error "[monoArray<>::SelfCheck] Trying to use a dead array!"
 #define DBG_BNM_MSG_List_SelfCheck_Error "[monoList<>::SelfCheck] Trying to use a dead list!"
@@ -77,7 +77,7 @@
 #define DBG_BNM_MSG_EventBase_str_remove "remove method"
 #define DBG_BNM_MSG_EventBase_str_raise "raise method"
 #define DBG_BNM_MSG_EventBase_str_exists "exists"
-#define DBG_BNM_MSG_EventBase_str_not_exists "not exists"
+#define DBG_BNM_MSG_EventBase_str_not_exists "not exist"
 #define DBG_BNM_MSG_EventBase_str_static "static"
 
 #define DBG_BNM_MSG_Event_Add_Error "An attempt to call event's (%s) add method that does not exist"
@@ -101,7 +101,7 @@
 
 #define DBG_BNM_MSG_DataIterator_Error "Null object in the iterator"
 
-#define DBG_BNM_MSG_GetExternMethod_Warn "Extern method %s not found. Please check the code."
+#define DBG_BNM_MSG_GetExternMethod_Warn "Extern method %s isn't found. Please check the code."
 
 
 #define DBG_BNM_MSG_TryLoadByJNI_Fail "Failed to load libil2cpp.so by path!"

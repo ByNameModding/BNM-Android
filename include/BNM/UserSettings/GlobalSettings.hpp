@@ -102,19 +102,19 @@ static_assert(false, "ByNameModding requires C++20 and above!");
 // Shadowhook
 /*
 template<typename PTR_T, typename NEW_T, typename T_OLD>
-inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
+inline void *BasicHook(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
     if ((void *) ptr != nullptr) return shadowhook_hook_func_addr((void *)ptr, (void *) newMethod, (void **) &oldBytes);
     return nullptr;
 }
 
 template<typename PTR_T, typename NEW_T, typename T_OLD>
-inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
+inline void *BasicHook(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
     if ((void *) ptr != nullptr) return shadowhook_hook_func_addr((void *)ptr, (void *) newMethod, (void **) &oldBytes);
     return nullptr;
 }
 
 template<typename PTR_T>
-inline void UNHOOK(PTR_T ptr) {
+inline void Unhook(PTR_T ptr) {
     if ((void *) ptr != nullptr) shadowhook_unhook((void *)ptr);
 }
 */
@@ -125,19 +125,19 @@ inline void UNHOOK(PTR_T ptr) {
 #include <dobby.h>
 
 template<typename PTR_T, typename NEW_T, typename T_OLD>
-inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
+inline void *BasicHook(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
     if ((void *) ptr != nullptr) DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
     return (void *) ptr;
 }
 
 template<typename PTR_T, typename NEW_T, typename T_OLD>
-inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
+inline void *BasicHook(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
     if ((void *) ptr != nullptr) DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
     return (void *) ptr;
 }
 
 template<typename PTR_T>
-inline void UNHOOK(PTR_T ptr) {
+inline void Unhook(PTR_T ptr) {
     if ((void *) ptr != nullptr) DobbyDestroy((void *)ptr);
 }
 */
@@ -146,21 +146,21 @@ inline void UNHOOK(PTR_T ptr) {
 #include <cassert>
 
 template<typename PTR_T, typename NEW_T, typename T_OLD>
-inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
+inline void *BasicHook(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
     assert("Нет ПО для подмены! (No hooking software!)");
     if ((void *) ptr != nullptr) ((void)0);
     return nullptr;
 }
 
 template<typename PTR_T, typename NEW_T, typename T_OLD>
-inline void *HOOK(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
+inline void *BasicHook(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
     assert("Нет ПО для подмены! (No hooking software!)");
     if ((void *) ptr != nullptr) ((void)0);
     return nullptr;
 }
 
 template<typename PTR_T>
-inline void UNHOOK(PTR_T ptr) {
+inline void Unhook(PTR_T ptr) {
     assert("Нет ПО для подмены! (No hooking software!)");
     if ((void *) ptr != nullptr) ((void)0);
 }
@@ -232,4 +232,4 @@ namespace BNM {
 #endif
 }
 
-#define BNM_VER "2.2.8"
+#define BNM_VER "2.3.0"

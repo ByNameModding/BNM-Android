@@ -10,7 +10,7 @@ namespace BNM::Structures::Unity {
         if (!m_Collider || (BNM_PTR) m_Collider < 0) return {};
 #if UNITY_VER > 174
         static void *(*FromId)(int);
-        if (!FromId) InitFunc(FromId, GetExternMethod(BNM_OBFUSCATE("UnityEngine.Object::FindObjectFromInstanceID")));
+        if (!FromId) FromId = (decltype(FromId)) GetExternMethod(BNM_OBFUSCATE("UnityEngine.Object::FindObjectFromInstanceID"));
 #    if UNITY_VER >= 232
         return (void *) BNM::UnmarshalUnityObject((BNM_INT_PTR) FromId(m_Collider));
 #    else

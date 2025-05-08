@@ -5,26 +5,25 @@
 using namespace BNM;
 
 MethodBase::MethodBase(const IL2CPP::MethodInfo *info)  {
-    _init = (BNM::CheckObj(info) != nullptr);
-    if (_init) {
-        _isStatic = (info->flags & 0x0010) == 0x0010;
-        _isVirtual = info->slot != 65535;
-        _data = (decltype(_data)) info;
-    }
+    if (!BNM::IsAllocated(info)) return;
+
+    _isStatic = (info->flags & 0x0010) == 0x0010;
+    _isVirtual = info->slot != 65535;
+    _data = (decltype(_data)) info;
 }
 
 MethodBase::MethodBase(const IL2CPP::Il2CppReflectionMethod *reflectionMethod) {
-    _init = (BNM::CheckObj(reflectionMethod) != nullptr) && (BNM::CheckObj(reflectionMethod->method) != nullptr);
+    if (!BNM::IsAllocated(reflectionMethod) || !BNM::IsAllocated(reflectionMethod->method)) return;
+
     auto info = reflectionMethod->method;
-    if (_init) {
-        _isStatic = (info->flags & 0x0010) == 0x0010;
-        _isVirtual = info->slot != 65535;
-        _data = (decltype(_data)) info;
-    }
+
+    _isStatic = (info->flags & 0x0010) == 0x0010;
+    _isVirtual = info->slot != 65535;
+    _data = (decltype(_data)) info;
 }
 
 MethodBase &MethodBase::SetInstance(IL2CPP::Il2CppObject *val)  {
-    if (!_init) return *this;
+    if (!_data) return *this;
     if (_isStatic) {
         BNM_LOG_WARN(DBG_BNM_MSG_MethodBase_SetInstance_Warn, str().c_str());
         return *this;
@@ -45,14 +44,15 @@ MethodBase &MethodBase::SetInstance(IL2CPP::Il2CppObject *val)  {
 }
 
 MethodBase MethodBase::GetGeneric(const std::initializer_list<CompileTimeClass> &templateTypes) const {
+    if (!_data) return {};
     BNM_LOG_WARN_IF(!_data->is_generic, DBG_BNM_MSG_MethodBase_GetGeneric_Warn, str().c_str());
     if (!_data->is_generic) return {};
     return Internal::TryMakeGenericMethod(*this, templateTypes);
 }
 
-MethodBase MethodBase::Virtualize() const {
-    if (!_init || _isStatic || (_data->flags & 0x0040) == 0) return {};
-    if (!BNM::CheckObj(_instance)) {
+MethodBase MethodBase::GetOverride() const {
+    if (!_data || _isStatic || (_data->flags & 0x0040) == 0) return {};
+    if (!BNM::IsAllocated(_instance)) {
         BNM_LOG_WARN(DBG_BNM_MSG_MethodBase_Virtualize_Warn, str().c_str());
         return {};
     }

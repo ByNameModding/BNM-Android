@@ -24,30 +24,30 @@ void *BNM::GetIl2CppLibraryHandle() {
     return Internal::il2cppLibraryHandle;
 }
 
-bool BNM::InvokeHookImpl(IL2CPP::MethodInfo *m, void *newMet, void **oldMet) {
-    if (!m) return false;
-    if (oldMet) *oldMet = (void *) m->methodPointer;
-    m->methodPointer = (IL2CPP::Il2CppMethodPointer) newMet;
+bool BNM::InvokeHookImpl(IL2CPP::MethodInfo *info, void *newMet, void **oldMet) {
+    if (!info) return false;
+    if (oldMet) *oldMet = (void *) info->methodPointer;
+    info->methodPointer = (IL2CPP::Il2CppMethodPointer) newMet;
     return true;
 }
 
-bool BNM::VirtualHookImpl(BNM::Class targetClass, IL2CPP::MethodInfo *m, void *newMet, void **oldMet) {
-    if (!m || !targetClass) return false;
+bool BNM::VirtualHookImpl(BNM::Class targetClass, IL2CPP::MethodInfo *info, void *newMet, void **oldMet) {
+    if (!info || !targetClass) return false;
     uint16_t i = 0;
     NEXT:
     for (; i < targetClass._data->vtable_count; ++i) {
         auto &vTable = targetClass._data->vtable[i];
         auto count = vTable.method->parameters_count;
 
-        if (strcmp(vTable.method->name, m->name) != 0 || count != m->parameters_count) continue;
+        if (strcmp(vTable.method->name, info->name) != 0 || count != info->parameters_count) continue;
 
         for (uint8_t p = 0; p < count; ++p) {
 #if UNITY_VER < 212
             auto type = (vTable.method->parameters + p)->parameter_type;
-            auto type2 = (m->parameters + p)->parameter_type;
+            auto type2 = (info->parameters + p)->parameter_type;
 #else
             auto type = vTable.method->parameters[p];
-            auto type2 = m->parameters[p];
+            auto type2 = info->parameters[p];
 #endif
             if (Class(type).GetClass() != Class(type2).GetClass()) goto NEXT;
 

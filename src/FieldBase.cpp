@@ -17,21 +17,19 @@ static bool CheckIsFieldStatic(IL2CPP::FieldInfo *field) {
 }
 
 FieldBase::FieldBase(IL2CPP::FieldInfo *info) {
-    _init = info != nullptr;
-    if (_init) {
-        _isStatic = CheckIsFieldStatic(info);
-        _data = info;
-        _isThreadStatic = _data->offset == -1;
-        _isInStruct = Class(info->parent).GetIl2CppType()->type == IL2CPP::IL2CPP_TYPE_VALUETYPE;
-    }
+    if (!info) return;
+
+    _isStatic = CheckIsFieldStatic(info);
+    _data = info;
+    _isThreadStatic = _data->offset == -1;
+    _isInStruct = Class(info->parent).GetIl2CppType()->type == IL2CPP::IL2CPP_TYPE_VALUETYPE;
 }
 
 FieldBase &FieldBase::SetInstance(IL2CPP::Il2CppObject *val)  {
-    if (_init && _isStatic) {
+    if (_isStatic) {
         BNM_LOG_WARN(DBG_BNM_MSG_FieldBase_SetInstance_Warn, str().c_str());
         return *this;
     }
-    _init = val && _data != nullptr;
 #ifdef BNM_CHECK_INSTANCE_TYPE
     if (BNM::IsA(val, _data->parent)) _instance = val;
     else BNM_LOG_ERR(DBG_BNM_MSG_FieldBase_SetInstance_Wrong_Instance_Error, BNM::Class(val).str().c_str(), str().c_str());
@@ -42,11 +40,11 @@ FieldBase &FieldBase::SetInstance(IL2CPP::Il2CppObject *val)  {
 }
 
 void *FieldBase::GetFieldPointer() const {
-    if (!_init) return nullptr;
-    if (!_isStatic && !CheckObj(_instance)) {
+    if (!_data) return nullptr;
+    if (!_isStatic && !IsAllocated(_instance)) {
         BNM_LOG_ERR(DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_instance_dead_instance, str().c_str());
         return nullptr;
-    } else if (_isStatic && !CheckObj(_data->parent)) {
+    } else if (_isStatic && !IsAllocated(_data->parent)) {
         BNM_LOG_ERR(DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_static_dead_parent, str().c_str());
         return nullptr;
     } else if (_isThreadStatic) {

@@ -41,7 +41,7 @@ void *Internal::GetIl2CppMethod(const char *methodName) {
     return currentFinderMethod(methodName, currentFinderData);
 }
 
-void Loading::AllowedLateInitHook() {
+void Loading::AllowLateInitHook() {
     Internal::states.lateInitAllowed = true;
 }
 
@@ -49,7 +49,7 @@ static bool CheckHandle(void *handle) {
     void *init = BNM_dlsym(handle, BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_init));
     if (!init) return false;
 
-    Internal::BNM_il2cpp_init_origin = ::HOOK(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
+    Internal::BNM_il2cpp_init_origin = ::BasicHook(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
 
     if (Internal::states.lateInitAllowed) Internal::LateInit(BNM_dlsym(handle, BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type)));
 
@@ -89,18 +89,14 @@ bool Loading::TryLoadByJNI(JNIEnv *env, jobject context) {
 
     auto jDir = (jstring) env->GetObjectField(applicationInfo, env->GetFieldID(applicationInfoClass, isLibrariesExtracted ? BNM_OBFUSCATE_TMP("nativeLibraryDir") : BNM_OBFUSCATE_TMP("sourceDir"), BNM_OBFUSCATE_TMP("Ljava/lang/String;")));
 
-    std::string file;
     auto cDir = std::string_view(env->GetStringUTFChars(jDir, nullptr));
     env->DeleteLocalRef(applicationInfo); env->DeleteLocalRef(applicationInfoClass);
 
-    if (isLibrariesExtracted)
-        // Path to the library /data/app/.../package name-.../lib/architecture/libil2cpp.so
-        file = std::string(cDir) + BNM_OBFUSCATE_TMP("/libil2cpp.so");
-    else
-        // From base.apk /data/app/.../package name-.../base.apk!/lib/architecture/libil2cpp.so
-        file = std::string(cDir) + BNM_OBFUSCATE_TMP("!/lib/" CURRENT_ARCH "/libil2cpp.so");
+    // isLibrariesExtracted = true:   Full path to library /data/app/.../package name-.../lib/architecture/libil2cpp.so
+    // isLibrariesExtracted = false:  Full path to library in base.apk /data/app/.../package name-.../base.apk!/lib/architecture/libil2cpp.so
+    std::string file = std::string(cDir) + (isLibrariesExtracted ? BNM_OBFUSCATE_TMP("/libil2cpp.so") : BNM_OBFUSCATE_TMP("!/lib/" CURRENT_ARCH "/libil2cpp.so"));
 
-    // Try to download il2cpp using this path
+    // Try to load il2cpp using this path
     auto handle = BNM_dlopen(file.c_str(), RTLD_LAZY);
     if (!(result = CheckHandle(handle))) {
         BNM_LOG_ERR_IF(isLibrariesExtracted, DBG_BNM_MSG_TryLoadByJNI_Fail);
@@ -108,7 +104,7 @@ bool Loading::TryLoadByJNI(JNIEnv *env, jobject context) {
     if (isLibrariesExtracted) goto FINISH;
     file.clear();
 
-    // From split_config.architecture.apk /data/app/.../package name-.../split_config.architecture.apk!/lib/architecture/libil2cpp.so
+    // Full path to library in split_config.architecture.apk /data/app/.../package name-.../split_config.architecture.apk!/lib/architecture/libil2cpp.so
     file = std::string(cDir).substr(0, cDir.length() - 8) + BNM_OBFUSCATE_TMP("split_config." CURRENT_ARCH ".apk!/lib/" CURRENT_ARCH "/libil2cpp.so");
     handle = BNM_dlopen(file.c_str(), RTLD_LAZY);
     if (!(result = CheckHandle(handle))) BNM_LOG_ERR(DBG_BNM_MSG_TryLoadByJNI_Fail);
@@ -132,7 +128,7 @@ bool Loading::TryLoadByUsersFinder() {
     auto init = Internal::currentFinderMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_init), Internal::currentFinderData);
     if (!init) return false;
 
-    Internal::BNM_il2cpp_init_origin = ::HOOK(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
+    Internal::BNM_il2cpp_init_origin = ::BasicHook(init, Internal::BNM_il2cpp_init, Internal::old_BNM_il2cpp_init);
 
     if (Internal::states.lateInitAllowed) Internal::LateInit(Internal::currentFinderMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_class_from_il2cpp_type), Internal::currentFinderData));
 
@@ -268,7 +264,7 @@ void Internal::LateInit(void *il2cpp_class_from_il2cpp_type_addr) {
     // il2cpp::vm::Class::FromIl2CppType
     auto from_il2cpp_type = AssemblerUtils::FindNextJump((BNM_PTR) il2cpp_class_from_il2cpp_type_addr, count);
 
-    Internal::BNM_il2cpp_class_from_system_type_origin = ::HOOK(from_il2cpp_type, Internal::BNM_il2cpp_class_from_system_type, Internal::old_BNM_il2cpp_class_from_system_type);
+    Internal::BNM_Class$$FromIl2CppType_origin = ::BasicHook(from_il2cpp_type, Internal::BNM_Class$$FromIl2CppType, Internal::old_BNM_Class$$FromIl2CppType);
 }
 
 static void EmptyMethod() {}
@@ -358,7 +354,7 @@ void Internal::SetupBNM() {
     // il2cpp_class_from_type ->
     // il2cpp::vm::Class::FromIl2CppType
     auto from_type_adr = AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_class_from_type)), count);
-    ::HOOK(from_type_adr, ClassesManagement::Class$$FromIl2CppType, ClassesManagement::old_Class$$FromIl2CppType);
+    ::BasicHook(from_type_adr, ClassesManagement::Class$$FromIl2CppType, ClassesManagement::old_Class$$FromIl2CppType);
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Class_FromIl2CppType, OffsetInLib((void *)from_type_adr));
 
 
@@ -367,7 +363,7 @@ void Internal::SetupBNM() {
     // il2cpp_type_get_class_or_element_class ->
     // il2cpp::vm::Type::GetClassOrElementClass
     auto type_get_class_adr = AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_type_get_class_or_element_class)), count);
-    ::HOOK(type_get_class_adr, ClassesManagement::Type$$GetClassOrElementClass, ClassesManagement::old_Type$$GetClassOrElementClass);
+    ::BasicHook(type_get_class_adr, ClassesManagement::Type$$GetClassOrElementClass, ClassesManagement::old_Type$$GetClassOrElementClass);
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Type_GetClassOrElementClass, OffsetInLib((void *)type_get_class_adr));
 
     //! il2cpp::vm::Image::ClassFromName
@@ -376,7 +372,7 @@ void Internal::SetupBNM() {
     // il2cpp::vm::Class::FromName ->
     // il2cpp::vm::Image::ClassFromName
     auto from_name_adr = AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump((BNM_PTR) il2cppMethods.il2cpp_class_from_name, count), count);
-    ::HOOK(from_name_adr, ClassesManagement::Class$$FromName, ClassesManagement::old_Class$$FromName);
+    ::BasicHook(from_name_adr, ClassesManagement::Class$$FromName, ClassesManagement::old_Class$$FromName);
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Image_FromName, OffsetInLib((void *)from_name_adr));
 #if UNITY_VER <= 174
 
@@ -386,7 +382,7 @@ void Internal::SetupBNM() {
     // il2cpp::vm::Assembly::GetImage ->
     // il2cpp::vm::MetadataCache::GetImageFromIndex
     auto GetImageFromIndexOffset = AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump((BNM_PTR) il2cppMethods.il2cpp_assembly_get_image, count), count);
-    ::HOOK(GetImageFromIndexOffset, ClassesManagement::new_GetImageFromIndex, ClassesManagement::old_GetImageFromIndex);
+    ::BasicHook(GetImageFromIndexOffset, ClassesManagement::new_GetImageFromIndex, ClassesManagement::old_GetImageFromIndex);
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_MetadataCache_GetImageFromIndex, OffsetInLib((void *)GetImageFromIndexOffset));
 
     //! il2cpp::vm::Assembly::Load
@@ -394,7 +390,7 @@ void Internal::SetupBNM() {
     // il2cpp_domain_assembly_open ->
     // il2cpp::vm::Assembly::Load
     BNM_PTR AssemblyLoadOffset = AssemblerUtils::FindNextJump((BNM_PTR) BNM_dlsym(il2cppLibraryHandle, BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_domain_assembly_open)), count);
-    ::HOOK(AssemblyLoadOffset, ClassesManagement::Assembly$$Load, nullptr);
+    ::BasicHook(AssemblyLoadOffset, ClassesManagement::Assembly$$Load, nullptr);
     BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Assembly_Load, OffsetInLib((void *)AssemblyLoadOffset));
 
 #endif
@@ -418,7 +414,7 @@ void Internal::SetupBNM() {
             return !strcmp(methodBase._data->name, methodName);
         }));
     }
-    if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl.Initialized())
+    if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl.IsValid())
         vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = Class(BNM_OBFUSCATE_TMP("System.Reflection"), BNM_OBFUSCATE_TMP("MonoMethod"), mscorlib).GetMethod(BNM_OBFUSCATE_TMP("MakeGenericMethod_impl"));
 
     auto runtimeTypeClass = Class(BNM_OBFUSCATE_TMP("System"), BNM_OBFUSCATE_TMP("RuntimeType"), mscorlib);

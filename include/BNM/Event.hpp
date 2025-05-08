@@ -4,52 +4,122 @@
 #include "EventBase.hpp"
 #include "Utils.hpp"
 
+#include <type_traits>
+
+// NOLINTBEGIN
 namespace BNM {
 
 #pragma pack(push, 1)
 
-    template<typename Ret = void, typename ...Args>
+    /**
+        @brief Typed class for working with il2cpp events.
+
+        This class provides API for adding, removing and rising event.
+
+        @tparam Ret Return type of event
+        @tparam Parameters Parameters of event
+    */
+    template<typename Ret = void, typename ...Parameters>
     struct Event : EventBase {
+
+        /**
+            @brief Create empty event base.
+        */
         inline constexpr Event() = default;
+
+        /**
+            @brief Copy event.
+            @param other Other event
+            @tparam OtherType Type of other event
+        */
         template<typename OtherType>
         Event(const Event<OtherType> &other) : EventBase(other) {}
+
+        /**
+            @brief Create event from il2cpp event.
+            @param info Il2cpp event
+        */
         Event(const IL2CPP::EventInfo *info) : EventBase(info) {}
+
+        /**
+            @brief Convert base event to typed event.
+            @param other Base event
+        */
         Event(const EventBase &other) : EventBase(other) {}
 
-        inline Event<Ret, Args...> &operator[](void *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
-        inline Event<Ret, Args...> &operator[](IL2CPP::Il2CppObject *val) { SetInstance(val); return *this;}
-        inline Event<Ret, Args...> &operator[](UnityEngine::Object *val) { SetInstance((IL2CPP::Il2CppObject *)val); return *this;}
+        /**
+            @brief Operator for setting instance.
+            @param instance Instance
+            @return Reference to current Event
+        */
+        inline Event<Ret, Parameters...> &operator[](void *instance) { SetInstance((IL2CPP::Il2CppObject *) instance); return *this;}
 
-        inline void Add(Delegate<Ret> *v) const {
-            if (_hasAdd) return _add.cast<void>()(v);
+        /**
+            @brief Operator for setting instance.
+            @param instance Instance
+            @return Reference to current Event
+        */
+        inline Event<Ret, Parameters...> &operator[](IL2CPP::Il2CppObject *instance) { SetInstance(instance); return *this;}
+
+        /**
+            @brief Operator for setting instance.
+            @param instance Instance
+            @return Reference to current Event
+        */
+        inline Event<Ret, Parameters...> &operator[](UnityEngine::Object *instance) { SetInstance((IL2CPP::Il2CppObject *) instance); return *this;}
+
+        /**
+            @brief Add delegate to event.
+            @param delegate Delegate to add
+        */
+        inline void Add(Delegate<Ret> *delegate) {
+            if (_hasAdd) return _add.cast<void>()(delegate);
             BNM_LOG_ERR(DBG_BNM_MSG_Event_Add_Error, str().c_str());
         }
 
-        inline Event<Ret, Args...> &operator+=(Delegate<Ret> *v) { Add(v); return *this; }
-        inline Event<Ret, Args...> &operator+=(Delegate<Ret> *v) const { Add(v); return *this; }
+        /**
+            @brief Operator for adding delegate to event.
+            @param delegate Delegate to add
+        */
+        inline Event<Ret, Parameters...> &operator+=(Delegate<Ret> *delegate) { Add(delegate); return *this; }
 
-
-        inline void Remove(Delegate<Ret> *v) const {
-            if (_hasRemove) return _remove.cast<void>()(v);
+        /**
+            @brief Remove delegate from event.
+            @param delegate Delegate to remove
+        */
+        inline void Remove(Delegate<Ret> *delegate) {
+            if (_hasRemove) return _remove.cast<void>()(delegate);
             BNM_LOG_ERR(DBG_BNM_MSG_Event_Remove_Error, str().c_str());
         }
 
-        inline Event<Ret, Args...> &operator-=(Delegate<Ret> *v) { Remove(v); return *this; }
-        inline Event<Ret, Args...> &operator-=(Delegate<Ret> *v) const { Remove(v); return *this; }
+        /**
+            @brief Operator for removing delegate from event.
+            @param delegate Delegate to remove
+        */
+        inline Event<Ret, Parameters...> &operator-=(Delegate<Ret> *v) { Remove(v); return *this; }
 
-        inline Ret Raise(Args ...args) const {
-            if (_hasRaise) return _raise.cast<Ret>()(args...);
+        /**
+            @brief Raise (call) event.
+            @param parameters Parameters of event
+            @return Value of Ret type
+        */
+        inline Ret Raise(Parameters ...parameters) const {
+            if (_hasRaise) return _raise.cast<Ret>()(parameters...);
             BNM_LOG_ERR(DBG_BNM_MSG_Event_Raise_Error, str().c_str());
-            if constexpr (std::is_same_v<Ret, void>) return; else return {};
+            return BNM::PRIVATE_INTERNAL::ReturnEmpty<Ret>();
         }
 
-        inline Ret operator()(Args ...args) { return Raise(args...); }
-        inline Ret operator()(Args ...args) const { return Raise(args...); }
+        /**
+            @brief Raise (call) event.
+            @param parameters Parameters of event
+            @return Value of Ret type
+        */
+        inline Ret operator()(Parameters ...parameters) const { return Raise(parameters...); }
 
-        // Check if the event is alive
-        inline bool Initialized() const noexcept { return _hasAdd || _hasRemove || _hasRaise; }
-
-        // Copy another event, only for automatic type conversion
+        /**
+            @brief Convert base event to typed event.
+            @param other Base event
+        */
         Event<Ret> &operator =(const EventBase &other) {
             _data = other._data;
             _add = other._add;
@@ -65,3 +135,4 @@ namespace BNM {
 #pragma pack(pop)
 
 }
+// NOLINTEND

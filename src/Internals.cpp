@@ -31,8 +31,8 @@ namespace BNM::Internal {
     void *BNM_il2cpp_init_origin{};
     int (*old_BNM_il2cpp_init)(const char *){};
 
-    void *BNM_il2cpp_class_from_system_type_origin{};
-    IL2CPP::Il2CppClass *(*old_BNM_il2cpp_class_from_system_type)(IL2CPP::Il2CppReflectionType*){};
+    void *BNM_Class$$FromIl2CppType_origin{};
+    IL2CPP::Il2CppClass *(*old_BNM_Class$$FromIl2CppType)(IL2CPP::Il2CppReflectionType*){};
 
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
     std::shared_mutex loadingMutex{};
@@ -87,7 +87,7 @@ IL2CPP::Il2CppClass *Internal::TryGetClassInImage(const IL2CPP::Il2CppImage *ima
 
         for (size_t i = 0; i < typeCount; ++i) {
             auto cls = il2cppMethods.il2cpp_image_get_class(image, i);
-            if (strcmp(BNM_OBFUSCATE("<Module>"), cls->name) == 0 || cls->declaringType) continue;
+            if (cls->declaringType || !cls->flags && strcmp(cls->name, BNM_OBFUSCATE("<Module>")) == 0) continue;
             if (_namespace == cls->namespaze && _name == cls->name) return cls;
         }
     } else {
@@ -117,7 +117,7 @@ IL2CPP::Il2CppClass *Internal::TryGetClassInImage(const IL2CPP::Il2CppImage *ima
     return nullptr;
 }
 Class Internal::TryMakeGenericClass(Class genericType, const std::vector<CompileTimeClass> &templateTypes) {
-    if (!vmData.RuntimeType$$MakeGenericType.Initialized()) return {};
+    if (!vmData.RuntimeType$$MakeGenericType.IsValid()) return {};
     auto monoType = genericType.GetMonoType();
     auto monoGenericsList = Structures::Mono::Array<MonoType *>::Create(templateTypes.size(), true);
     for (IL2CPP::il2cpp_array_size_t i = 0; i < (IL2CPP::il2cpp_array_size_t) templateTypes.size(); ++i)
@@ -131,7 +131,7 @@ Class Internal::TryMakeGenericClass(Class genericType, const std::vector<Compile
 }
 
 MethodBase Internal::TryMakeGenericMethod(const MethodBase &genericMethod, const std::vector<CompileTimeClass> &templateTypes) {
-    if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl.Initialized() || !genericMethod.GetInfo()->is_generic) return {};
+    if (!vmData.RuntimeMethodInfo$$MakeGenericMethod_impl.IsValid() || !genericMethod.GetInfo()->is_generic) return {};
     IL2CPP::Il2CppReflectionMethod reflectionMethod;
     reflectionMethod.method = genericMethod.GetInfo();
     auto monoGenericsList = Structures::Mono::Array<MonoType *>::Create(templateTypes.size(), true);
@@ -145,11 +145,11 @@ MethodBase Internal::TryMakeGenericMethod(const MethodBase &genericMethod, const
 }
 
 Class Internal::GetPointer(Class target) {
-    if (!vmData.RuntimeType$$MakePointerType.Initialized()) return {};
+    if (!vmData.RuntimeType$$MakePointerType.IsValid()) return {};
     return vmData.RuntimeType$$MakePointerType(target.GetMonoType());
 }
 
 Class Internal::GetReference(Class target) {
-    if (!vmData.RuntimeType$$make_byref_type.Initialized()) return {};
+    if (!vmData.RuntimeType$$make_byref_type.IsValid()) return {};
     return vmData.RuntimeType$$make_byref_type[(void *)target.GetMonoType()]();
 }
