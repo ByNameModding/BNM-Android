@@ -352,7 +352,7 @@ BNM::IL2CPP::Il2CppObject *Class::CreateNewInstance() const {
 // Try initializing the class if it is alive
 void Class::TryInit() const { if (_data) Internal::Class$$Init(_data); }
 
-IL2CPP::Il2CppObject *Class::ObjBox(IL2CPP::Il2CppClass *_data, void *data) {
+IL2CPP::Il2CppObject *Class::BoxObject(IL2CPP::Il2CppClass *_data, void *data) {
     return Internal::il2cppMethods.il2cpp_value_box(_data, data);
 }
 

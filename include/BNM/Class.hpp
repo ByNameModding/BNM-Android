@@ -446,7 +446,7 @@ namespace BNM {
             BNM_LOG_ERR_IF(!_data, DBG_BNM_MSG_Class_Dead_Error);
             if (!_data) return nullptr;
             TryInit();
-            return ObjBox(_data, (void *) obj);
+            return BoxObject(_data, (void *) &obj);
         }
 
         /**
@@ -532,7 +532,7 @@ namespace BNM {
 
     private:
         void TryInit() const;
-        static IL2CPP::Il2CppObject *ObjBox(IL2CPP::Il2CppClass*, void*);
+        static IL2CPP::Il2CppObject *BoxObject(IL2CPP::Il2CppClass*, void*);
         static IL2CPP::Il2CppArray *ArrayNew(IL2CPP::Il2CppClass*, IL2CPP::il2cpp_array_size_t);
         static void *NewListInstance();
         static Class GetListClass();
