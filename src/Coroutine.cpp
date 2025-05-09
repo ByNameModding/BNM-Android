@@ -161,7 +161,7 @@ bool BNM::Coroutine::IEnumerator::MoveNext()  {
     return true;
 }
 
-BNM::Coroutine::IEnumerator *BNM::Coroutine::IEnumerator::get() {
+BNM::Coroutine::IEnumerator *BNM::Coroutine::IEnumerator::Get() {
     // Creating an IEnumerator for il2cpp
     auto inst = (BNM::Coroutine::IEnumerator *) BNM::Class(IEnumeratorData::customClass.myClass).CreateNewInstance();
     inst->_current = nullptr;

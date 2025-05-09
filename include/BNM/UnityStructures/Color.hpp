@@ -1,5 +1,7 @@
 #pragma once
 
+#include "BNM/UserSettings/GlobalSettings.hpp"
+
 #include <string>
 #include <algorithm>
 
