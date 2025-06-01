@@ -22,12 +22,6 @@ namespace BNM::Internal {
     std::map<uint32_t, BNM::Class> customListsMap{};
     int32_t finalizerSlot = -1;
 
-    std::vector<BNM::IL2CPP::Il2CppAssembly *> *(*Assembly$$GetAllAssemblies)(){};
-
-    void (*orig_Image$$GetTypes)(const IL2CPP::Il2CppImage *image, bool exportedOnly, std::vector<BNM::IL2CPP::Il2CppClass *> *target){};
-
-    void (*Class$$Init)(IL2CPP::Il2CppClass *klass){};
-
     void *BNM_il2cpp_init_origin{};
     int (*old_BNM_il2cpp_init)(const char *){};
 
@@ -63,7 +57,7 @@ namespace BNM::Internal {
 using namespace BNM;
 
 IL2CPP::Il2CppImage *Internal::TryGetImage(const std::string_view &_name) {
-    auto &assemblies = *Internal::Assembly$$GetAllAssemblies();
+    auto &assemblies = *Internal::il2cppMethods.Assembly$$GetAllAssemblies();
 
     for (auto assembly : assemblies) {
         auto currentImage = Internal::il2cppMethods.il2cpp_assembly_get_image(assembly);
@@ -96,7 +90,7 @@ IL2CPP::Il2CppClass *Internal::TryGetClassInImage(const IL2CPP::Il2CppImage *ima
 
         for (auto cls : classes) {
             if (!cls) continue;
-            Internal::Class$$Init(cls);
+            Internal::il2cppMethods.Class$$Init(cls);
             if (cls->declaringType) continue;
             if (cls->namespaze == _namespace && cls->name == _name) return cls;
         }

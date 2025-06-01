@@ -42,7 +42,7 @@ IL2CPP::Il2CppClass *Internal::BNM_Class$$FromIl2CppType(IL2CPP::Il2CppReflectio
 void Internal::Image$$GetTypes(const IL2CPP::Il2CppImage *image, bool, std::vector<BNM::IL2CPP::Il2CppClass *> *target) {
     // Get non-BNM classes
     if (image->nameToClassHashTable != (decltype(image->nameToClassHashTable))-0x424e4d)
-        orig_Image$$GetTypes(image, false, target);
+        il2cppMethods.orig_Image$$GetTypes(image, false, target);
 
 #ifdef BNM_CLASSES_MANAGEMENT
     // Get BNM classes
@@ -124,7 +124,7 @@ IL2CPP::Il2CppImage *Internal::ClassesManagement::new_GetImageFromIndex(IL2CPP::
 // In Unity 2017 and below, the names are stored as a number in the metadata, so we can't use them
 // But we can check the name by images
 IL2CPP::Il2CppAssembly *Internal::ClassesManagement::Assembly$$Load(const char *name) {
-    auto &assemblies = *Assembly$$GetAllAssemblies();
+    auto &assemblies = *il2cppMethods.Assembly$$GetAllAssemblies();
 
     for (auto assembly : assemblies) {
 

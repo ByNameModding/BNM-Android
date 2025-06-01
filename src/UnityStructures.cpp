@@ -9,7 +9,7 @@ namespace BNM::Structures::Unity {
     void *RaycastHit::GetCollider() const {
         if (!m_Collider || (BNM_PTR) m_Collider < 0) return {};
 #if UNITY_VER > 174
-        static void *(*FromId)(int);
+        static void *(*FromId)(int){};
         if (!FromId) FromId = (decltype(FromId)) GetExternMethod(BNM_OBFUSCATE("UnityEngine.Object::FindObjectFromInstanceID"));
 #    if UNITY_VER >= 232
         return (void *) BNM::UnmarshalUnityObject((BNM_INT_PTR) FromId(m_Collider));
@@ -21,6 +21,20 @@ namespace BNM::Structures::Unity {
 #endif
     }
 
+    void *RaycastHit2D::GetCollider() const {
+        if (!m_Collider || (BNM_PTR) m_Collider < 0) return {};
+#if UNITY_VER > 174
+        static void *(*FromId)(int){};
+        if (!FromId) FromId = (decltype(FromId)) GetExternMethod(BNM_OBFUSCATE("UnityEngine.Object::FindObjectFromInstanceID"));
+#    if UNITY_VER >= 232
+        return (void *) BNM::UnmarshalUnityObject((BNM_INT_PTR) FromId(m_Collider));
+#    else
+        return FromId(m_Collider);
+#    endif
+#else
+        return m_Collider;
+#endif
+    }
     const Color Color::black = {0.f, 0.f, 0.f};
     const Color Color::red = {1.f, 0.f, 0.f};
     const Color Color::green = {0.f, 1.f, 0.f};

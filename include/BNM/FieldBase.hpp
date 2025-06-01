@@ -111,7 +111,7 @@ namespace BNM {
 
         BNM::IL2CPP::FieldInfo *_data{};
         BNM::IL2CPP::Il2CppObject *_instance{};
-        uint8_t _isStatic : 1 = false, _isThreadStatic : 1 = false, _isInStruct : 1 = false;
+        uint8_t _isStatic : 1 = false, _isThreadStatic : 1 = false, _isInStruct : 1 = false, _isConst : 1 = false;
     };
 
 #pragma pack(pop)

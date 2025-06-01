@@ -91,7 +91,7 @@ namespace BNM {
 #endif
 
     /// @cond
-    // For thread static fields
+    // For thread static adn const fields
     namespace PRIVATE_FieldUtils {
         void GetStaticValue(IL2CPP::FieldInfo *info, void *value);
         void SetStaticValue(IL2CPP::FieldInfo *info, void *value);

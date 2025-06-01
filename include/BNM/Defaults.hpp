@@ -9,7 +9,7 @@ namespace BNM {
     /**
         @brief Namespace that holds Unity math and helper structs.
 
-        It contains: Vector2, Vector3, Vector4, Color, Color32, Ray, RaycastHit, Quaternion, Matrix3x3, Matrix4x4.
+        It contains: Vector2, Vector3, Vector4, Color, Color32, Ray, RaycastHit, RaycastHit2D, Quaternion, Matrix3x3, Matrix4x4.
     */
     namespace Structures::Unity {
         struct Vector2;
@@ -19,6 +19,7 @@ namespace BNM {
         struct Color32;
         struct Ray;
         struct RaycastHit;
+        struct RaycastHit2D;
         struct Quaternion;
         struct Matrix3x3;
         struct Matrix4x4;
@@ -60,7 +61,7 @@ namespace BNM::Defaults {
     namespace Internal {
         typedef IL2CPP::Il2CppClass *ClassType;
         extern ClassType Void, Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, IntPtr, UIntPtr, Int64, UInt64, Single, Double, Decimal, String, Object;
-        extern ClassType Vector2, Vector3, Vector4, Color, Color32, Ray, Quaternion, Matrix3x3, Matrix4x4, RaycastHit;
+        extern ClassType Vector2, Vector3, Vector4, Color, Color32, Ray, Quaternion, Matrix3x3, Matrix4x4, RaycastHit, RaycastHit2D;
         extern ClassType UnityObject, MonoBehaviour;
     }
     /// @endcond
@@ -118,6 +119,7 @@ namespace BNM::Defaults {
         BNM::Structures::Unity::Matrix3x3, Matrix3x3, UnityEngine.Matrix3x3
         BNM::Structures::Unity::Matrix4x4, Matrix4x4, UnityEngine.Matrix4x4
         BNM::Structures::Unity::RaycastHit, RaycastHit, UnityEngine.RaycastHit
+        BNM::Structures::Unity::RaycastHit2D, RaycastHit2D, UnityEngine.RaycastHit2D
         BNM::UnityEngine::Object *, Object, UnityEngine.Object
         BNM::UnityEngine::MonoBehaviour *, MonoBehaviour, UnityEngine.MonoBehaviour
 
@@ -184,6 +186,8 @@ namespace BNM::Defaults {
             return {&Internal::Matrix4x4};
         else if constexpr (std::is_same_v<T, RaycastHit>)
             return {&Internal::RaycastHit};
+        else if constexpr (std::is_same_v<T, RaycastHit2D>)
+            return {&Internal::RaycastHit2D};
         else if constexpr (std::is_same_v<T, BNM::UnityEngine::Object *>)
             return {&Internal::UnityObject};
         else if constexpr (std::is_same_v<T, BNM::UnityEngine::MonoBehaviour *>)

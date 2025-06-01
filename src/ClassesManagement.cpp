@@ -12,10 +12,8 @@
 using namespace BNM;
 
 void BNM::MANAGEMENT_STRUCTURES::AddClass(CustomClass *_class) {
-    if (!BNM::Internal::ClassesManagement::classesManagementVector) {
-        Internal::ClassesManagement::classesManagementVector = (std::vector<MANAGEMENT_STRUCTURES::CustomClass *> *) BNM_malloc(sizeof(std::vector<MANAGEMENT_STRUCTURES::CustomClass *>));
-        memset((void *) Internal::ClassesManagement::classesManagementVector, 0, sizeof(std::vector<MANAGEMENT_STRUCTURES::CustomClass *>));
-    }
+    if (!BNM::Internal::ClassesManagement::classesManagementVector)
+        Internal::ClassesManagement::classesManagementVector = new (BNM_malloc(sizeof(std::vector<MANAGEMENT_STRUCTURES::CustomClass *>))) std::vector<MANAGEMENT_STRUCTURES::CustomClass *>();
 
     Internal::ClassesManagement::classesManagementVector->push_back(_class);
 }
@@ -40,6 +38,8 @@ static CustomClassInfo GetClassInfo(const BNM::CompileTimeClass &compileTimeClas
 static IL2CPP::Il2CppImage *MakeImage(std::string_view imageName);
 // The code for processing a new method for its subsequent creation/modification
 static IL2CPP::MethodInfo *ProcessCustomMethod(MANAGEMENT_STRUCTURES::CustomMethod *method, Class target, bool *hooked = nullptr);
+// The code for creating new methods
+static IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *method);
 // The code for setting data in fields
 static void SetupField(IL2CPP::FieldInfo *newField, MANAGEMENT_STRUCTURES::CustomField *field);
 
@@ -57,30 +57,32 @@ static void SetupTypes(IL2CPP::Il2CppClass *target);
 void Internal::ClassesManagement::ProcessCustomClasses() {
     if (classesManagementVector == nullptr) return;
 
-    for (auto customClass : *classesManagementVector) {
-        auto type = customClass->_targetType;
-        type._autoFree = false;
-        auto info = GetClassInfo(type);
-        if (info._class) ModifyClass(customClass, info._class);
-        else if (info._name) CreateClass(customClass, info);
-        else {
-#ifdef BNM_DEBUG
-            BNM_LOG_ERR(DBG_BNM_MSG_ClassesManagement_ProcessCustomClasses_Error);
-            Utils::LogCompileTimeClass(type);
-#endif
-        }
-        type.Free();
-        customClass->_interfaces.clear();
-        customClass->_interfaces.shrink_to_fit();
-        customClass->_fields.clear();
-        customClass->_fields.shrink_to_fit();
-        customClass->_methods.clear();
-        customClass->_methods.shrink_to_fit();
-    }
+    for (auto customClass : *classesManagementVector) BNM::ClassesManagement::ProcessClassRuntime(customClass);
 
     classesManagementVector->clear(); classesManagementVector->shrink_to_fit();
     BNM_free((void *) classesManagementVector);
     classesManagementVector = nullptr;
+}
+
+void ClassesManagement::ProcessClassRuntime(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass) {
+    auto type = customClass->_targetType;
+    type._autoFree = false;
+    auto info = GetClassInfo(type);
+    if (info._class) ModifyClass(customClass, info._class);
+    else if (info._name) CreateClass(customClass, info);
+    else {
+#ifdef BNM_DEBUG
+        BNM_LOG_ERR(DBG_BNM_MSG_ClassesManagement_ProcessCustomClasses_Error);
+        Utils::LogCompileTimeClass(type);
+#endif
+    }
+    type.Free();
+    customClass->_interfaces.clear();
+    customClass->_interfaces.shrink_to_fit();
+    customClass->_fields.clear();
+    customClass->_fields.shrink_to_fit();
+    customClass->_methods.clear();
+    customClass->_methods.shrink_to_fit();
 }
 
 static void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Class target) {
@@ -177,11 +179,11 @@ static void ModifyClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, Cl
 }
 
 static char forEmptyString = '\0';
-static const char *baseImageName = BNM_OBFUSCATE_TMP("Assembly-CSharp.dll");
+static const char *baseImageName = BNM_OBFUSCATE("Assembly-CSharp.dll");
 static void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, const CustomClassInfo &classInfo) {
     Image image{};
     if (classInfo._imageName) {
-        auto &assemblies = *Internal::Assembly$$GetAllAssemblies();
+        auto &assemblies = *Internal::il2cppMethods.Assembly$$GetAllAssemblies();
         for (auto assembly: assemblies) {
             auto currentImage = Internal::il2cppMethods.il2cpp_assembly_get_image(assembly);
             if (!Internal::CompareImageName(currentImage, classInfo._imageName)) continue;
@@ -253,6 +255,7 @@ static void CreateClass(BNM::MANAGEMENT_STRUCTURES::CustomClass *customClass, co
                 if (!hasFinalize) hasFinalize = v == Internal::finalizerSlot;
                 method->_origin = (BNM::IL2CPP::MethodInfo *) vTable.method;
                 method->_originalAddress = (void *) (vTable.method ? vTable.method->methodPointer : nullptr);
+                method->myInfo->slot = v;
                 vTable.method = method->myInfo;
                 vTable.methodPtr = method->myInfo->methodPointer;
 
@@ -494,7 +497,7 @@ static CustomClassInfo GetClassInfo(const BNM::CompileTimeClass &compileTimeClas
 }
 
 
-static const char *dotDllString = BNM_OBFUSCATE_TMP(".dll");
+static const char *dotDllString = BNM_OBFUSCATE(".dll");
 static IL2CPP::Il2CppImage *MakeImage(std::string_view imageName) {
     auto newImg = BNM_I2C_NEW(Il2CppImage);
 
@@ -584,23 +587,24 @@ static IL2CPP::Il2CppImage *MakeImage(std::string_view imageName) {
     newImg->nameToClassHashTable = (decltype(newImg->nameToClassHashTable)) -0x424e4d;
 
     // Add an assembly to the list
-    Internal::Assembly$$GetAllAssemblies()->push_back(newAsm);
+    Internal::il2cppMethods.Assembly$$GetAllAssemblies()->push_back(newAsm);
 
     BNM_LOG_INFO(DBG_BNM_MSG_ClassesManagement_MakeImage_Added_Image, imageName.data());
 
     return newImg;
 }
 
-static IL2CPP::VirtualInvokeData *TryFindVirtualMethod(Class target, IL2CPP::MethodInfo *targetMethod) {
+static IL2CPP::VirtualInvokeData *TryFindVirtualMethod(Class target, IL2CPP::MethodInfo *targetMethod, uint16_t *outSlot = nullptr) {
     for (uint16_t i = 0; i < target._data->vtable_count; ++i) {
         auto &it = target._data->vtable[i];
         if (it.method != targetMethod) continue;
+        if (outSlot) *outSlot = i;
         return &it;
     }
+    if (outSlot) *outSlot = 65535;
     return nullptr;
 }
 
-static IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *method);
 static IL2CPP::MethodInfo *ProcessCustomMethod(MANAGEMENT_STRUCTURES::CustomMethod *method, Class target, bool *hooked) {
     if (!target) return CreateMethod(method);
 
@@ -642,9 +646,13 @@ static IL2CPP::MethodInfo *ProcessCustomMethod(MANAGEMENT_STRUCTURES::CustomMeth
         auto parent = originalMethod;
         originalMethod = CreateMethod(method);
         if (!hooked || !isVirtual || !parent) return originalMethod;
-        if (auto vTable = TryFindVirtualMethod(target, parent); vTable != nullptr) {
+
+        // Trying to override virtual method
+        uint16_t slot{};
+        if (auto vTable = TryFindVirtualMethod(target, parent, &slot); vTable != nullptr) {
             method->_origin = parent;
             method->_originalAddress = (void *) parent->methodPointer;
+            originalMethod->slot = slot;
             vTable->methodPtr = (void (*)()) method->_address;
             vTable->method = originalMethod;
             return originalMethod;
@@ -707,6 +715,10 @@ static IL2CPP::MethodInfo *CreateMethod(MANAGEMENT_STRUCTURES::CustomMethod *met
 
     // BNM does not support the creation of generic methods
     myInfo->is_generic = false;
+    myInfo->is_inflated = false;
+
+    // If method is virtual BNM will set valid slot index later
+    myInfo->slot = 65535;
 
     // Set the return type
     auto methodType = method->_returnType.ToClass();
@@ -828,7 +840,7 @@ static void SetupClassParent(IL2CPP::Il2CppClass *target, IL2CPP::Il2CppClass *p
 }
 
 static void GetAllInterfaces(IL2CPP::Il2CppClass *parent, IL2CPP::Il2CppClass *interface, std::vector<IL2CPP::Il2CppClass *> &outInterfaces) { // NOLINT
-    Internal::Class$$Init(interface);
+    Internal::il2cppMethods.Class$$Init(interface);
     if (!HasInterface(parent, interface)) outInterfaces.push_back(interface);
     if (!interface->interfaces_count || interface->interfaces_count == (uint16_t) -1) return;
 

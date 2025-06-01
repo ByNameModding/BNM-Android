@@ -60,7 +60,7 @@ namespace BNM {
         T Get() const {
             BNM_LOG_ERR_IF(!_data, DBG_BNM_MSG_Field_GetSet_Error);
             if (!_data) return {};
-            if (_isThreadStatic) {
+            if (_isThreadStatic || _isConst) {
                 T val{};
                 PRIVATE_FieldUtils::GetStaticValue(_data, (void *)&val);
                 return val;
@@ -86,6 +86,10 @@ namespace BNM {
         void Set(T value) const {
             BNM_LOG_ERR_IF(!_data, DBG_BNM_MSG_Field_GetSet_Error);
             if (!_data) return;
+            if (_isConst) {
+                BNM_LOG_ERR(DBG_BNM_MSG_Field_Set_const_Error, str().c_str());
+                return;
+            }
             if (_isThreadStatic) {
                 PRIVATE_FieldUtils::SetStaticValue(_data, (void *)&value);
                 return;
@@ -129,6 +133,7 @@ namespace BNM {
             _isStatic = other._isStatic;
             _isThreadStatic = other._isThreadStatic;
             _isInStruct = other._isInStruct;
+            _isConst = other._isConst;
             return *this;
         }
     };

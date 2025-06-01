@@ -3,7 +3,7 @@
 
 namespace BNM::Defaults::Internal {
     ClassType Void{}, Boolean{}, Byte{}, SByte{}, Int16{}, UInt16{}, Int32{}, UInt32{}, IntPtr{}, UIntPtr{}, Int64{}, UInt64{}, Single{}, Double{}, Decimal{}, String{}, Object{};
-    ClassType Vector2{}, Vector3{}, Vector4{}, Color{}, Color32{}, Ray{}, Quaternion{}, Matrix3x3{}, Matrix4x4{}, RaycastHit{};
+    ClassType Vector2{}, Vector3{}, Vector4{}, Color{}, Color32{}, Ray{}, Quaternion{}, Matrix3x3{}, Matrix4x4{}, RaycastHit{}, RaycastHit2D{};
     ClassType UnityObject{}, MonoBehaviour{};
 }
 
@@ -46,6 +46,8 @@ void BNM::Internal::LoadDefaults() {
     Matrix4x4 = TryGetClassInImage(image, UnityEngineStr, BNM_OBFUSCATE_TMP("Matrix4x4"));
 
     RaycastHit = TryGetClassInImage(TryGetImage(BNM_OBFUSCATE_TMP("UnityEngine.PhysicsModule.dll")), UnityEngineStr, BNM_OBFUSCATE_TMP("RaycastHit"));
+
+    RaycastHit2D = TryGetClassInImage(TryGetImage(BNM_OBFUSCATE_TMP("UnityEngine.Physics2DModule.dll")), UnityEngineStr, BNM_OBFUSCATE_TMP("RaycastHit2D"));
 
     // Unity
     UnityObject = TryGetClassInImage(image, UnityEngineStr, ObjectStr);

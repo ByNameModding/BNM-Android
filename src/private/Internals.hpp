@@ -17,11 +17,9 @@
 #include <BNM/ClassesManagement.hpp>
 #include <BNM/Loading.hpp>
 
-
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
 #include <shared_mutex>
 #endif
-
 
 /// @cond
 namespace BNM::Internal {
@@ -50,8 +48,9 @@ namespace BNM::Internal {
     } vmData;
 
     //! \internal
-    // All il2cpp methods that can be used by BNM stored here to avoid searching for them every BNM call
+    // All il2cpp methods that can be used by BNM stored here to avoid searching them every BNM call
     extern struct Il2CppMethods {
+        // Exported il2cpp API methods
         BNM::IL2CPP::Il2CppImage *(*il2cpp_get_corlib)(){};
         BNM::IL2CPP::Il2CppClass *(*il2cpp_class_from_name)(const BNM::IL2CPP::Il2CppImage *, const char *, const char *){};
         BNM::IL2CPP::Il2CppImage *(*il2cpp_assembly_get_image)(const BNM::IL2CPP::Il2CppAssembly *){};
@@ -74,6 +73,11 @@ namespace BNM::Internal {
         void (*il2cpp_thread_detach)(IL2CPP::Il2CppThread *){};
         void *(*il2cpp_alloc)(size_t){};
         void (*il2cpp_free)(void*){};
+
+        // Direct il2cpp API methods
+        std::vector<BNM::IL2CPP::Il2CppAssembly *> *(*Assembly$$GetAllAssemblies)(){};
+        void (*orig_Image$$GetTypes)(const IL2CPP::Il2CppImage *image, bool exportedOnly, std::vector<BNM::IL2CPP::Il2CppClass *> *target){};
+        void (*Class$$Init)(IL2CPP::Il2CppClass *klass){};
     } il2cppMethods;
 
 #pragma pack(pop)
@@ -85,12 +89,7 @@ namespace BNM::Internal {
     extern std::map<uint32_t, BNM::Class> customListsMap;
     extern int32_t finalizerSlot;
 
-    extern std::vector<BNM::IL2CPP::Il2CppAssembly *> *(*Assembly$$GetAllAssemblies)();
-
-    extern void (*orig_Image$$GetTypes)(const IL2CPP::Il2CppImage *image, bool exportedOnly, std::vector<BNM::IL2CPP::Il2CppClass *> *target);
     void Image$$GetTypes(const IL2CPP::Il2CppImage *image, bool exportedOnly, std::vector<BNM::IL2CPP::Il2CppClass *> *target);
-
-    extern void (*Class$$Init)(IL2CPP::Il2CppClass *klass);
 
     void Load();
     void LateInit(void *il2cpp_class_from_il2cpp_type_addr);
@@ -170,6 +169,9 @@ namespace BNM::Internal {
         //! \internal
         // Structure for quick search classes by their images
         extern struct BNMClassesMap {
+            inline BNMClassesMap() {
+                _map = new (BNM_malloc(sizeof(std::map<BNM_PTR, std::vector<IL2CPP::Il2CppClass *>>))) std::map<BNM_PTR, std::vector<IL2CPP::Il2CppClass *>>();
+            }
             inline void AddClass(const IL2CPP::Il2CppImage *image, IL2CPP::Il2CppClass *cls) {
                 return AddClass((BNM_PTR)image, cls);
             }
@@ -178,14 +180,11 @@ namespace BNM::Internal {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
                 std::shared_lock lock(classesFindAccessMutex);
 #endif
-                _map[image].emplace_back(cls);
+                (*_map)[image].emplace_back(cls);
             }
 
             template <class IterateMethod>
             inline void ForEachByImage(const IL2CPP::Il2CppImage *image, IterateMethod func) {
-#ifdef BNM_ALLOW_MULTI_THREADING_SYNC
-                std::shared_lock lock(classesFindAccessMutex);
-#endif
                 return ForEachByImage((BNM_PTR)image, func);
             }
 
@@ -194,7 +193,7 @@ namespace BNM::Internal {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
                 std::shared_lock lock(classesFindAccessMutex);
 #endif
-                for (auto item : _map[image]) if (func(item)) break;
+                for (auto item : (*_map)[image]) if (func(item)) break;
             }
 
             template <class IterateMethod>
@@ -202,10 +201,10 @@ namespace BNM::Internal {
 #ifdef BNM_ALLOW_MULTI_THREADING_SYNC
                 std::shared_lock lock(classesFindAccessMutex);
 #endif
-                for (auto &[img, classes] : _map) if (func((IL2CPP::Il2CppImage *)img, classes)) break;
+                for (auto &[img, classes] : (*_map)) if (func((IL2CPP::Il2CppImage *)img, classes)) break;
             }
         private:
-            std::map<BNM_PTR, std::vector<IL2CPP::Il2CppClass *>> _map{};
+            std::map<BNM_PTR, std::vector<IL2CPP::Il2CppClass *>> *_map{};
         } bnmClassesMap;
     }
 

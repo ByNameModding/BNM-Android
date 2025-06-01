@@ -26,7 +26,7 @@ Class::Class(const MonoType *type) {
 Class::Class(const CompileTimeClass &type) { _data = type; }
 
 static IL2CPP::Il2CppClass *TryGetClassWithoutImage(const std::string_view &_namespace, const std::string_view &_name) {
-    auto &assemblies = *Internal::Assembly$$GetAllAssemblies();
+    auto &assemblies = *Internal::il2cppMethods.Assembly$$GetAllAssemblies();
 
     for (auto assembly : assemblies) {
         auto image = Internal::il2cppMethods.il2cpp_assembly_get_image(assembly);
@@ -350,7 +350,7 @@ BNM::IL2CPP::Il2CppObject *Class::CreateNewInstance() const {
 }
 
 // Try initializing the class if it is alive
-void Class::TryInit() const { if (_data) Internal::Class$$Init(_data); }
+void Class::TryInit() const { if (_data) Internal::il2cppMethods.Class$$Init(_data); }
 
 IL2CPP::Il2CppObject *Class::BoxObject(IL2CPP::Il2CppClass *_data, void *data) {
     return Internal::il2cppMethods.il2cpp_value_box(_data, data);
@@ -388,7 +388,7 @@ namespace CompileTimeClassProcessors {
 
         BNM::Image image{};
 
-        auto &assemblies = *Internal::Assembly$$GetAllAssemblies();
+        auto &assemblies = *Internal::il2cppMethods.Assembly$$GetAllAssemblies();
         for (auto assembly: assemblies) {
             auto currentImage = Internal::il2cppMethods.il2cpp_assembly_get_image(assembly);
             if (!Internal::CompareImageName(currentImage, classInfo->_imageName)) continue;

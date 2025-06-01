@@ -2,10 +2,13 @@
 
 #include <new>
 
+#include "UserSettings/GlobalSettings.hpp"
+
 #include "UnityStructures/Color.hpp"
 #include "UnityStructures/Quaternion.hpp"
 #include "UnityStructures/Ray.hpp"
 #include "UnityStructures/RaycastHit.hpp"
+#include "UnityStructures/RaycastHit2D.hpp"
 #include "UnityStructures/Rect.hpp"
 #include "UnityStructures/Vector2.hpp"
 #include "UnityStructures/Vector3.hpp"
@@ -13,7 +16,6 @@
 #include "UnityStructures/Matrix3x3.hpp"
 #include "UnityStructures/Matrix4x4.hpp"
 
-#include "UserSettings/GlobalSettings.hpp"
 #include "Il2CppHeaders.hpp"
 #include "Utils.hpp"
 #include "Delegates.hpp"

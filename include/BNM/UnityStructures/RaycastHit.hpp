@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "Vector3.hpp"
 #include "Vector2.hpp"
 

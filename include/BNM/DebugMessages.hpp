@@ -42,10 +42,12 @@
 #define DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_instance_dead_instance "Can't get instance %s field pointer without instance! Please set instance before trying to get the pointer."
 #define DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_static_dead_parent "Something went wrong, the static field %s does not have a class."
 #define DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_thread_static_unsupported "Getting a pointer to thread static fields is not supported, field: %s."
+#define DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_const_impossible "Getting a pointer to const fields is impossible, field: %s."
 
 #define DBG_BNM_MSG_Field_GetPointer_Dead "Dead"
 #define DBG_BNM_MSG_Field_GetPointer_Error "Null pointer in the field %s!"
 #define DBG_BNM_MSG_Field_GetSet_Error "An attempt to use dead field!"
+#define DBG_BNM_MSG_Field_Set_const_Error "Setting a const fields is impossible, field: %s."
 
 
 #define DBG_BNM_MSG_MethodBase_str_nullptr "Dead method"

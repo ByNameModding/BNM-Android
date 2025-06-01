@@ -13,20 +13,22 @@ namespace BNM::PRIVATE_FieldUtils {
 
 static bool CheckIsFieldStatic(IL2CPP::FieldInfo *field) {
     if (!field->type) return false;
-    return (field->type->attrs & 0x0010) != 0 && field->offset != -1 && (field->type->attrs & 0x0040) == 0;
+    // 0x0010 = FIELD_ATTRIBUTE_STATIC
+    return (field->type->attrs & 0x0010) != 0 && field->offset != -1;
 }
 
 FieldBase::FieldBase(IL2CPP::FieldInfo *info) {
     if (!info) return;
 
-    _isStatic = CheckIsFieldStatic(info);
+    _isConst = (info->type->attrs & 0x0040) != 0; // FIELD_ATTRIBUTE_LITERAL
+    _isStatic = !_isConst && CheckIsFieldStatic(info);
     _data = info;
     _isThreadStatic = _data->offset == -1;
     _isInStruct = Class(info->parent).GetIl2CppType()->type == IL2CPP::IL2CPP_TYPE_VALUETYPE;
 }
 
 FieldBase &FieldBase::SetInstance(IL2CPP::Il2CppObject *val)  {
-    if (_isStatic) {
+    if (_isStatic || _isConst) {
         BNM_LOG_WARN(DBG_BNM_MSG_FieldBase_SetInstance_Warn, str().c_str());
         return *this;
     }
@@ -49,6 +51,9 @@ void *FieldBase::GetFieldPointer() const {
         return nullptr;
     } else if (_isThreadStatic) {
         BNM_LOG_ERR(DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_thread_static_unsupported, str().c_str());
+        return nullptr;
+    } else if (_isConst) {
+        BNM_LOG_ERR(DBG_BNM_MSG_FieldBase_GetFieldPointer_Error_const_impossible, str().c_str());
         return nullptr;
     }
     if (_isStatic) return (void *) ((BNM_PTR) _data->parent->static_fields + _data->offset);

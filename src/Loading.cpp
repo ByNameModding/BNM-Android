@@ -294,8 +294,8 @@ void Internal::SetupBNM() {
     // il2cpp_array_new_specific ->
     // il2cpp::vm::Array::NewSpecific ->
     // il2cpp::vm::Class::Init
-    Class$$Init = (decltype(Class$$Init)) AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_array_new_specific)), count), count);
-    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Class_Init, OffsetInLib((void *)Class$$Init));
+    il2cppMethods.Class$$Init = (decltype(il2cppMethods.Class$$Init)) AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump((BNM_PTR) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_array_new_specific)), count), count);
+    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Class_Init, OffsetInLib((void *)il2cppMethods.Class$$Init));
 
 
 #define INIT_IL2CPP_API(name) il2cppMethods.name = (decltype(il2cppMethods.name)) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_##name))
@@ -342,9 +342,9 @@ void Internal::SetupBNM() {
         // il2cpp::icalls::mscorlib::System::Reflection::Assembly::GetTypes ->
         // il2cpp::icalls::mscorlib::System::Module::InternalGetTypes ->
         // il2cpp::vm::Image::GetTypes
-        orig_Image$$GetTypes = (decltype(orig_Image$$GetTypes)) AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump(GetTypesAdr, count), sCount), count);
+        il2cppMethods.orig_Image$$GetTypes = (decltype(il2cppMethods.orig_Image$$GetTypes)) AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump(AssemblerUtils::FindNextJump(GetTypesAdr, count), sCount), count);
 
-        BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Image_GetTypes, OffsetInLib((void *)orig_Image$$GetTypes));
+        BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Image_GetTypes, OffsetInLib((void *)il2cppMethods.orig_Image$$GetTypes));
     } else BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_image_get_class_exists);
 
 #ifdef BNM_CLASSES_MANAGEMENT
@@ -401,15 +401,15 @@ void Internal::SetupBNM() {
     // il2cpp_domain_get_assemblies ->
     // il2cpp::vm::Assembly::GetAllAssemblies
     auto adr = (BNM_PTR) GetIl2CppMethod(BNM_OBFUSCATE_TMP(BNM_IL2CPP_API_il2cpp_domain_get_assemblies));
-    Assembly$$GetAllAssemblies = (std::vector<IL2CPP::Il2CppAssembly *> *(*)())(AssemblerUtils::FindNextJump(adr, count));
-    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Assembly_GetAllAssemblies, OffsetInLib((void *)Assembly$$GetAllAssemblies));
+    il2cppMethods.Assembly$$GetAllAssemblies = (std::vector<IL2CPP::Il2CppAssembly *> *(*)())(AssemblerUtils::FindNextJump(adr, count));
+    BNM_LOG_DEBUG(DBG_BNM_MSG_SetupBNM_Assembly_GetAllAssemblies, OffsetInLib((void *)il2cppMethods.Assembly$$GetAllAssemblies));
 
     auto mscorlib = il2cppMethods.il2cpp_get_corlib();
 
     // Get MakeGenericMethod_impl. Depending on the version of Unity, it may be in different classes.
     auto runtimeMethodInfoClassPtr = TryGetClassInImage(mscorlib, BNM_OBFUSCATE_TMP("System.Reflection"), BNM_OBFUSCATE_TMP("RuntimeMethodInfo"));
     if (runtimeMethodInfoClassPtr) {
-        Internal::Class$$Init(runtimeMethodInfoClassPtr);
+        Internal::il2cppMethods.Class$$Init(runtimeMethodInfoClassPtr);
         vmData.RuntimeMethodInfo$$MakeGenericMethod_impl = BNM::MethodBase(IterateMethods(runtimeMethodInfoClassPtr, [methodName = BNM_OBFUSCATE_TMP("MakeGenericMethod_impl")](const MethodBase &methodBase) {
             return !strcmp(methodBase._data->name, methodName);
         }));
