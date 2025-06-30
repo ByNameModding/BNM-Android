@@ -2,6 +2,7 @@
 
 #include <new>
 #include <array>
+#include <vector>
 #include <string_view>
 
 #include "UserSettings/GlobalSettings.hpp"
