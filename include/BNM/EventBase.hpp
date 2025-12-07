@@ -88,7 +88,11 @@ namespace BNM {
             if (!_data) return BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_nullptr);
             auto isStatic = _hasAdd ? _add._isStatic : _hasRemove ? _remove._isStatic : _raise._isStatic;
             return Class(_data->parent).str() + BNM_OBFUSCATE(".(") +
+            #if UNITY_VER >= 233
+                   _data->name +
+            #else
                    ((Structures::Mono::String *)_data->name)->str() +
+            #endif
                    BNM_OBFUSCATE("){" DBG_BNM_MSG_EventBase_str_add ": ") + (_hasAdd ? BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_exists) : BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_not_exists)) +
                    BNM_OBFUSCATE(", " DBG_BNM_MSG_EventBase_str_remove ": ") + (_hasRemove ? BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_exists) : BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_not_exists)) +
                    BNM_OBFUSCATE(", " DBG_BNM_MSG_EventBase_str_raise ": ") + (_hasRaise ? BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_exists) : BNM_OBFUSCATE(DBG_BNM_MSG_EventBase_str_not_exists)) +
