@@ -34,6 +34,7 @@ void Internal::Load() {
 
     // Call all events after loading il2cpp
     auto events = onIl2CppLoaded;
+    if (events.IsEmpty()) return;
     auto current = events.lastElement->next;
     do {
         current->value();
