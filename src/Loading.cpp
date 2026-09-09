@@ -34,6 +34,7 @@ void Internal::Load() {
 
     // Call all events after loading il2cpp
     auto events = onIl2CppLoaded;
+    if (events.IsEmpty()) return;
     auto current = events.lastElement->next;
     do {
         current->value();
@@ -64,14 +65,19 @@ static bool CheckHandle(void *handle) {
 
 #if defined(__ARM_ARCH_7A__)
 #    define CURRENT_ARCH "armeabi-v7a"
+#    define CURRENT_ARCH_SPLIT "armeabi_v7a"
 #elif defined(__aarch64__)
 #    define CURRENT_ARCH "arm64-v8a"
+#    define CURRENT_ARCH_SPLIT "arm64_v8a"
 #elif defined(__i386__)
 #    define CURRENT_ARCH "x86"
+#    define CURRENT_ARCH_SPLIT "x86"
 #elif defined(__x86_64__)
 #    define CURRENT_ARCH "x86_64"
+#    define CURRENT_ARCH_SPLIT "x86_64"
 #elif defined(__riscv)
 #    define CURRENT_ARCH "riscv64"
+#    define CURRENT_ARCH_SPLIT "riscv64"
 #endif
 
 bool Loading::TryLoadByJNI(JNIEnv *env, jobject context) {
@@ -110,7 +116,7 @@ bool Loading::TryLoadByJNI(JNIEnv *env, jobject context) {
     file.clear();
 
     // Full path to library in split_config.architecture.apk /data/app/.../package name-.../split_config.architecture.apk!/lib/architecture/libil2cpp.so
-    file = std::string(cDir).substr(0, cDir.length() - 8) + BNM_OBFUSCATE_TMP("split_config." CURRENT_ARCH ".apk!/lib/" CURRENT_ARCH "/libil2cpp.so");
+    file = std::string(cDir).substr(0, cDir.length() - 8) + BNM_OBFUSCATE_TMP("split_config." CURRENT_ARCH_SPLIT ".apk!/lib/" CURRENT_ARCH "/libil2cpp.so");
     handle = BNM_dlopen(file.c_str(), RTLD_LAZY);
     if (!(result = CheckHandle(handle))) BNM_LOG_ERR(DBG_BNM_MSG_TryLoadByJNI_Fail);
 
