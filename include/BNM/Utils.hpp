@@ -143,7 +143,8 @@ namespace BNM {
         @return Unmarshaled unity object
     */
     inline BNM_INT_PTR UnmarshalUnityObject(BNM_INT_PTR gcHandlePtr) {
-        return *(BNM_INT_PTR *)(gcHandlePtr & ~(BNM_INT_PTR)1);
+        if (!gcHandlePtr) return 0;
+        return *(BNM_INT_PTR *)(uintptr_t)(gcHandlePtr & ~(BNM_INT_PTR)1);
     }
 #endif
 

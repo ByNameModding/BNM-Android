@@ -65,6 +65,15 @@ IL2CPP::Il2CppImage *Internal::TryGetImage(const std::string_view &_name) {
         return currentImage;
     }
 
+    // Transparent Corlib fallback across Unity 5.6 - Unity 6
+    // (mscorlib.dll vs System.Private.CoreLib.dll)
+    if (_name == BNM_OBFUSCATE_TMP("mscorlib.dll") || _name == BNM_OBFUSCATE_TMP("mscorlib") ||
+        _name == BNM_OBFUSCATE_TMP("System.Private.CoreLib.dll") || _name == BNM_OBFUSCATE_TMP("System.Private.CoreLib")) {
+        if (Internal::il2cppMethods.il2cpp_get_corlib) {
+            return Internal::il2cppMethods.il2cpp_get_corlib();
+        }
+    }
+
     return {};
 }
 

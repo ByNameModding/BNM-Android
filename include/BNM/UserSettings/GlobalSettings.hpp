@@ -22,7 +22,8 @@ static_assert(false, "ByNameModding requires C++20 and above!");
 //#define UNITY_VER 221 // 2022.1.x
 #define UNITY_VER 222 // 2022.2.x - 2022.3.x
 //#define UNITY_VER 231 // 2023.1.x
-//#define UNITY_VER 232 // 2023.2.x+
+//#define UNITY_VER 232 // 2023.2.x - 2023.3.x
+//#define UNITY_VER 600 // Unity 6 (6000.0.x - 6000.x LTS)
 
 #define UNITY_PATCH_VER 32 // Для особых случаев (For special cases)
 
